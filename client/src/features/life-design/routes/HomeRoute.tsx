@@ -1,4 +1,4 @@
-import { ArrowRight, Compass, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@librechat/client';
 import { useLifeBootstrapQuery } from '~/data-provider';
@@ -8,42 +8,48 @@ import FirstArchiveSetup from '../components/FirstArchiveSetup';
 import ReturningHome from '../components/ReturningHome';
 import { LifeError, LifeLoading } from '../components/PageState';
 
+const SAMPLE_BARS = [
+  { label: 'com_life_health', value: 5, low: false },
+  { label: 'com_life_work', value: 3, low: true },
+  { label: 'com_life_play', value: 5, low: false },
+  { label: 'com_life_love', value: 7, low: false },
+] as const;
+
 function PublicHome() {
   const localize = useLocalize();
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f5f0e8] text-[#201d18] dark:bg-[#171512] dark:text-[#f6f0e6]">
+    <main className="min-h-screen overflow-hidden bg-life-paper text-life-ink dark:bg-[#171512] dark:text-[#f6f0e6]">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-12">
-        <header className="flex items-center justify-between gap-4">
+        <header className="flex items-center justify-between gap-4 border-b border-life-rule pb-5 dark:border-white/10">
           <div>
-            <p className="text-xs font-semibold tracking-[0.24em] text-amber-800 dark:text-amber-300">
+            <p className="font-life-mono text-[10px] tracking-[0.26em] text-life-cinnabar">
               {localize('com_life_brand_eyebrow')}
             </p>
-            <p className="mt-1 text-lg font-semibold">{localize('com_life_brand')}</p>
+            <p className="mt-1 font-life-serif text-lg font-black">{localize('com_life_brand')}</p>
           </div>
           <Link
             to="/login?redirect_to=%2Fhome"
-            className="inline-flex min-h-11 items-center rounded-full border border-black/10 px-5 text-sm font-medium transition hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
+            className="inline-flex min-h-11 items-center border border-life-ink/20 px-5 font-life-sans text-sm transition hover:bg-life-ink/5 dark:border-white/15 dark:hover:bg-white/5"
           >
             {localize('com_life_login_archive')}
           </Link>
         </header>
 
-        <div className="grid flex-1 items-center gap-12 py-14 lg:grid-cols-[1.2fr_0.8fr] lg:py-20">
+        <div className="grid flex-1 items-center gap-14 py-14 lg:grid-cols-[1.15fr_0.85fr] lg:py-20">
           <section>
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-900/10 bg-white/55 px-4 py-2 text-sm text-amber-900 shadow-sm backdrop-blur dark:border-amber-200/10 dark:bg-white/5 dark:text-amber-200">
-              <Sparkles className="h-4 w-4" />
+            <p className="font-life-mono text-xs tracking-[0.2em] text-life-muted dark:text-gray-400">
               {localize('com_life_public_kicker')}
-            </div>
-            <h1 className="mt-7 max-w-4xl text-5xl font-semibold leading-[1.04] tracking-[-0.045em] sm:text-6xl">
+            </p>
+            <h1 className="mt-6 max-w-4xl font-life-serif text-[44px] font-black leading-[1.32] sm:text-[56px] sm:leading-[1.28]">
               {localize('com_life_public_title')}
             </h1>
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-[#5d5549] dark:text-[#c8bdad] sm:text-xl">
+            <p className="mt-7 max-w-[32em] font-life-sans text-lg leading-9 text-life-muted dark:text-[#c8bdad]">
               {localize('com_life_public_description')}
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Button
                 asChild
-                className="min-h-12 rounded-full bg-[#8d4b20] px-7 text-white hover:bg-[#743b17]"
+                className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-[15px] text-life-paper hover:bg-life-moss-deep"
               >
                 <Link to="/register">
                   {localize('com_life_start_first')}
@@ -53,62 +59,78 @@ function PublicHome() {
               <Button
                 asChild
                 variant="outline"
-                className="min-h-12 rounded-full border-black/10 bg-transparent px-7 dark:border-white/15"
+                className="min-h-12 rounded-[4px] border-life-ink/25 bg-transparent px-7 font-life-sans dark:border-white/15"
               >
                 <Link to="/login?redirect_to=%2Fhome">{localize('com_life_login_archive')}</Link>
               </Button>
             </div>
-            <p className="mt-6 text-sm text-[#756c60] dark:text-[#a99f92]">
+            <p className="mt-6 font-life-mono text-xs text-life-muted dark:text-[#a99f92]">
               {localize('com_life_boundary_short')}
             </p>
           </section>
 
-          <section className="relative">
-            <div className="absolute -inset-10 rounded-full bg-amber-500/10 blur-3xl" />
-            <div className="relative space-y-4 rounded-[36px] border border-black/10 bg-white/70 p-5 shadow-[0_30px_90px_rgba(76,54,31,0.15)] backdrop-blur dark:border-white/10 dark:bg-white/5 sm:p-7">
-              {(
-                [
-                  {
-                    number: '01',
-                    title: 'com_life_public_step_one',
-                    help: 'com_life_public_step_one_help',
-                    Icon: Compass,
-                  },
-                  {
-                    number: '02',
-                    title: 'com_life_public_step_two',
-                    help: 'com_life_public_step_two_help',
-                    Icon: Sparkles,
-                  },
-                  {
-                    number: '03',
-                    title: 'com_life_public_step_three',
-                    help: 'com_life_public_step_three_help',
-                    Icon: ShieldCheck,
-                  },
-                ] as const
-              ).map(({ number, title, help, Icon }) => (
-                <div
-                  key={number}
-                  className="rounded-3xl border border-black/5 bg-white/75 p-5 dark:border-white/5 dark:bg-black/10"
-                >
-                  <div className="flex items-start gap-4">
-                    <span className="mt-0.5 text-xs font-semibold tracking-[0.16em] text-amber-800 dark:text-amber-300">
-                      {number}
+          {/* 真实制品缩略:不解释流程,直接给看一份存档长什么样 */}
+          <section aria-label={localize('com_life_sample_no')}>
+            <div className="relative border border-life-ink/60 bg-[#F7F4EB] p-6 dark:border-white/20 dark:bg-white/5 sm:p-8">
+              <p className="font-life-mono text-[10.5px] tracking-[0.14em] text-life-muted dark:text-gray-400">
+                {localize('com_life_sample_no')}
+              </p>
+              <p className="mt-4 font-life-serif text-[22px] font-semibold leading-[1.7] underline decoration-life-cinnabar/50 decoration-2 underline-offset-[6px]">
+                {localize('com_life_sample_problem')}
+              </p>
+              <div className="mt-6 border-t border-life-ink/50 dark:border-white/20">
+                {SAMPLE_BARS.map((bar) => (
+                  <div
+                    key={bar.label}
+                    className="flex items-center gap-4 border-b border-life-rule py-2.5 dark:border-white/10"
+                  >
+                    <span className="w-12 flex-none font-life-serif text-sm font-semibold">
+                      {localize(bar.label)}
                     </span>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <Icon className="h-4 w-4 text-amber-700 dark:text-amber-300" />
-                        <h2 className="font-semibold">{localize(title)}</h2>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-[#6c6256] dark:text-[#b7ab9c]">
-                        {localize(help)}
-                      </p>
-                    </div>
+                    <span className="flex h-[5px] flex-1 gap-[2px]">
+                      {Array.from({ length: 10 }, (_, index) => (
+                        <i
+                          key={index}
+                          className={`flex-1 ${
+                            index < bar.value
+                              ? bar.low
+                                ? 'bg-life-cinnabar'
+                                : 'bg-life-moss'
+                              : 'bg-life-rule dark:bg-white/10'
+                          }`}
+                        />
+                      ))}
+                    </span>
+                    <span
+                      className={`w-10 flex-none text-right font-life-mono text-xs tabular-nums ${
+                        bar.low ? 'text-life-cinnabar' : 'text-life-muted dark:text-gray-400'
+                      }`}
+                    >
+                      {bar.value}/10
+                    </span>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {(['com_life_line_current', 'com_life_line_gone', 'com_life_line_wild'] as const).map(
+                  (key, index) => (
+                    <span
+                      key={key}
+                      className={`border px-3 py-1 font-life-mono text-[11px] ${
+                        index === 2
+                          ? 'border-life-cinnabar/50 text-life-cinnabar'
+                          : 'border-life-ink/25 text-life-muted dark:border-white/20 dark:text-gray-400'
+                      }`}
+                    >
+                      {String(index + 1).padStart(2, '0')} {localize(key)}
+                    </span>
+                  ),
+                )}
+              </div>
             </div>
+            <p className="mt-4 font-life-kai text-[15px] leading-7 text-life-brass">
+              {localize('com_life_sample_caption')}
+            </p>
           </section>
         </div>
       </div>
@@ -145,7 +167,7 @@ export default function HomeRoute() {
     content = <ReturningHome bootstrap={bootstrap.data} />;
   } else {
     content = (
-      <div className="h-full overflow-y-auto bg-surface-secondary px-5 py-10 sm:px-8">
+      <div className="h-full overflow-y-auto bg-life-paper px-5 py-10 dark:bg-surface-secondary sm:px-8">
         <FirstArchiveSetup initialName={user?.name || ''} />
       </div>
     );

@@ -15,6 +15,17 @@
     <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png" />
     <link rel="apple-touch-icon" href="assets/apple-touch-icon-180x180.png" />
+    <!-- 人生设计室 · 四种笔迹(见 DESIGN.md):宋体=判断 黑体=正文 文楷=人的声音 Plex Mono=数字证据 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css"
+      rel="stylesheet"
+    />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, interactive-widget=resizes-content"
@@ -35,12 +46,12 @@
       if (theme === 'dark') {
         backgroundColor = '#0d0d0d';
       } else if (theme === 'light') {
-        backgroundColor = '#ffffff';
+        backgroundColor = '#F2EFE6';
       } else if (theme === 'system') {
         const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        backgroundColor = prefersDarkScheme ? '#0d0d0d' : '#ffffff';
+        backgroundColor = prefersDarkScheme ? '#0d0d0d' : '#F2EFE6';
       } else {
-        backgroundColor = '#ffffff';
+        backgroundColor = '#F2EFE6';
       }
 
       loadingContainerStyle.innerHTML = `

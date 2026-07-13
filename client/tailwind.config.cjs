@@ -19,6 +19,13 @@ module.exports = {
     //   mono: ['Söhne Mono', 'monospace'],
     // },
     extend: {
+      // 人生设计室 design tokens(见 DESIGN.md「编辑部式私人档案」)
+      fontFamily: {
+        'life-serif': ['"Noto Serif SC"', 'serif'],
+        'life-sans': ['"Noto Sans SC"', '"PingFang SC"', 'sans-serif'],
+        'life-kai': ['"LXGW WenKai"', '"Noto Serif SC"', 'serif'],
+        'life-mono': ['"IBM Plex Mono"', 'monospace'],
+      },
       width: {
         authPageWidth: '370px',
       },
@@ -64,6 +71,24 @@ module.exports = {
         'shortcut-shake': 'shortcut-shake 0.25s ease-in-out',
       },
       colors: {
+        // 人生设计室 design tokens(见 DESIGN.md「编辑部式私人档案」)
+        life: {
+          paper: '#F2EFE6',
+          'paper-deep': '#E5DFD1',
+          ink: '#17201A',
+          moss: '#355B47',
+          'moss-deep': '#2A4938',
+          cinnabar: '#B94831',
+          'cinnabar-deep': '#9E3A26',
+          brass: '#80602D',
+          muted: '#585F57',
+          rule: '#D9D2C0',
+          // 实验:矿物血条色(默认关,见 DESIGN.md 实验 Token)
+          health: '#5B7F5E',
+          work: '#8F6A1D',
+          play: '#3D5B76',
+          love: '#A44A5E',
+        },
         gray: {
           20: '#ececf1',
           50: '#f7f7f8',

@@ -2,37 +2,56 @@ import type { LifeDashboards } from 'librechat-data-provider';
 import { useLocalize } from '~/hooks';
 
 const items = [
-  { key: 'health', label: 'com_life_health', color: 'bg-emerald-500' },
-  { key: 'work', label: 'com_life_work', color: 'bg-amber-500' },
-  { key: 'play', label: 'com_life_play', color: 'bg-sky-500' },
-  { key: 'love', label: 'com_life_love', color: 'bg-rose-500' },
+  { key: 'health', label: 'com_life_health', en: 'HEALTH' },
+  { key: 'work', label: 'com_life_work', en: 'WORK' },
+  { key: 'play', label: 'com_life_play', en: 'PLAY' },
+  { key: 'love', label: 'com_life_love', en: 'LOVE' },
 ] as const;
+
+const LOW_SCORE = 3;
 
 export default function DashboardBars({ values = {} }: { values?: LifeDashboards }) {
   const localize = useLocalize();
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2" aria-label={localize('com_life_bars_summary')}>
+    <div
+      className="border-t border-life-ink/70 dark:border-white/40"
+      aria-label={localize('com_life_bars_summary')}
+    >
       {items.map((item) => {
         const value = values[item.key];
-        const width = typeof value === 'number' ? Math.max(0, Math.min(100, value * 10)) : 0;
+        const filled = typeof value === 'number' ? Math.max(0, Math.min(10, Math.round(value))) : 0;
+        const low = typeof value === 'number' && value <= LOW_SCORE;
+        const fill = low ? 'bg-life-cinnabar' : 'bg-life-moss dark:bg-life-moss';
         return (
           <div
             key={item.key}
-            className="rounded-2xl border border-border-light bg-surface-primary p-4"
+            className="grid grid-cols-[96px_1fr_72px] items-center gap-5 border-b border-life-rule py-4 dark:border-white/10"
           >
-            <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-              <span className="font-medium text-text-primary">{localize(item.label)}</span>
-              <span className="tabular-nums text-text-secondary">
-                {typeof value === 'number' ? `${value}/10` : '—'}
+            <div>
+              <span className="font-life-serif text-base font-semibold text-life-ink dark:text-gray-100">
+                {localize(item.label)}
+              </span>
+              <span className="block font-life-mono text-[10px] tracking-[0.14em] text-life-muted dark:text-gray-500">
+                {item.en}
               </span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-surface-tertiary">
-              <div
-                className={`h-full rounded-full transition-[width] duration-500 ${item.color}`}
-                style={{ width: `${width}%` }}
-              />
+            <div className="flex h-[7px] gap-[3px]" role="presentation">
+              {Array.from({ length: 10 }, (_, index) => (
+                <i
+                  key={index}
+                  className={`flex-1 ${index < filled ? fill : 'bg-life-rule dark:bg-white/10'}`}
+                />
+              ))}
             </div>
+            <span
+              className={`text-right font-life-mono text-[15px] tabular-nums ${
+                low ? 'text-life-cinnabar' : 'text-life-ink dark:text-gray-200'
+              }`}
+            >
+              {typeof value === 'number' ? value : '—'}
+              <span className="text-life-muted dark:text-gray-500">/10</span>
+            </span>
           </div>
         );
       })}

@@ -1,22 +1,29 @@
 import { useState } from 'react';
-import { ArrowRight, FileText, LogOut, RotateCcw } from 'lucide-react';
+import { ArrowRight, LogOut, RotateCcw } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { LifeBootstrapResponse } from 'librechat-data-provider';
 import { Button } from '@librechat/client';
+import { useLifeArchiveQuery, useLifeInboxMutation } from '~/data-provider';
 import { useAuthContext, useLocalize } from '~/hooks';
 import DashboardBars from './DashboardBars';
 import FirstArchiveSetup from './FirstArchiveSetup';
+
+const dateText = (value?: string | null) =>
+  value ? new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(new Date(value)) : '';
 
 export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapResponse }) {
   const localize = useLocalize();
   const navigate = useNavigate();
   const { logout } = useAuthContext();
   const [diagnostic, setDiagnostic] = useState(false);
+  const [note, setNote] = useState('');
+  const archive = useLifeArchiveQuery({ retry: 0, refetchOnWindowFocus: false });
+  const capture = useLifeInboxMutation();
   const name = bootstrap.summary?.alias || bootstrap.user?.name || localize('com_life_friend');
 
   if (diagnostic) {
     return (
-      <div className="h-full overflow-y-auto bg-surface-secondary px-5 py-10 sm:px-8">
+      <div className="h-full overflow-y-auto bg-life-paper px-5 py-10 dark:bg-surface-secondary sm:px-8">
         <FirstArchiveSetup
           diagnostic
           initialName={name}
@@ -27,109 +34,217 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
     );
   }
 
+  const signals = (archive.data?.profile.signals || [])
+    .filter((signal) => signal.status !== 'resolved')
+    .slice(0, 2);
+  const timeline = (archive.data?.profile.timeline || []).slice(-3).reverse();
+
+  const saveNote = () => {
+    const text = note.trim();
+    if (!text || capture.isLoading) {
+      return;
+    }
+    capture.mutate(text, { onSuccess: () => setNote('') });
+  };
+
   return (
-    <main className="h-full overflow-y-auto bg-surface-secondary">
+    <main className="h-full overflow-y-auto bg-life-paper text-life-ink dark:bg-surface-secondary dark:text-gray-100">
       <div className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 lg:py-14">
-        <section className="overflow-hidden rounded-[32px] border border-amber-500/15 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.16),transparent_42%),linear-gradient(135deg,var(--surface-primary),var(--surface-secondary))] p-6 shadow-sm sm:p-10">
-          <p className="text-sm font-medium tracking-[0.18em] text-amber-700 dark:text-amber-300">
-            {localize('com_life_returning_eyebrow')}
+        {/* 眉标 + 欢迎 */}
+        <p className="font-life-mono text-[11.5px] tracking-[0.12em] text-life-muted dark:text-gray-500">
+          {localize('com_life_meta_observer')} ·{' '}
+          {localize('com_life_updated_at', { 0: dateText(archive.data?.profile.updatedAt) || '—' })}
+        </p>
+        <h1 className="mt-3 font-life-serif text-2xl font-semibold text-life-ink dark:text-gray-100 sm:text-3xl">
+          {localize('com_life_welcome_back', { 0: name })}
+        </h1>
+
+        {/* ① 真问题 = 视觉绝对主角 */}
+        <section className="mt-8" aria-labelledby="problem-title">
+          <p
+            id="problem-title"
+            className="font-life-mono text-[11px] tracking-[0.18em] text-life-muted dark:text-gray-500"
+          >
+            —— {localize('com_life_last_time')}
           </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-text-primary sm:text-5xl">
-            {localize('com_life_welcome_back', { 0: name })}
-          </h1>
-          <div className="mt-7 max-w-3xl border-l-2 border-amber-500 pl-5">
-            <p className="text-sm text-text-secondary">{localize('com_life_last_time')}</p>
-            <p className="mt-2 text-xl font-medium leading-8 text-text-primary sm:text-2xl">
-              {bootstrap.summary?.lastSurface || localize('com_life_archive_waiting')}
-            </p>
-          </div>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <p className="mt-4 max-w-[34em] font-life-serif text-3xl font-semibold leading-[1.6] text-life-ink underline decoration-life-cinnabar/50 decoration-2 underline-offset-8 dark:text-gray-100 sm:text-4xl sm:leading-[1.55]">
+            {bootstrap.summary?.lastSurface || localize('com_life_archive_waiting')}
+          </p>
+          {/* ② 唯一主行动 */}
+          <div className="mt-9 flex flex-wrap items-center gap-4">
             <Button
               type="button"
-              className="min-h-12 rounded-2xl bg-amber-600 px-6 text-white hover:bg-amber-700"
+              className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-[15px] text-life-paper hover:bg-life-moss-deep"
               onClick={() => navigate('/resume')}
             >
-              {localize('com_life_continue_archive')}
+              {localize('com_life_continue_here')}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-            <Button
+            <button
               type="button"
-              variant="outline"
-              className="min-h-12 rounded-2xl px-6"
+              className="min-h-11 border-b border-life-rule px-1 font-life-sans text-sm text-life-muted transition hover:border-life-ink hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
               onClick={() => navigate('/archive')}
             >
               {localize('com_life_view_archive')}
-            </Button>
+            </button>
           </div>
         </section>
 
-        <section className="mt-8" aria-labelledby="bars-title">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-sm text-text-secondary">{localize('com_life_current_snapshot')}</p>
-              <h2 id="bars-title" className="mt-1 text-2xl font-semibold text-text-primary">
-                {localize('com_life_four_bars')}
-              </h2>
+        {/* ③ 正在验证 + ⑤ 随手记速记 */}
+        <div className="mt-12 grid gap-5 lg:grid-cols-2">
+          <section
+            className="border border-life-rule bg-[#F7F4EB] p-6 dark:border-white/10 dark:bg-surface-primary"
+            style={{ borderTopWidth: 3, borderTopColor: '#355B47' }}
+            aria-labelledby="testing-title"
+          >
+            <p
+              id="testing-title"
+              className="font-life-mono text-[11px] tracking-[0.18em] text-life-moss"
+            >
+              {localize('com_life_testing_now')}
+            </p>
+            {signals.length ? (
+              <ul className="mt-4 space-y-4">
+                {signals.map((signal, index) => (
+                  <li key={signal.id || index}>
+                    <p className="font-life-serif text-lg font-semibold leading-8 text-life-ink dark:text-gray-100">
+                      {signal.description}
+                    </p>
+                    {signal.status && (
+                      <span className="mt-1 inline-block font-life-mono text-[11px] text-life-brass">
+                        {signal.status}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm leading-7 text-life-muted dark:text-gray-400">
+                {localize('com_life_no_signal_yet')}
+              </p>
+            )}
+          </section>
+
+          <section
+            className="border border-life-rule bg-[#F7F4EB] p-6 dark:border-white/10 dark:bg-surface-primary"
+            aria-labelledby="capture-title"
+          >
+            <p
+              id="capture-title"
+              className="font-life-mono text-[11px] tracking-[0.18em] text-life-muted dark:text-gray-500"
+            >
+              {localize('com_life_quick_capture')}
+            </p>
+            <textarea
+              value={note}
+              maxLength={2000}
+              rows={3}
+              placeholder={localize('com_life_inbox_placeholder')}
+              onChange={(event) => setNote(event.target.value)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                  event.preventDefault();
+                  saveNote();
+                }
+              }}
+              className="mt-4 w-full resize-none border-b border-life-rule bg-transparent pb-2 font-life-kai text-[16px] leading-8 text-[#3E4A40] outline-none placeholder:text-life-muted/60 focus:border-life-ink dark:text-gray-200 dark:placeholder:text-gray-600"
+            />
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span className="font-life-mono text-[10.5px] text-life-muted dark:text-gray-500">
+                {localize('com_life_quick_capture_hint')}
+              </span>
+              <button
+                type="button"
+                disabled={!note.trim() || capture.isLoading}
+                onClick={saveNote}
+                className="min-h-10 border border-life-moss px-4 font-life-sans text-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper disabled:opacity-40"
+              >
+                {capture.isSuccess && !note
+                  ? localize('com_life_quick_capture_done')
+                  : localize('com_life_inbox_save')}
+              </button>
             </div>
+          </section>
+        </div>
+
+        {/* ④ 四条血条 */}
+        <section className="mt-12" aria-labelledby="bars-title">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <h2
+              id="bars-title"
+              className="font-life-serif text-xl font-semibold text-life-ink dark:text-gray-100"
+            >
+              {localize('com_life_four_bars')}
+            </h2>
             <button
               type="button"
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-text-secondary transition hover:bg-surface-hover hover:text-text-primary"
+              className="inline-flex min-h-11 items-center gap-2 font-life-mono text-xs text-life-muted transition hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
               onClick={() => setDiagnostic(true)}
             >
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw className="h-3.5 w-3.5" />
               {localize('com_life_recheck_bars')}
             </button>
           </div>
           <DashboardBars values={bootstrap.summary?.dashboards} />
         </section>
 
-        <section className="mt-8 grid gap-4 sm:grid-cols-2">
+        {/* ⑦ 最近存档变更 */}
+        {timeline.length > 0 && (
+          <section className="mt-12" aria-labelledby="changes-title">
+            <h2
+              id="changes-title"
+              className="font-life-mono text-[11px] tracking-[0.18em] text-life-muted dark:text-gray-500"
+            >
+              {localize('com_life_recent_changes')}
+            </h2>
+            <div className="mt-3">
+              {timeline.map((entry, index) => (
+                <div
+                  key={`${entry.when || 'entry'}-${index}`}
+                  className="flex items-baseline gap-5 border-b border-life-rule py-3.5 dark:border-white/10"
+                >
+                  <span className="w-14 flex-none font-life-mono text-xs text-life-muted dark:text-gray-500">
+                    {dateText(entry.when)}
+                  </span>
+                  <span className="flex-1 text-sm leading-7 text-life-ink dark:text-gray-200">
+                    {entry.what}
+                  </span>
+                  {entry.source && (
+                    <span className="hidden flex-none font-life-mono text-[10.5px] text-life-brass sm:block">
+                      {entry.source}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 档案入口 + 换个人 */}
+        <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-life-ink/60 pt-6 dark:border-white/30">
           <Link
             to="/archive"
-            className="group rounded-3xl border border-border-light bg-surface-primary p-6 transition hover:-translate-y-0.5 hover:border-amber-500/30 hover:shadow-md"
+            className="font-life-sans text-sm text-life-ink underline decoration-life-rule underline-offset-4 hover:decoration-life-ink dark:text-gray-200"
           >
-            <FileText className="h-6 w-6 text-amber-600" />
-            <h2 className="mt-5 text-lg font-semibold text-text-primary">
-              {localize('com_life_archive_card')}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-text-secondary">
-              {localize('com_life_archive_card_help')}
-            </p>
+            {localize('com_life_archive_card')} →
           </Link>
-          {bootstrap.latestReportId ? (
+          {bootstrap.latestReportId && (
             <Link
               to={`/archive/reports/${bootstrap.latestReportId}`}
-              className="group rounded-3xl border border-border-light bg-surface-primary p-6 transition hover:-translate-y-0.5 hover:border-amber-500/30 hover:shadow-md"
+              className="font-life-sans text-sm text-life-ink underline decoration-life-rule underline-offset-4 hover:decoration-life-ink dark:text-gray-200"
             >
-              <FileText className="h-6 w-6 text-amber-600" />
-              <h2 className="mt-5 text-lg font-semibold text-text-primary">
-                {localize('com_life_latest_report')}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-text-secondary">
-                {localize('com_life_report_count', { 0: String(bootstrap.reportCount || 0) })}
-              </p>
+              {localize('com_life_latest_report')} →
             </Link>
-          ) : (
-            <div className="bg-surface-primary/60 rounded-3xl border border-dashed border-border-light p-6">
-              <FileText className="h-6 w-6 text-text-secondary" />
-              <h2 className="mt-5 text-lg font-semibold text-text-primary">
-                {localize('com_life_no_report_yet')}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-text-secondary">
-                {localize('com_life_no_report_help')}
-              </p>
-            </div>
           )}
-        </section>
-
-        <button
-          type="button"
-          className="mt-8 inline-flex min-h-11 items-center gap-2 text-sm text-text-secondary transition hover:text-text-primary"
-          onClick={() => logout('/home')}
-        >
-          <LogOut className="h-4 w-4" />
-          {localize('com_life_switch_person')}
-        </button>
+          <button
+            type="button"
+            className="ml-auto inline-flex min-h-11 items-center gap-2 font-life-sans text-sm text-life-muted transition hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
+            onClick={() => logout('/home')}
+          >
+            <LogOut className="h-4 w-4" />
+            {localize('com_life_switch_person')}
+          </button>
+        </div>
       </div>
     </main>
   );

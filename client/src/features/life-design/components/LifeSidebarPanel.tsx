@@ -67,13 +67,15 @@ export default function LifeSidebarPanel() {
   return (
     <div className="flex h-full min-h-0 flex-col px-3 py-4">
       <div className="px-2 pb-5">
-        <p className="text-xs font-medium tracking-[0.2em] text-amber-700 dark:text-amber-300">
+        <p className="font-life-mono text-[10px] tracking-[0.24em] text-life-cinnabar">
           {localize('com_life_brand_eyebrow')}
         </p>
-        <p className="mt-1 text-lg font-semibold text-text-primary">{localize('com_life_brand')}</p>
+        <p className="mt-1 font-life-serif text-lg font-black text-text-primary">
+          {localize('com_life_brand')}
+        </p>
       </div>
 
-      <div className="space-y-1" aria-label={localize('com_life_primary_navigation')}>
+      <div className="space-y-0.5" aria-label={localize('com_life_primary_navigation')}>
         {links.map((item) => {
           const active =
             item.href === '/resume'
@@ -85,10 +87,10 @@ export default function LifeSidebarPanel() {
               to={item.href}
               onClick={closeMobile}
               className={cn(
-                'flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors',
+                'flex min-h-11 items-center gap-3 border-l-2 px-3 font-life-sans text-sm transition-colors',
                 active
-                  ? 'bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                  : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+                  ? 'border-life-cinnabar bg-life-cinnabar/5 font-medium text-text-primary'
+                  : 'border-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary',
               )}
               aria-current={active ? 'page' : undefined}
             >
@@ -99,17 +101,17 @@ export default function LifeSidebarPanel() {
         })}
       </div>
 
-      <div className="mx-2 my-5 border-t border-border-light" />
+      <div className="mx-2 my-5 border-t border-life-rule dark:border-border-light" />
       <div className="min-h-0 flex-1 overflow-y-auto px-2">
         <Link
           to="/c/new"
           onClick={closeMobile}
-          className="mb-4 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-3 text-sm font-medium text-amber-800 transition hover:bg-amber-500/15 dark:text-amber-200"
+          className="mb-4 flex min-h-11 items-center justify-center gap-2 border border-dashed border-life-moss/60 px-3 font-life-sans text-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper dark:border-emerald-700/60 dark:text-emerald-400 dark:hover:bg-emerald-800 dark:hover:text-white"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           {localize('com_life_new_conversation')}
         </Link>
-        <p className="mb-3 text-xs font-medium tracking-[0.12em] text-text-secondary">
+        <p className="mb-3 font-life-mono text-[10px] tracking-[0.16em] text-text-secondary">
           {localize('com_life_recent_conversations')}
         </p>
         {recentContent}
