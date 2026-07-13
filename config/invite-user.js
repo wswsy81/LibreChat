@@ -1,11 +1,12 @@
 const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const mongoose = require('mongoose');
-const { checkEmailConfig } = require('@librechat/api');
+const { checkEmailConfig, createInvite } = require('@librechat/api');
 const { User } = require('@librechat/data-schemas').createModels(mongoose);
 require('module-alias')({ base: path.resolve(__dirname, '..', 'api') });
 const { askQuestion, silentExit } = require('./helpers');
-const { createInvite } = require('~/models/inviteUser');
 const { sendEmail } = require('~/server/utils');
+const { createToken } = require('~/models');
 const connect = require('./connect');
 
 (async () => {
@@ -21,11 +22,7 @@ const connect = require('./connect');
     console.purple('--------------------------');
   }
 
-  // Check if email service is enabled
-  if (!checkEmailConfig()) {
-    console.red('Error: Email service is not enabled!');
-    silentExit(1);
-  }
+  // 邀请制:未配置邮件服务时不报错退出，改为在下方打印邀请链接由主理人手动发送。
 
   // Get the email of the user to be invited
   let email = '';
@@ -48,7 +45,7 @@ const connect = require('./connect');
     silentExit(1);
   }
 
-  const token = await createInvite(email);
+  const token = await createInvite(email, { createToken });
   const inviteLink = `${process.env.DOMAIN_CLIENT}/register?token=${token}`;
 
   const appName = process.env.APP_TITLE || 'LibreChat';

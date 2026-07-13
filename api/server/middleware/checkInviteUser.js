@@ -1,5 +1,9 @@
+const { hashToken } = require('@librechat/data-schemas');
 const { getInvite: getInviteFn } = require('@librechat/api');
 const { createToken, findToken, deleteTokens } = require('~/models');
+
+/** 未来线：不绑邮箱的一次性邀请用这个哨兵邮箱标记（gen-invite.sh 默认生成这种）。 */
+const UNBOUND_INVITE_EMAIL = 'invite@future-lines.local';
 
 const getInvite = (encodedToken, email) =>
   getInviteFn(encodedToken, email, { createToken, findToken });
@@ -13,7 +17,9 @@ async function checkInviteUser(req, res, next) {
   }
 
   try {
-    const invite = await getInvite(token, req.body.email);
+    const hash = await hashToken(decodeURIComponent(token));
+    const unbound = await findToken({ token: hash, email: UNBOUND_INVITE_EMAIL });
+    const invite = unbound || (await getInvite(token, req.body.email));
 
     if (!invite || invite.error === true) {
       return res.status(400).json({ message: 'Invalid invite token' });
