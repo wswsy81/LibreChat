@@ -5,6 +5,7 @@ const mockEngine = { json: jest.fn(), text: jest.fn() };
 const mockFindOne = jest.fn();
 const mockLogger = { error: jest.fn() };
 const mockLifeShareLimiter = jest.fn((_req, _res, next) => next());
+const mockRunLifeOperation = jest.fn();
 
 jest.mock('@librechat/api', () => ({
   createLifeEngineClient: jest.fn(() => mockEngine),
@@ -23,6 +24,10 @@ jest.mock('mongoose', () => ({
 }));
 jest.mock('~/server/middleware/limiters', () => ({
   lifeShareLimiter: (...args) => mockLifeShareLimiter(...args),
+}));
+jest.mock('~/server/services/lifeOperations', () => ({
+  runLifeOperation: (...args) => mockRunLifeOperation(...args),
+  LifeOperationPendingError: class LifeOperationPendingError extends Error {},
 }));
 jest.mock('~/server/middleware/optionalJwtAuth', () => (_req, _res, next) => next());
 jest.mock('~/server/middleware/requireJwtAuth', () => (_req, _res, next) => next());
@@ -51,6 +56,10 @@ function buildApp(user) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockFindOne.mockReturnValue(conversationQuery(null));
+  mockRunLifeOperation.mockImplementation(async ({ executor }) => ({
+    ...(await executor()),
+    replayed: false,
+  }));
 });
 
 test('anonymous bootstrap stays on the product home without calling future-engine', async () => {
@@ -122,9 +131,19 @@ test('onboarding validates all four bars and returns a one-time auto-submit rout
     });
   expect(invalid.status).toBe(422);
 
+  const missingKey = await request(app)
+    .post('/api/life/onboarding')
+    .send({
+      archiveName: '张东',
+      dashboards: { health: 6, work: 3, play: 7, love: 5 },
+    });
+  expect(missingKey.status).toBe(400);
+  expect(missingKey.body.error.code).toBe('MISSING_IDEMPOTENCY_KEY');
+
   mockEngine.json.mockResolvedValue({ ok: true, profileVersion: 'v1', applied: 5 });
   const valid = await request(app)
     .post('/api/life/onboarding')
+    .set('Idempotency-Key', 'onboarding-1')
     .send({
       archiveName: '张东',
       dashboards: { health: 6, work: 3, play: 7, love: 5 },
@@ -139,7 +158,7 @@ test('onboarding validates all four bars and returns a one-time auto-submit rout
 test('resume restores an existing conversation and only creates D-mode when none exists', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
   mockFindOne.mockReturnValueOnce(conversationQuery({ conversationId: 'conversation-1' }));
-  const restored = await request(app).post('/api/life/resume');
+  const restored = await request(app).post('/api/life/resume').set('Idempotency-Key', 'resume-1');
   expect(restored.body).toEqual({
     action: 'restored',
     conversationId: 'conversation-1',
@@ -147,7 +166,7 @@ test('resume restores an existing conversation and only creates D-mode when none
   });
 
   mockFindOne.mockReturnValueOnce(conversationQuery(null));
-  const created = await request(app).post('/api/life/resume');
+  const created = await request(app).post('/api/life/resume').set('Idempotency-Key', 'resume-2');
   expect(created.body.action).toBe('new');
   expect(decodeURIComponent(created.body.route)).toContain('先读回我的人生存档');
 });
@@ -166,14 +185,32 @@ test('private report HTML forwards the trusted owner and applies a restrictive C
 });
 
 test('share creation exposes only the branded public route, never the raw engine token URL', async () => {
-  mockEngine.json.mockResolvedValue({ shareId: 'share-1', token: 'secret-token', expiresAt: null });
-  const response = await request(buildApp({ id: 'user-1', name: '张东' }))
+  const app = buildApp({ id: 'user-1', name: '张东' });
+  const missingKey = await request(app)
     .post('/api/life/reports/report-1/shares')
     .send({ expiresAt: null });
-  expect(response.status).toBe(201);
-  expect(response.body).toEqual({
+  expect(missingKey.status).toBe(400);
+
+  mockEngine.json.mockImplementation(async (_path, options) => ({
     shareId: 'share-1',
+    token: options.body.token,
     expiresAt: null,
-    shareUrl: '/s/archive/secret-token',
-  });
+  }));
+  const response = await request(app)
+    .post('/api/life/reports/report-1/shares')
+    .set('Idempotency-Key', 'share-gesture-1')
+    .send({ expiresAt: null });
+  expect(response.status).toBe(201);
+  expect(response.body.shareId).toBe('share-1');
+  expect(response.body.expiresAt).toBeNull();
+  expect(response.body.shareUrl).toMatch(/^\/s\/archive\/[A-Za-z0-9_-]{43}$/);
+
+  const replay = await request(app)
+    .post('/api/life/reports/report-1/shares')
+    .set('Idempotency-Key', 'share-gesture-1')
+    .send({ expiresAt: null });
+  expect(replay.body.shareUrl).toBe(response.body.shareUrl);
+  expect(mockEngine.json.mock.calls[0][1].body.token).toBe(
+    mockEngine.json.mock.calls[1][1].body.token,
+  );
 });

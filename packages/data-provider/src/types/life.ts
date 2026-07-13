@@ -41,6 +41,8 @@ export interface LifeOnboardingResponse {
   applied: number;
   prompt: string;
   route: string;
+  operationId?: string;
+  replayed?: boolean;
 }
 
 export interface LifeDiagnosticRequest {
@@ -57,6 +59,8 @@ export interface LifeResumeResponse {
   action: 'restored' | 'new';
   conversationId: string | null;
   route: string;
+  operationId?: string;
+  replayed?: boolean;
 }
 
 export interface LifeSignal {

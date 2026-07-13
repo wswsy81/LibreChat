@@ -5,6 +5,7 @@ import type { LifeDashboards } from 'librechat-data-provider';
 import { Button } from '@librechat/client';
 import { useLifeDiagnosticMutation, useLifeOnboardingMutation } from '~/data-provider';
 import { useLocalize } from '~/hooks';
+import { isConsumed, markConsumed } from '../oneShot';
 
 const fields = [
   { key: 'health', label: 'com_life_health', hint: 'com_life_health_hint' },
@@ -71,7 +72,19 @@ export default function FirstArchiveSetup({
     }
     onboarding.mutate(
       { archiveName: archiveName.trim(), dashboards: values, birthOptIn },
-      { onSuccess: (result) => navigate(result.route, { replace: true }) },
+      {
+        onSuccess: (result) => {
+          if (result.operationId) {
+            const marker = `life:onboarding:${result.operationId}`;
+            if (isConsumed(marker)) {
+              navigate('/', { replace: true });
+              return;
+            }
+            markConsumed(marker);
+          }
+          navigate(result.route, { replace: true });
+        },
+      },
     );
   };
 

@@ -1,10 +1,12 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const { createHmac, randomUUID } = require('crypto');
 const { createLifeEngineClient, LifeEngineError } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 const { lifeShareLimiter } = require('~/server/middleware/limiters');
 const optionalJwtAuth = require('~/server/middleware/optionalJwtAuth');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
+const { runLifeOperation, LifeOperationPendingError } = require('~/server/services/lifeOperations');
 
 const router = express.Router();
 const engine = createLifeEngineClient({
@@ -44,7 +46,40 @@ async function latestLifeConversation(id) {
     .lean();
 }
 
+const RESUME_REPLAY_WINDOW_MS = 10 * 60 * 1000;
+const SHARE_TOKEN_SECRET =
+  process.env.LIFE_SHARE_TOKEN_SECRET ||
+  process.env.JWT_SECRET ||
+  process.env.FUTURE_ENGINE_INTERNAL_TOKEN ||
+  'future-lines-local-internal';
+
+function idempotencyKeyOf(req, res) {
+  const key = String(req.get('Idempotency-Key') || '').trim();
+  if (!key || key.length > 128) {
+    res.status(400).json({
+      error: { code: 'MISSING_IDEMPOTENCY_KEY', message: '缺少有效的 Idempotency-Key 请求头' },
+    });
+    return null;
+  }
+  return key;
+}
+
+function shareTokenFor({ id, reportId, idempotencyKey }) {
+  return createHmac('sha256', SHARE_TOKEN_SECRET)
+    .update(JSON.stringify([id, reportId, idempotencyKey]))
+    .digest('base64url');
+}
+
 function engineError(res, error) {
+  if (error instanceof LifeOperationPendingError) {
+    return res.status(409).json({
+      error: {
+        code: 'LIFE_OPERATION_PENDING',
+        message: '操作正在处理，请稍后重试',
+        retryable: true,
+      },
+    });
+  }
   if (error instanceof LifeEngineError) {
     return res.status(error.status).json(
       error.payload || {
@@ -185,17 +220,30 @@ router.post('/onboarding', async (req, res) => {
       .status(422)
       .json({ error: { code: 'INVALID_DASHBOARDS', message: '四条血条都需要 0–10 的整数' } });
   }
+  const key = idempotencyKeyOf(req, res);
+  if (!key) {
+    return;
+  }
   try {
-    const result = await engine.json('/internal/onboarding', {
+    const outcome = await runLifeOperation({
       userId: userId(req),
-      method: 'POST',
-      body: {
-        archiveName: String(req.body?.archiveName || req.user.name || '朋友').slice(0, 40),
-        dashboards,
+      operation: 'onboarding',
+      idempotencyKey: key,
+      replayWindowMs: RESUME_REPLAY_WINDOW_MS,
+      executor: async () => {
+        const result = await engine.json('/internal/onboarding', {
+          userId: userId(req),
+          method: 'POST',
+          body: {
+            archiveName: String(req.body?.archiveName || req.user.name || '朋友').slice(0, 40),
+            dashboards,
+          },
+        });
+        const prompt = onboardingPrompt(dashboards, req.body?.birthOptIn === true);
+        return { ...result, prompt, route: chatRoute(prompt), operationId: randomUUID() };
       },
     });
-    const prompt = onboardingPrompt(dashboards, req.body?.birthOptIn === true);
-    return res.json({ ...result, prompt, route: chatRoute(prompt) });
+    return res.json(outcome);
   } catch (error) {
     return engineError(res, error);
   }
@@ -211,22 +259,36 @@ router.post('/diagnostics/blood-bars', async (req, res) => {
       .status(422)
       .json({ error: { code: 'INVALID_DASHBOARDS', message: '四条血条都需要 0–10 的整数' } });
   }
+  const key = idempotencyKeyOf(req, res);
+  if (!key) {
+    return;
+  }
   try {
-    return res.json(
-      await engine.json('/internal/diagnostics/blood-bars', {
-        userId: userId(req),
-        method: 'POST',
-        body: { dashboards },
-      }),
-    );
+    const outcome = await runLifeOperation({
+      userId: userId(req),
+      operation: 'blood-bars',
+      idempotencyKey: key,
+      executor: () =>
+        engine.json('/internal/diagnostics/blood-bars', {
+          userId: userId(req),
+          method: 'POST',
+          body: { dashboards },
+        }),
+    });
+    return res.json(outcome);
   } catch (error) {
     return engineError(res, error);
   }
 });
 
 router.post('/resume', async (req, res) => {
+  const key = idempotencyKeyOf(req, res);
+  if (!key) {
+    return;
+  }
   try {
-    const conversation = await latestLifeConversation(userId(req));
+    const id = userId(req);
+    const conversation = await latestLifeConversation(id);
     if (conversation?.conversationId) {
       return res.json({
         action: 'restored',
@@ -234,8 +296,32 @@ router.post('/resume', async (req, res) => {
         route: `/c/${conversation.conversationId}`,
       });
     }
-    const prompt = '我回来了。先读回我的人生存档，看看上次聊到哪、这段时间哪些变了，从那儿接着聊。';
-    return res.json({ action: 'new', conversationId: null, route: chatRoute(prompt) });
+    const outcome = await runLifeOperation({
+      userId: id,
+      operation: 'resume-create',
+      idempotencyKey: key,
+      replayWindowMs: RESUME_REPLAY_WINDOW_MS,
+      persistIf: (result) => result.action === 'new',
+      executor: async () => {
+        const recheck = await latestLifeConversation(id);
+        if (recheck?.conversationId) {
+          return {
+            action: 'restored',
+            conversationId: recheck.conversationId,
+            route: `/c/${recheck.conversationId}`,
+          };
+        }
+        const prompt =
+          '我回来了。先读回我的人生存档，看看上次聊到哪、这段时间哪些变了，从那儿接着聊。';
+        return {
+          action: 'new',
+          conversationId: null,
+          route: chatRoute(prompt),
+          operationId: randomUUID(),
+        };
+      },
+    });
+    return res.json(outcome);
   } catch (error) {
     return engineError(res, error);
   }
@@ -275,15 +361,21 @@ router.get('/reports/:id/export.html', (req, res) => reportHtml(req, res, 'html'
 router.get('/reports/:id/print.html', (req, res) => reportHtml(req, res, 'print'));
 
 router.post('/reports/:id/shares', async (req, res) => {
+  const key = idempotencyKeyOf(req, res);
+  if (!key) {
+    return;
+  }
   try {
-    const result = await engine.json(
-      `/internal/reports/${encodeURIComponent(req.params.id)}/shares`,
-      {
-        userId: userId(req),
-        method: 'POST',
-        body: { expiresAt: req.body?.expiresAt || null },
+    const id = userId(req);
+    const reportId = String(req.params.id);
+    const result = await engine.json(`/internal/reports/${encodeURIComponent(reportId)}/shares`, {
+      userId: id,
+      method: 'POST',
+      body: {
+        expiresAt: req.body?.expiresAt || null,
+        token: shareTokenFor({ id, reportId, idempotencyKey: key }),
       },
-    );
+    });
     return res.status(201).json({
       shareId: result.shareId,
       expiresAt: result.expiresAt,

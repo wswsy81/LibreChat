@@ -19,20 +19,22 @@ export function getLifeBootstrap(): Promise<t.LifeBootstrapResponse> {
   return request.get(endpoints.lifeBootstrap());
 }
 
+const idempotencyHeaders = () => ({ headers: { 'Idempotency-Key': crypto.randomUUID() } });
+
 export function createLifeOnboarding(
   payload: t.LifeOnboardingRequest,
 ): Promise<t.LifeOnboardingResponse> {
-  return request.post(endpoints.lifeOnboarding(), payload);
+  return request.post(endpoints.lifeOnboarding(), payload, idempotencyHeaders());
 }
 
 export function createLifeDiagnostic(
   payload: t.LifeDiagnosticRequest,
 ): Promise<t.LifeDiagnosticResponse> {
-  return request.post(endpoints.lifeDiagnostic(), payload);
+  return request.post(endpoints.lifeDiagnostic(), payload, idempotencyHeaders());
 }
 
 export function resumeLifeConversation(): Promise<t.LifeResumeResponse> {
-  return request.post(endpoints.lifeResume());
+  return request.post(endpoints.lifeResume(), undefined, idempotencyHeaders());
 }
 
 export function getLifeArchive(): Promise<t.LifeArchiveResponse> {
@@ -59,7 +61,7 @@ export function createLifeShare(
   id: string,
   expiresAt: string | null,
 ): Promise<t.LifeShareResponse> {
-  return request.post(endpoints.lifeReportShares(id), { expiresAt });
+  return request.post(endpoints.lifeReportShares(id), { expiresAt }, idempotencyHeaders());
 }
 
 export function revokeLifeShare(id: string, shareId: string): Promise<{ ok: boolean }> {
