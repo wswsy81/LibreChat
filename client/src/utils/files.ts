@@ -430,6 +430,34 @@ export const getViableUploadOptions = (
   return options;
 };
 
+export type PasteUploadRoute =
+  | { autoRoute: false }
+  | { autoRoute: true; toolResource: EToolResources | undefined };
+
+/**
+ * Pasted screenshots should behave like a normal chat attachment: attach immediately instead of
+ * asking whether the same image should also be OCR'd or sent to the code environment. Non-image
+ * files keep the destination chooser whenever more than one processing route is available.
+ */
+export const getPasteUploadRoute = (
+  fileList: File[],
+  options: (EToolResources | undefined)[],
+): PasteUploadRoute => {
+  if (options.length === 1) {
+    return { autoRoute: true, toolResource: options[0] };
+  }
+
+  const allImages =
+    fileList.length > 0 &&
+    fileList.every((file) => inferMimeType(file.name, file.type)?.startsWith('image/'));
+
+  if (allImages && options.includes(undefined)) {
+    return { autoRoute: true, toolResource: undefined };
+  }
+
+  return { autoRoute: false };
+};
+
 export function sortPagesByRelevance(
   pages: number[],
   pageRelevance: Record<number, number>,

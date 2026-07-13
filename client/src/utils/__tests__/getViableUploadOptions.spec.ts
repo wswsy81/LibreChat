@@ -1,6 +1,6 @@
 import { EToolResources } from 'librechat-data-provider';
 import type { FileConfig } from 'librechat-data-provider';
-import { getViableUploadOptions, type UploadOptionContext } from '../files';
+import { getPasteUploadRoute, getViableUploadOptions, type UploadOptionContext } from '../files';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -143,5 +143,31 @@ describe('getViableUploadOptions', () => {
     expect(getViableUploadOptions([file(XLSX, 'report.xlsx')], ctx)).toEqual([
       EToolResources.execute_code,
     ]);
+  });
+});
+
+describe('getPasteUploadRoute', () => {
+  it('directly attaches a pasted screenshot when other image routes are also available', () => {
+    expect(
+      getPasteUploadRoute(
+        [file('image/png', 'screenshot.png')],
+        [undefined, EToolResources.execute_code, EToolResources.context],
+      ),
+    ).toEqual({ autoRoute: true, toolResource: undefined });
+  });
+
+  it('keeps the chooser for non-image files with multiple routes', () => {
+    expect(
+      getPasteUploadRoute(
+        [file('application/pdf', 'document.pdf')],
+        [undefined, EToolResources.execute_code, EToolResources.context],
+      ),
+    ).toEqual({ autoRoute: false });
+  });
+
+  it('auto-routes a single available destination', () => {
+    expect(
+      getPasteUploadRoute([file('text/plain', 'notes.txt')], [EToolResources.context]),
+    ).toEqual({ autoRoute: true, toolResource: EToolResources.context });
   });
 });

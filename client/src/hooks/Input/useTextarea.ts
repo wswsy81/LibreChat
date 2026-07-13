@@ -17,6 +17,7 @@ import {
   getEntityName,
   getEntity,
   checkIfScrollable,
+  getPasteUploadRoute,
 } from '~/utils';
 import { useAssistantsMapContext } from '~/Providers/AssistantsMapContext';
 import { useLatestMessage } from '~/hooks/Messages/useLatestMessage';
@@ -311,9 +312,10 @@ export default function useTextarea({
           setFilesLoading(false);
           return;
         }
-        if (options.length === 1) {
-          routeFiles(timestampedFiles, options[0]);
-          if (options[0] === EToolResources.context) {
+        const pasteRoute = getPasteUploadRoute(timestampedFiles, options);
+        if (pasteRoute.autoRoute) {
+          routeFiles(timestampedFiles, pasteRoute.toolResource);
+          if (pasteRoute.toolResource === EToolResources.context) {
             showToast({ message: localize('com_ui_file_attached_as_text'), status: 'info' });
           }
           return;
