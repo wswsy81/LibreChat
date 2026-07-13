@@ -335,6 +335,33 @@ router.get('/archive', async (req, res) => {
   }
 });
 
+router.get('/inbox', async (req, res) => {
+  try {
+    return res.json(await engine.json('/internal/inbox', { userId: userId(req) }));
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+router.post('/inbox', async (req, res) => {
+  const text = String(req.body?.text || '').trim();
+  if (!text) {
+    return res
+      .status(422)
+      .json({ error: { code: 'INBOX_EMPTY', message: '随手记内容不能为空' } });
+  }
+  try {
+    const result = await engine.json('/internal/inbox', {
+      userId: userId(req),
+      method: 'POST',
+      body: { text },
+    });
+    return res.status(201).json(result);
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
 router.get('/reports', async (req, res) => {
   try {
     return res.json(await engine.json('/internal/reports', { userId: userId(req) }));

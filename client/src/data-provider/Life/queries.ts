@@ -4,6 +4,7 @@ import type { QueryObserverResult, UseQueryOptions } from '@tanstack/react-query
 import type {
   LifeArchiveResponse,
   LifeBootstrapResponse,
+  LifeInboxListResponse,
   LifePublicShareResponse,
   LifeReportResponse,
 } from 'librechat-data-provider';
@@ -24,6 +25,17 @@ export const useLifeArchiveQuery = (
 ): QueryObserverResult<LifeArchiveResponse> =>
   useQuery<LifeArchiveResponse>([QueryKeys.lifeArchive], dataService.getLifeArchive, {
     staleTime: 30_000,
+    cacheTime: 60_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+    ...config,
+  });
+
+export const useLifeInboxQuery = (
+  config?: UseQueryOptions<LifeInboxListResponse>,
+): QueryObserverResult<LifeInboxListResponse> =>
+  useQuery<LifeInboxListResponse>([QueryKeys.lifeInbox], dataService.getLifeInbox, {
+    staleTime: 15_000,
     cacheTime: 60_000,
     refetchOnWindowFocus: true,
     retry: 1,

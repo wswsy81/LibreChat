@@ -49,6 +49,7 @@ export const lifeOnboarding = () => `${lifeRoot}/onboarding`;
 export const lifeDiagnostic = () => `${lifeRoot}/diagnostics/blood-bars`;
 export const lifeResume = () => `${lifeRoot}/resume`;
 export const lifeArchive = () => `${lifeRoot}/archive`;
+export const lifeInbox = () => `${lifeRoot}/inbox`;
 export const lifeReports = () => `${lifeRoot}/reports`;
 export const lifeReport = (id: string) => `${lifeReports()}/${encodeURIComponent(id)}`;
 export const lifeReportHtml = (id: string) => `${lifeReport(id)}/html`;

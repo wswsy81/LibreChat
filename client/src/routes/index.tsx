@@ -16,6 +16,7 @@ import {
   ArchiveRoute,
   EntryResolver,
   HomeRoute,
+  InboxRoute,
   ReportRoute,
   ResumeRoute,
   SharedReportRoute,
@@ -176,6 +177,14 @@ export const router = createBrowserRouter(
               element: (
                 <ShellGate>
                   <ArchiveRoute />
+                </ShellGate>
+              ),
+            },
+            {
+              path: 'inbox',
+              element: (
+                <ShellGate>
+                  <InboxRoute />
                 </ShellGate>
               ),
             },

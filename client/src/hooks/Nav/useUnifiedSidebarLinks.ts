@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { Archive, Home, MessageCircleMore } from 'lucide-react';
+import { Archive, Home, MessageCircleMore, NotebookPen } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSetRecoilState } from 'recoil';
 import type { NavLink } from '~/common';
@@ -43,6 +43,14 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
         Component: LifeSidebarPanel,
         isActive: location.pathname === '/resume' || location.pathname.startsWith('/c/'),
         onClick: () => go('/resume'),
+      },
+      {
+        title: 'com_life_nav_inbox',
+        icon: NotebookPen,
+        id: 'life-inbox',
+        Component: LifeSidebarPanel,
+        isActive: location.pathname === '/inbox',
+        onClick: () => go('/inbox'),
       },
       {
         title: 'com_life_nav_archive',
