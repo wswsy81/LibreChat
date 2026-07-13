@@ -1,11 +1,17 @@
 import { useResetRecoilState, useSetRecoilState } from 'recoil';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import { MutationKeys, QueryKeys, dataService, request } from 'librechat-data-provider';
 import type { UseMutationResult } from '@tanstack/react-query';
 import type * as t from 'librechat-data-provider';
 import useClearStates from '~/hooks/Config/useClearStates';
 import { clearAllConversationStorage } from '~/utils';
 import store from '~/store';
+
+const removeUserScopedQueries = (queryClient: QueryClient) =>
+  queryClient.removeQueries({
+    predicate: (query) => query.queryKey[0] !== QueryKeys.startupConfig,
+  });
 
 /* login/logout */
 export const useLogoutUserMutation = (
@@ -23,7 +29,7 @@ export const useLogoutUserMutation = (
       setQueriesEnabled(false);
       resetDefaultPreset();
       clearStates();
-      queryClient.removeQueries();
+      removeUserScopedQueries(queryClient);
       options?.onSuccess?.(...args);
     },
   });
@@ -43,7 +49,7 @@ export const useLoginUserMutation = (
       setQueriesEnabled(false);
       resetDefaultPreset();
       clearStates();
-      queryClient.removeQueries();
+      removeUserScopedQueries(queryClient);
       options?.onMutate?.(vars);
     },
     // Queries re-enabled in setUserContext (AuthContext) after setTokenHeader runs
@@ -65,9 +71,7 @@ export const useRefreshTokenMutation = (
     mutationFn: () => request.refreshToken(),
     ...(options || {}),
     onMutate: (vars) => {
-      queryClient.removeQueries({
-        predicate: (query) => query.queryKey[0] !== QueryKeys.startupConfig,
-      });
+      removeUserScopedQueries(queryClient);
       options?.onMutate?.(vars);
     },
   });

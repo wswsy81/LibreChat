@@ -1,5 +1,6 @@
 import reactRouter from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
+import { act } from '@testing-library/react';
 import { render, waitFor, screen } from 'test/layout-test-utils';
 import * as mockDataProvider from 'librechat-data-provider/react-query';
 import type { TStartupConfig } from 'librechat-data-provider';
@@ -30,6 +31,7 @@ const mockStartupConfig = {
     samlImageUrl: 'http://test-server.com',
     registrationEnabled: true,
     socialLoginEnabled: true,
+    emailEnabled: false,
     serverDomain: 'mock-server',
   },
 };
@@ -57,6 +59,14 @@ const setup = ({
       user: {},
     },
   },
+  useLoginUserMutationReturnValue = {
+    isLoading: false,
+    isError: false,
+    mutate: jest.fn(),
+    data: {},
+    isSuccess: false,
+    error: null as Error | null,
+  },
   useGetBannerQueryReturnValue = {
     isLoading: false,
     isError: false,
@@ -64,10 +74,17 @@ const setup = ({
   },
   useGetStartupConfigReturnValue = mockStartupConfig,
 } = {}) => {
+  let registerMutationOptions: Parameters<
+    typeof mockDataProvider.useRegisterUserMutation
+  >[0];
   const mockUseRegisterUserMutation = jest
     .spyOn(mockDataProvider, 'useRegisterUserMutation')
-    //@ts-ignore - we don't need all parameters of the QueryObserverSuccessResult
-    .mockReturnValue(useRegisterUserMutationReturnValue);
+    .mockImplementation((options) => {
+      registerMutationOptions = options;
+      return useRegisterUserMutationReturnValue as unknown as ReturnType<
+        typeof mockDataProvider.useRegisterUserMutation
+      >;
+    });
   const mockUseGetUserQuery = jest
     .spyOn(authQueries, 'useGetUserQuery')
     //@ts-ignore - we don't need all parameters of the QueryObserverSuccessResult
@@ -80,6 +97,10 @@ const setup = ({
     .spyOn(authMutations, 'useRefreshTokenMutation')
     //@ts-ignore - we don't need all parameters of the QueryObserverSuccessResult
     .mockReturnValue(useRefreshTokenMutationReturnValue);
+  const mockUseLoginUserMutation = jest
+    .spyOn(authMutations, 'useLoginUserMutation')
+    //@ts-ignore - we don't need all parameters of the QueryObserverSuccessResult
+    .mockReturnValue(useLoginUserMutationReturnValue);
   const mockUseOutletContext = jest.spyOn(reactRouter, 'useOutletContext').mockReturnValue({
     startupConfig: useGetStartupConfigReturnValue.data,
   });
@@ -107,6 +128,8 @@ const setup = ({
     mockUseGetStartupConfig,
     mockUseRegisterUserMutation,
     mockUseRefreshTokenMutation,
+    mockUseLoginUserMutation,
+    getRegisterMutationOptions: () => registerMutationOptions,
   };
 };
 
@@ -154,6 +177,48 @@ test('renders registration form', () => {
     'href',
     'mock-server/oauth/saml',
   );
+});
+
+test('logs in immediately after registration when email verification is disabled', () => {
+  const login = jest.fn();
+  const { getRegisterMutationOptions } = setup({
+    useGetStartupConfigReturnValue: {
+      ...mockStartupConfig,
+      data: {
+        ...mockStartupConfig.data,
+        emailEnabled: false,
+      },
+    },
+    useLoginUserMutationReturnValue: {
+      isLoading: false,
+      isError: false,
+      mutate: login,
+      data: {},
+      isSuccess: false,
+      error: null,
+    },
+  });
+
+  const registration = {
+    name: 'Codex Regression',
+    username: 'codexreg',
+    email: 'codex-regression@example.test',
+    password: 'Test1234!',
+    confirm_password: 'Test1234!',
+  };
+
+  act(() => {
+    getRegisterMutationOptions()?.onSuccess?.(
+      { message: 'Registration successful.' },
+      registration,
+      undefined,
+    );
+  });
+
+  expect(login).toHaveBeenCalledWith({
+    email: registration.email,
+    password: registration.password,
+  });
 });
 
 // test('calls registerUser.mutate on registration', async () => {

@@ -7,6 +7,7 @@ import { useRegisterUserMutation } from 'librechat-data-provider/react-query';
 import { loginPage } from 'librechat-data-provider';
 import type { TRegisterUser, TError } from 'librechat-data-provider';
 import type { TLoginLayoutContext } from '~/common';
+import { useLoginUserMutation } from '~/data-provider/Auth/mutations';
 import { useLocalize, TranslationKeys } from '~/hooks';
 import { ErrorMessage } from './ErrorMessage';
 
@@ -44,18 +45,41 @@ const Registration: React.FC = () => {
   const authSecretButtonClassName =
     'size-9 rounded-xl text-text-secondary-alt hover:bg-transparent hover:text-text-primary';
 
+  const loginUser = useLoginUserMutation({
+    onSuccess: (data) => {
+      setIsSubmitting(false);
+      if (data.twoFAPending && data.tempToken) {
+        navigate(`/login/2fa?tempToken=${data.tempToken}`, { replace: true });
+        return;
+      }
+      navigate('/home', { replace: true });
+    },
+    onError: () => {
+      setIsSubmitting(false);
+      navigate('/login?redirect_to=%2Fhome', { replace: true });
+    },
+  });
+
   const registerUser = useRegisterUserMutation({
     onMutate: () => {
       setIsSubmitting(true);
     },
-    onSuccess: () => {
+    onSuccess: (_data, registration) => {
+      if (startupConfig?.emailEnabled === false) {
+        loginUser.mutate({
+          email: registration.email,
+          password: registration.password,
+        });
+        return;
+      }
+
       setIsSubmitting(false);
       setCountdown(3);
       const timer = setInterval(() => {
         setCountdown((prevCountdown) => {
           if (prevCountdown <= 1) {
             clearInterval(timer);
-            navigate('/home', { replace: true });
+            navigate('/login?redirect_to=%2Fhome', { replace: true });
             return 0;
           } else {
             return prevCountdown - 1;
