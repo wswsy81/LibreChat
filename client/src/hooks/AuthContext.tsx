@@ -194,7 +194,6 @@ const AuthContextProvider = ({
         }
         const { user, token = '' } = data ?? {};
         if (token) {
-          setIsAuthReady(true);
           const storedRedirect = sessionStorage.getItem(SESSION_KEY);
           sessionStorage.removeItem(SESSION_KEY);
           const baseUrl = apiBaseUrl();

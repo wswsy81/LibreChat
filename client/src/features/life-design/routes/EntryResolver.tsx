@@ -5,13 +5,16 @@ import { LifeLoading } from '../components/PageState';
 
 export default function EntryResolver() {
   const { isAuthenticated, isAuthReady } = useAuthContext();
-  const bootstrap = useLifeBootstrapQuery({ enabled: isAuthReady });
+  const bootstrap = useLifeBootstrapQuery({ enabled: isAuthReady && isAuthenticated });
 
-  if (!isAuthReady || bootstrap.isLoading) {
+  if (!isAuthReady) {
     return <LifeLoading fullScreen />;
   }
   if (!isAuthenticated) {
     return <Navigate to="/home" replace />;
+  }
+  if (bootstrap.isLoading) {
+    return <LifeLoading fullScreen />;
   }
   if (bootstrap.isError || bootstrap.data?.profileState === 'unavailable') {
     return <Navigate to="/home?archive=unavailable" replace />;
