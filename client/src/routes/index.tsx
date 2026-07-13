@@ -12,6 +12,14 @@ import { MarketplaceProvider } from '~/components/Agents/MarketplaceContext';
 import AgentMarketplace from '~/components/Agents/Marketplace';
 import { OAuthSuccess, OAuthError } from '~/components/OAuth';
 import { AuthContextProvider } from '~/hooks/AuthContext';
+import {
+  ArchiveRoute,
+  EntryResolver,
+  HomeRoute,
+  ReportRoute,
+  ResumeRoute,
+  SharedReportRoute,
+} from '~/features/life-design';
 import WithRum from '~/lib/rum/WithRum';
 import RouteErrorBoundary from './RouteErrorBoundary';
 import StartupLayout from './Layouts/Startup';
@@ -24,6 +32,15 @@ import Root from './Root';
 
 const AuthLayout = () => (
   <AuthContextProvider>
+    <WithRum>
+      <Outlet />
+    </WithRum>
+    <ApiErrorWatcher />
+  </AuthContextProvider>
+);
+
+const OptionalAuthLayout = () => (
+  <AuthContextProvider allowAnonymous>
     <WithRum>
       <Outlet />
     </WithRum>
@@ -57,9 +74,28 @@ const baseHref = baseEl?.getAttribute('href') || '/';
 export const router = createBrowserRouter(
   [
     {
+      path: 's/archive/:shareToken',
+      element: <SharedReportRoute />,
+      errorElement: <RouteErrorBoundary />,
+    },
+    {
       path: 'share/:shareId',
       element: <ShareRoute />,
       errorElement: <RouteErrorBoundary />,
+    },
+    {
+      element: <OptionalAuthLayout />,
+      errorElement: <RouteErrorBoundary />,
+      children: [
+        {
+          path: '/',
+          element: <EntryResolver />,
+        },
+        {
+          path: 'home',
+          element: <HomeRoute />,
+        },
+      ],
     },
     {
       path: 'oauth',
@@ -123,8 +159,16 @@ export const router = createBrowserRouter(
           element: <Root />,
           children: [
             {
-              index: true,
-              element: <Navigate to="/c/new" replace={true} />,
+              path: 'resume',
+              element: <ResumeRoute />,
+            },
+            {
+              path: 'archive',
+              element: <ArchiveRoute />,
+            },
+            {
+              path: 'archive/reports/:reportId',
+              element: <ReportRoute />,
             },
             {
               path: 'c/:conversationId?',

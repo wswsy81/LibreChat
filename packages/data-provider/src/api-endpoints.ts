@@ -43,6 +43,21 @@ const buildQuery = (params: Record<string, unknown>): string => {
 export const health = () => `${BASE_URL}/health`;
 export const user = () => `${BASE_URL}/api/user`;
 
+const lifeRoot = `${BASE_URL}/api/life`;
+export const lifeBootstrap = () => `${lifeRoot}/bootstrap`;
+export const lifeOnboarding = () => `${lifeRoot}/onboarding`;
+export const lifeDiagnostic = () => `${lifeRoot}/diagnostics/blood-bars`;
+export const lifeResume = () => `${lifeRoot}/resume`;
+export const lifeArchive = () => `${lifeRoot}/archive`;
+export const lifeReports = () => `${lifeRoot}/reports`;
+export const lifeReport = (id: string) => `${lifeReports()}/${encodeURIComponent(id)}`;
+export const lifeReportHtml = (id: string) => `${lifeReport(id)}/html`;
+export const lifeReportPrint = (id: string) => `${lifeReport(id)}/print.html`;
+export const lifeReportShares = (id: string) => `${lifeReport(id)}/shares`;
+export const lifeReportShare = (id: string, shareId: string) =>
+  `${lifeReportShares(id)}/${encodeURIComponent(shareId)}`;
+export const lifeShare = (token: string) => `${lifeRoot}/shares/${encodeURIComponent(token)}`;
+
 export const balance = () => `${BASE_URL}/api/balance`;
 
 export const userPlugins = () => `${BASE_URL}/api/user/plugins`;

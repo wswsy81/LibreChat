@@ -39,9 +39,11 @@ if (import.meta.hot) {
 
 const AuthContextProvider = ({
   authConfig,
+  allowAnonymous = false,
   children,
 }: {
   authConfig?: TAuthConfig;
+  allowAnonymous?: boolean;
   children: ReactNode;
 }) => {
   const isExternalRedirectRef = useRef(false);
@@ -50,6 +52,7 @@ const AuthContextProvider = ({
   const [token, setToken] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
   const setQueriesEnabled = useSetRecoilState<boolean>(store.queriesEnabled);
 
   const userRoleName = user?.role ?? '';
@@ -75,6 +78,7 @@ const AuthContextProvider = ({
         setToken(token);
         setTokenHeader(token);
         setIsAuthenticated(isAuthenticated);
+        setIsAuthReady(true);
         if (isAuthenticated) {
           setQueriesEnabled(true);
         }
@@ -108,7 +112,7 @@ const AuthContextProvider = ({
         return;
       }
       setError(undefined);
-      setUserContext({ token, isAuthenticated: true, user, redirect: '/c/new' });
+      setUserContext({ token, isAuthenticated: true, user, redirect: '/resume' });
     },
     onError: (error: TResError | unknown) => {
       const resError = error as TResError;
@@ -167,13 +171,17 @@ const AuthContextProvider = ({
 
   const userQuery = useGetUserQuery({ enabled: !!(token ?? '') });
 
-  const login = (data: t.TLoginUser) => {
-    loginUser.mutate(data);
-  };
+  const login = useCallback(
+    (data: t.TLoginUser) => {
+      loginUser.mutate(data);
+    },
+    [loginUser],
+  );
 
   const silentRefresh = useCallback(() => {
     if (authConfig?.test === true) {
       console.log('Test mode. Skipping silent refresh.');
+      setIsAuthReady(true);
       return;
     }
     if (isExternalRedirectRef.current) {
@@ -186,6 +194,7 @@ const AuthContextProvider = ({
         }
         const { user, token = '' } = data ?? {};
         if (token) {
+          setIsAuthReady(true);
           const storedRedirect = sessionStorage.getItem(SESSION_KEY);
           sessionStorage.removeItem(SESSION_KEY);
           const baseUrl = apiBaseUrl();
@@ -202,24 +211,38 @@ const AuthContextProvider = ({
           return;
         }
         console.log('Token is not present. User is not authenticated.');
+        setUser(undefined);
+        setToken(undefined);
+        setTokenHeader(undefined);
+        setIsAuthenticated(false);
+        setIsAuthReady(true);
         if (authConfig?.test === true) {
           return;
         }
-        navigate(buildLoginRedirectUrl());
+        if (!allowAnonymous) {
+          navigate(buildLoginRedirectUrl());
+        }
       },
       onError: (error) => {
         if (isExternalRedirectRef.current) {
           return;
         }
         console.log('refreshToken mutation error:', error);
+        setUser(undefined);
+        setToken(undefined);
+        setTokenHeader(undefined);
+        setIsAuthenticated(false);
+        setIsAuthReady(true);
         if (authConfig?.test === true) {
           return;
         }
-        navigate(buildLoginRedirectUrl());
+        if (!allowAnonymous) {
+          navigate(buildLoginRedirectUrl());
+        }
       },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps are stable at mount; adding refreshToken causes infinite re-fire
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshToken mutation identity changes while running
+  }, [allowAnonymous]);
 
   useEffect(() => {
     if (isExternalRedirectRef.current) {
@@ -229,23 +252,29 @@ const AuthContextProvider = ({
       setUser(userQuery.data);
     } else if (userQuery.isError) {
       doSetError((userQuery.error as Error).message);
-      navigate(buildLoginRedirectUrl(), { replace: true });
+      setIsAuthReady(true);
+      if (!allowAnonymous) {
+        navigate(buildLoginRedirectUrl(), { replace: true });
+      }
     }
     if (error != null && error && isAuthenticated) {
       doSetError(undefined);
     }
-    if (token == null || !token || !isAuthenticated) {
+    if ((token == null || !token || !isAuthenticated) && !isAuthReady) {
       silentRefresh();
     }
   }, [
     token,
     isAuthenticated,
+    isAuthReady,
     userQuery.data,
     userQuery.isError,
     userQuery.error,
     error,
+    doSetError,
     setUser,
     navigate,
+    allowAnonymous,
     silentRefresh,
     setUserContext,
   ]);
@@ -281,12 +310,16 @@ const AuthContextProvider = ({
         ...(isCustomRole && customRole ? { [userRoleName]: customRole } : {}),
       },
       isAuthenticated,
+      isAuthReady,
     }),
 
     [
       user,
       error,
+      login,
+      logout,
       isAuthenticated,
+      isAuthReady,
       token,
       userRole,
       adminRole,

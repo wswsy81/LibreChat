@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useRecoilValue } from 'recoil';
 import { Outlet } from 'react-router-dom';
 import { useMediaQuery } from '@librechat/client';
@@ -37,7 +38,7 @@ function KeyboardShortcutsProvider() {
   );
 }
 
-export default function Root() {
+export function ProductShell({ children }: { children: ReactNode }) {
   const [showTerms, setShowTerms] = useState(false);
   const [bannerHeight, setBannerHeight] = useState(0);
   const sidebarExpanded = useRecoilValue(store.sidebarExpanded);
@@ -96,7 +97,7 @@ export default function Root() {
                     }}
                     inert={isSmallScreen && sidebarExpanded ? '' : undefined}
                   >
-                    <Outlet />
+                    {children}
                   </div>
                 </div>
               </div>
@@ -116,5 +117,13 @@ export default function Root() {
         </AssistantsMapContext.Provider>
       </FileMapContext.Provider>
     </SetConvoProvider>
+  );
+}
+
+export default function Root() {
+  return (
+    <ProductShell>
+      <Outlet />
+    </ProductShell>
   );
 }

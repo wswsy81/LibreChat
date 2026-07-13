@@ -85,6 +85,13 @@ export enum QueryKeys {
   skillStates = 'skillStates',
   /* General user favorites */
   favorites = 'favorites',
+  /* Life design */
+  lifeBootstrap = 'lifeBootstrap',
+  lifeArchive = 'lifeArchive',
+  lifeReports = 'lifeReports',
+  lifeReport = 'lifeReport',
+  lifeReportHtml = 'lifeReportHtml',
+  lifeShare = 'lifeShare',
 }
 
 // Dynamic query keys that require parameters
@@ -128,4 +135,8 @@ export enum MutationKeys {
   deleteSkillNode = 'deleteSkillNode',
   updateSkillNodeContent = 'updateSkillNodeContent',
   convoPin = 'convoPin',
+  lifeOnboarding = 'lifeOnboarding',
+  lifeDiagnostic = 'lifeDiagnostic',
+  lifeResume = 'lifeResume',
+  lifeShare = 'lifeShare',
 }

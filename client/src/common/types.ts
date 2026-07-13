@@ -130,6 +130,7 @@ export type NavLink = {
   icon: LucideIcon | React.FC;
   Component?: React.ComponentType;
   onClick?: (e?: React.MouseEvent) => void;
+  isActive?: boolean;
   variant?: 'default' | 'ghost';
   id: string;
 };
@@ -494,6 +495,7 @@ export type TAuthContext = {
   user: t.TUser | undefined;
   token: string | undefined;
   isAuthenticated: boolean;
+  isAuthReady: boolean;
   error: string | undefined;
   login: (data: t.TLoginUser) => void;
   logout: (redirect?: string) => void;

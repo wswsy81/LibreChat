@@ -1,0 +1,135 @@
+export type LifeProfileState = 'empty' | 'ready' | 'unavailable' | 'corrupt';
+
+export interface LifeDashboards {
+  health?: number;
+  work?: number;
+  play?: number;
+  love?: number;
+}
+
+export interface LifeBootstrapSummary {
+  alias?: string | null;
+  lastSurface?: string | null;
+  nextStep?: string | null;
+  dashboards?: LifeDashboards;
+}
+
+export interface LifeBootstrapResponse {
+  authenticated: boolean;
+  user: { id: string; name: string; email?: string | null } | null;
+  profileState: LifeProfileState;
+  hasSubstantiveProfile: boolean | null;
+  profileVersion?: string | null;
+  summary?: LifeBootstrapSummary;
+  latestReportId?: string | null;
+  reportCount?: number;
+  lastConversationId?: string | null;
+  lastConversationTitle?: string | null;
+  recommendedRoute: '/home' | '/resume';
+  error?: { code: string; message: string; retryable?: boolean };
+}
+
+export interface LifeOnboardingRequest {
+  archiveName: string;
+  dashboards: Required<LifeDashboards>;
+  birthOptIn: boolean;
+}
+
+export interface LifeOnboardingResponse {
+  ok: boolean;
+  profileVersion: string;
+  applied: number;
+  prompt: string;
+  route: string;
+}
+
+export interface LifeDiagnosticRequest {
+  dashboards: Required<LifeDashboards>;
+}
+
+export interface LifeDiagnosticResponse {
+  ok: boolean;
+  profileVersion: string;
+  dashboards: Required<LifeDashboards>;
+}
+
+export interface LifeResumeResponse {
+  action: 'restored' | 'new';
+  conversationId: string | null;
+  route: string;
+}
+
+export interface LifeSignal {
+  id?: string;
+  description?: string;
+  status?: string;
+  plantedAt?: string;
+  payoff?: string;
+  resolvedAt?: string | null;
+  halfLifeDays?: number | null;
+}
+
+export interface LifeTimelineEntry {
+  when?: string;
+  what: string;
+  source?: string;
+}
+
+export interface LifeProfileView {
+  alias?: string | null;
+  archetype?: string | null;
+  dashboards?: LifeDashboards;
+  problemFrame?: {
+    surface?: string;
+    movable?: string;
+    constraints?: string | string[];
+  };
+  compass?: {
+    workview?: string;
+    lifeview?: string;
+    clash?: string;
+  };
+  energy?: {
+    gain?: string | string[];
+    drain?: string | string[];
+  };
+  signals?: LifeSignal[];
+  timeline?: LifeTimelineEntry[];
+  updatedAt?: string | null;
+}
+
+export interface LifeReportSummary {
+  id: string;
+  title: string;
+  mode: 'discovery' | 'decision';
+  createdAt: string | null;
+}
+
+export interface LifeArchiveResponse {
+  schemaVersion: number;
+  profileVersion: string | null;
+  profile: LifeProfileView;
+  reports: LifeReportSummary[];
+}
+
+export interface LifeReportsResponse {
+  schemaVersion: number;
+  items: LifeReportSummary[];
+  nextCursor: string | null;
+}
+
+export interface LifeReportResponse {
+  schemaVersion: number;
+  report: LifeReportSummary;
+}
+
+export interface LifeShareResponse {
+  shareId: string;
+  expiresAt: string | null;
+  shareUrl: string;
+}
+
+export interface LifePublicShareResponse {
+  schemaVersion: number;
+  report: Pick<LifeReportSummary, 'id' | 'title' | 'createdAt'> & { html: string };
+}

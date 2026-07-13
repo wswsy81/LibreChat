@@ -15,6 +15,61 @@ import request from './request';
 import * as s from './schemas';
 import * as r from './roles';
 
+export function getLifeBootstrap(): Promise<t.LifeBootstrapResponse> {
+  return request.get(endpoints.lifeBootstrap());
+}
+
+export function createLifeOnboarding(
+  payload: t.LifeOnboardingRequest,
+): Promise<t.LifeOnboardingResponse> {
+  return request.post(endpoints.lifeOnboarding(), payload);
+}
+
+export function createLifeDiagnostic(
+  payload: t.LifeDiagnosticRequest,
+): Promise<t.LifeDiagnosticResponse> {
+  return request.post(endpoints.lifeDiagnostic(), payload);
+}
+
+export function resumeLifeConversation(): Promise<t.LifeResumeResponse> {
+  return request.post(endpoints.lifeResume());
+}
+
+export function getLifeArchive(): Promise<t.LifeArchiveResponse> {
+  return request.get(endpoints.lifeArchive());
+}
+
+export function getLifeReports(): Promise<t.LifeReportsResponse> {
+  return request.get(endpoints.lifeReports());
+}
+
+export function getLifeReport(id: string): Promise<t.LifeReportResponse> {
+  return request.get(endpoints.lifeReport(id));
+}
+
+export function getLifeReportHtml(id: string): Promise<string> {
+  return request.get(endpoints.lifeReportHtml(id));
+}
+
+export function getLifeReportPrint(id: string): Promise<string> {
+  return request.get(endpoints.lifeReportPrint(id));
+}
+
+export function createLifeShare(
+  id: string,
+  expiresAt: string | null,
+): Promise<t.LifeShareResponse> {
+  return request.post(endpoints.lifeReportShares(id), { expiresAt });
+}
+
+export function revokeLifeShare(id: string, shareId: string): Promise<{ ok: boolean }> {
+  return request.delete(endpoints.lifeReportShare(id, shareId));
+}
+
+export function getLifeShare(token: string): Promise<t.LifePublicShareResponse> {
+  return request.get(endpoints.lifeShare(token));
+}
+
 export function revokeUserKey(name: string): Promise<unknown> {
   return request.delete(endpoints.revokeUserKey(name));
 }

@@ -39,6 +39,8 @@ export * from './flow/manager';
 export * from './middleware';
 /* Memory */
 export * from './memory';
+/* Life Design */
+export * from './life';
 /* Model Specs */
 export * from './modelSpecs';
 /* Agents */

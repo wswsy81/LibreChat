@@ -52,7 +52,6 @@ jest.mock('~/components/Nav/AccountSettings', () => ({
 }));
 
 import ExpandedPanel from '../ExpandedPanel';
-import store from '~/store';
 
 const createLinks = () => [
   {
@@ -142,31 +141,10 @@ describe('ExpandedPanel', () => {
     });
   });
 
-  describe('NewChatButton panel switch', () => {
-    it('switches to chat history panel on new chat click when setting is enabled', () => {
-      renderPanel({ expanded: true, initialPanel: 'prompts' });
-
-      const newChatLink = screen.getByTestId('new-chat-button');
-      fireEvent.click(newChatLink);
-
-      expect(mockNewConversation).toHaveBeenCalledTimes(1);
-      expect(localStorage.getItem('side:active-panel')).toBe(DEFAULT_PANEL);
-    });
-
-    it('does not switch panel on new chat click when setting is disabled', () => {
-      renderPanel({
-        expanded: true,
-        initialPanel: 'prompts',
-        initializeState: ({ set }: MutableSnapshot) => {
-          set(store.newChatSwitchToHistory, false);
-        },
-      });
-
-      const newChatLink = screen.getByTestId('new-chat-button');
-      fireEvent.click(newChatLink);
-
-      expect(mockNewConversation).toHaveBeenCalledTimes(1);
-      expect(localStorage.getItem('side:active-panel')).toBe('prompts');
+  describe('product navigation surface', () => {
+    it('does not expose the generic new-chat shortcut', () => {
+      renderPanel({ expanded: true });
+      expect(screen.queryByTestId('new-chat-button')).not.toBeInTheDocument();
     });
   });
 });

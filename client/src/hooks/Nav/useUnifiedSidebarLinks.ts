@@ -1,65 +1,53 @@
-import { useMemo } from 'react';
-import { useRecoilValue } from 'recoil';
-import { MessagesSquare } from 'lucide-react';
-import { useUserKeyQuery } from 'librechat-data-provider/react-query';
-import { getConfigDefaults, getEndpointField } from 'librechat-data-provider';
-import type { TEndpointsConfig } from 'librechat-data-provider';
+import { useCallback, useMemo } from 'react';
+import { Archive, Home, MessageCircleMore } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useSetRecoilState } from 'recoil';
 import type { NavLink } from '~/common';
-import ConversationsSection from '~/components/UnifiedSidebar/ConversationsSection';
-import { useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
-import useSideNavLinks from '~/hooks/Nav/useSideNavLinks';
+import { LifeSidebarPanel } from '~/features/life-design';
 import store from '~/store';
 
-const defaultInterface = getConfigDefaults().interface;
+export default function useUnifiedSidebarLinks(): NavLink[] {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const setExpanded = useSetRecoilState(store.sidebarExpanded);
 
-export default function useUnifiedSidebarLinks() {
-  const conversation = useRecoilValue(store.conversationByIndex(0));
-  const endpoint = conversation?.endpoint;
-  const { data: startupConfig } = useGetStartupConfig();
-  const { data: endpointsConfig = {} as TEndpointsConfig } = useGetEndpointsQuery();
-
-  const interfaceConfig = useMemo(
-    () => startupConfig?.interface ?? defaultInterface,
-    [startupConfig],
+  const go = useCallback(
+    (path: string) => {
+      navigate(path);
+      if (window.innerWidth <= 768) {
+        setExpanded(false);
+      }
+    },
+    [navigate, setExpanded],
   );
 
-  const endpointType = useMemo(
-    () => getEndpointField(endpointsConfig, endpoint, 'type'),
-    [endpoint, endpointsConfig],
+  return useMemo(
+    () => [
+      {
+        title: 'com_life_nav_home',
+        icon: Home,
+        id: 'life-home',
+        Component: LifeSidebarPanel,
+        isActive: location.pathname === '/home',
+        onClick: () => go('/home'),
+      },
+      {
+        title: 'com_life_nav_resume',
+        icon: MessageCircleMore,
+        id: 'life-resume',
+        Component: LifeSidebarPanel,
+        isActive: location.pathname === '/resume' || location.pathname.startsWith('/c/'),
+        onClick: () => go('/resume'),
+      },
+      {
+        title: 'com_life_nav_archive',
+        icon: Archive,
+        id: 'life-archive',
+        Component: LifeSidebarPanel,
+        isActive: location.pathname === '/archive' || location.pathname.startsWith('/archive/'),
+        onClick: () => go('/archive'),
+      },
+    ],
+    [go, location.pathname],
   );
-
-  const userProvidesKey = useMemo(
-    () => !!(endpointsConfig?.[endpoint ?? '']?.userProvide ?? false),
-    [endpointsConfig, endpoint],
-  );
-
-  const { data: keyExpiry = { expiresAt: undefined } } = useUserKeyQuery(endpoint ?? '');
-
-  const keyProvided = useMemo(
-    () => (userProvidesKey ? !!(keyExpiry.expiresAt ?? '') : true),
-    [keyExpiry.expiresAt, userProvidesKey],
-  );
-
-  const sideNavLinks = useSideNavLinks({
-    keyProvided,
-    endpoint,
-    endpointType,
-    interfaceConfig,
-    endpointsConfig,
-    includeHidePanel: false,
-  });
-
-  const links = useMemo(() => {
-    const conversationLink: NavLink = {
-      title: 'com_ui_chat_history',
-      label: '',
-      icon: MessagesSquare,
-      id: 'conversations',
-      Component: ConversationsSection,
-    };
-
-    return [conversationLink, ...sideNavLinks];
-  }, [sideNavLinks]);
-
-  return links;
 }

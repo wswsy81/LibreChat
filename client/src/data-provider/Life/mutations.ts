@@ -1,0 +1,54 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { dataService, QueryKeys } from 'librechat-data-provider';
+import type { UseMutationResult } from '@tanstack/react-query';
+import type {
+  LifeDiagnosticRequest,
+  LifeDiagnosticResponse,
+  LifeOnboardingRequest,
+  LifeOnboardingResponse,
+  LifeResumeResponse,
+  LifeShareResponse,
+} from 'librechat-data-provider';
+
+export const useLifeOnboardingMutation = (): UseMutationResult<
+  LifeOnboardingResponse,
+  Error,
+  LifeOnboardingRequest
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(dataService.createLifeOnboarding, {
+    onSuccess: () => {
+      queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
+      queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+    },
+  });
+};
+
+export const useLifeDiagnosticMutation = (): UseMutationResult<
+  LifeDiagnosticResponse,
+  Error,
+  LifeDiagnosticRequest
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(dataService.createLifeDiagnostic, {
+    onSuccess: () => {
+      queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
+      queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+    },
+  });
+};
+
+export const useLifeResumeMutation = (): UseMutationResult<LifeResumeResponse, Error, void> =>
+  useMutation(() => dataService.resumeLifeConversation());
+
+export const useLifeShareMutation = (): UseMutationResult<
+  LifeShareResponse,
+  Error,
+  { reportId: string; expiresAt: string | null }
+> => useMutation(({ reportId, expiresAt }) => dataService.createLifeShare(reportId, expiresAt));
+
+export const useLifeHtmlExportMutation = (): UseMutationResult<string, Error, string> =>
+  useMutation((reportId) => dataService.getLifeReportHtml(reportId));
+
+export const useLifePrintMutation = (): UseMutationResult<string, Error, string> =>
+  useMutation((reportId) => dataService.getLifeReportPrint(reportId));
