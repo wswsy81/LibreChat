@@ -11,6 +11,9 @@ function Sidebar({
   onExpand,
   onResizeStart,
   onResizeKeyboard,
+  resizeValue,
+  resizeMin,
+  resizeMax,
 }: {
   links: NavLink[];
   expanded: boolean;
@@ -18,6 +21,9 @@ function Sidebar({
   onExpand: () => void;
   onResizeStart: (e: React.MouseEvent) => void;
   onResizeKeyboard: (direction: 'shrink' | 'grow') => void;
+  resizeValue: number;
+  resizeMin: number;
+  resizeMax: number;
 }) {
   return (
     <>
@@ -43,6 +49,9 @@ function Sidebar({
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize sidebar"
+        aria-valuenow={Math.round(resizeValue)}
+        aria-valuemin={Math.round(resizeMin)}
+        aria-valuemax={Math.round(resizeMax)}
         tabIndex={expanded ? 0 : -1}
         className={cn(
           'absolute right-0 top-0 z-10 h-full w-1 cursor-col-resize transition-colors hover:bg-border-medium active:bg-border-heavy',

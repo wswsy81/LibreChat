@@ -17,6 +17,7 @@ const COLLAPSED_WIDTH = 52;
 const EXPANDED_MIN = 360;
 const TRANSITION_MS = 300;
 const EASING = 'cubic-bezier(0.2, 0, 0, 1)';
+const expandedMax = () => Math.max(EXPANDED_MIN, window.innerWidth * 0.4);
 
 function getInitialWidth(): number {
   const saved = localStorage.getItem('side:width');
@@ -64,7 +65,7 @@ function UnifiedSidebar() {
   const handleResizeStart = useCallback(() => {
     setIsResizing(true);
     document.body.style.userSelect = 'none';
-    const maxWidth = window.innerWidth * 0.4;
+    const maxWidth = expandedMax();
     let rafId: number | null = null;
 
     const move = (e: MouseEvent) => {
@@ -102,9 +103,7 @@ function UnifiedSidebar() {
   const handleResizeKeyboard = useCallback((direction: 'shrink' | 'grow') => {
     setSidebarWidth((w) => {
       const next =
-        direction === 'shrink'
-          ? Math.max(w - 20, EXPANDED_MIN)
-          : Math.min(w + 20, window.innerWidth * 0.4);
+        direction === 'shrink' ? Math.max(w - 20, EXPANDED_MIN) : Math.min(w + 20, expandedMax());
       localStorage.setItem('side:width', String(Math.round(next)));
       return next;
     });
@@ -196,6 +195,9 @@ function UnifiedSidebar() {
             onExpand={handleExpand}
             onResizeStart={handleResizeStart}
             onResizeKeyboard={handleResizeKeyboard}
+            resizeValue={sidebarWidth}
+            resizeMin={EXPANDED_MIN}
+            resizeMax={expandedMax()}
           />
         </aside>
       </ActivePanelProvider>
