@@ -41,6 +41,9 @@ type ModelSelectorContextType = {
 
 const ModelSelectorContext = createContext<ModelSelectorContextType | undefined>(undefined);
 
+export const shouldLoadAgentChoices = (agentsMap: t.TAgentsMap | undefined) =>
+  agentsMap !== undefined;
+
 export function useModelSelectorContext() {
   const context = useContext(ModelSelectorContext);
   if (context === undefined) {
@@ -85,6 +88,7 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
   const { data: agents = null } = useListAgentsQuery(
     { requiredPermission: permissionLevel },
     {
+      enabled: shouldLoadAgentChoices(agentsMap),
       select: (data) => data?.data,
     },
   );
