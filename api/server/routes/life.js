@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const { createLifeEngineClient, LifeEngineError } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
+const { lifeShareLimiter } = require('~/server/middleware/limiters');
 const optionalJwtAuth = require('~/server/middleware/optionalJwtAuth');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 
@@ -162,7 +163,7 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
   }
 });
 
-router.get('/shares/:token', async (req, res) => {
+router.get('/shares/:token', lifeShareLimiter, async (req, res) => {
   try {
     const result = await engine.json(`/internal/shares/${encodeURIComponent(req.params.token)}`);
     res.set('Cache-Control', 'no-store, max-age=0');

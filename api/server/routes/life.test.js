@@ -4,6 +4,7 @@ const request = require('supertest');
 const mockEngine = { json: jest.fn(), text: jest.fn() };
 const mockFindOne = jest.fn();
 const mockLogger = { error: jest.fn() };
+const mockLifeShareLimiter = jest.fn((_req, _res, next) => next());
 
 jest.mock('@librechat/api', () => ({
   createLifeEngineClient: jest.fn(() => mockEngine),
@@ -19,6 +20,9 @@ jest.mock('@librechat/api', () => ({
 jest.mock('@librechat/data-schemas', () => ({ logger: mockLogger }));
 jest.mock('mongoose', () => ({
   models: { Conversation: { findOne: (...args) => mockFindOne(...args) } },
+}));
+jest.mock('~/server/middleware/limiters', () => ({
+  lifeShareLimiter: (...args) => mockLifeShareLimiter(...args),
 }));
 jest.mock('~/server/middleware/optionalJwtAuth', () => (_req, _res, next) => next());
 jest.mock('~/server/middleware/requireJwtAuth', () => (_req, _res, next) => next());
@@ -61,6 +65,19 @@ test('anonymous bootstrap stays on the product home without calling future-engin
   });
   expect(mockEngine.json).not.toHaveBeenCalled();
   expect(response.headers['cache-control']).toContain('no-store');
+});
+
+test('public share reads pass through the dedicated IP limiter', async () => {
+  mockEngine.json.mockResolvedValue({
+    schemaVersion: 1,
+    report: { id: 'report-1', title: '报告', html: '<html></html>' },
+  });
+
+  const response = await request(buildApp()).get('/api/life/shares/share-token');
+
+  expect(response.status).toBe(200);
+  expect(mockLifeShareLimiter).toHaveBeenCalledTimes(1);
+  expect(mockEngine.json).toHaveBeenCalledWith('/internal/shares/share-token');
 });
 
 test('authenticated bootstrap merges archive state with the latest valid conversation', async () => {

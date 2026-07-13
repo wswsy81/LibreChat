@@ -3,6 +3,7 @@ const createSTTLimiters = require('./sttLimiters');
 
 const loginLimiter = require('./loginLimiter');
 const importLimiters = require('./importLimiters');
+const lifeShareLimiter = require('./lifeShareLimiter');
 const uploadLimiters = require('./uploadLimiters');
 const forkLimiters = require('./forkLimiters');
 const registerLimiter = require('./registerLimiter');
@@ -22,6 +23,7 @@ module.exports = {
   ...forkLimiters,
   ...promptUsageLimiter,
   loginLimiter,
+  lifeShareLimiter,
   registerLimiter,
   toolCallLimiter,
   createTTSLimiters,
