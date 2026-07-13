@@ -101,50 +101,62 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
         <Button
           type="button"
           data-testid="life-report-continue"
-          variant="outline"
-          className="min-h-11 rounded-xl"
+          className="min-h-11 rounded-[4px] bg-life-moss px-4 font-life-sans text-life-paper hover:bg-life-moss-deep"
           onClick={() => navigate('/resume')}
         >
-          <MessageCircleMore className="h-4 w-4" />
+          <MessageCircleMore className="h-4 w-4" aria-hidden="true" />
           {localize('com_life_continue_with_report')}
         </Button>
         <Button
           type="button"
           data-testid="life-report-share"
           variant="outline"
-          className="min-h-11 rounded-xl"
+          className="min-h-11 min-w-11 rounded-[4px] border-life-rule bg-transparent px-3 font-life-sans text-life-ink hover:bg-life-paper-deep dark:border-white/20 dark:text-gray-200 dark:hover:bg-white/10"
+          aria-label={localize('com_life_share')}
           onClick={() => setShareOpen(true)}
         >
-          <Share2 className="h-4 w-4" />
-          {localize('com_life_share')}
+          <Share2 className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline">{localize('com_life_share')}</span>
         </Button>
         <Button
           type="button"
           data-testid="life-report-download"
           variant="outline"
-          className="min-h-11 rounded-xl"
+          className="min-h-11 min-w-11 rounded-[4px] border-life-rule bg-transparent px-3 font-life-sans text-life-ink hover:bg-life-paper-deep dark:border-white/20 dark:text-gray-200 dark:hover:bg-white/10"
           disabled={htmlExport.isLoading}
+          aria-label={
+            htmlExport.isLoading
+              ? localize('com_life_preparing')
+              : localize('com_life_download_html')
+          }
           onClick={downloadHtml}
         >
-          <Download className="h-4 w-4" />
-          {htmlExport.isLoading
-            ? localize('com_life_preparing')
-            : localize('com_life_download_html')}
+          <Download className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline">
+            {htmlExport.isLoading
+              ? localize('com_life_preparing')
+              : localize('com_life_download_html')}
+          </span>
         </Button>
         <Button
           type="button"
           data-testid="life-report-print"
           variant="outline"
-          className="min-h-11 rounded-xl"
+          className="min-h-11 min-w-11 rounded-[4px] border-life-rule bg-transparent px-3 font-life-sans text-life-ink hover:bg-life-paper-deep dark:border-white/20 dark:text-gray-200 dark:hover:bg-white/10"
           disabled={printReport.isLoading}
+          aria-label={
+            printReport.isLoading ? localize('com_life_preparing') : localize('com_life_save_pdf')
+          }
           onClick={printHtml}
         >
-          <Printer className="h-4 w-4" />
-          {printReport.isLoading ? localize('com_life_preparing') : localize('com_life_save_pdf')}
+          <Printer className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline">
+            {printReport.isLoading ? localize('com_life_preparing') : localize('com_life_save_pdf')}
+          </span>
         </Button>
       </div>
       {hasError && (
-        <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="mt-2 text-sm text-life-cinnabar dark:text-[#D98A76]">
           {localize('com_life_report_action_failed')}
         </p>
       )}
@@ -158,7 +170,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
             role="dialog"
             aria-modal="true"
             aria-labelledby="share-dialog-title"
-            className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-t-[28px] bg-surface-primary p-6 shadow-2xl sm:rounded-[28px] sm:p-7"
+            className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-t-[6px] border border-life-rule bg-life-paper p-6 text-life-ink shadow-2xl dark:border-white/15 dark:bg-surface-primary dark:text-gray-100 sm:rounded-[6px] sm:p-7"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -167,14 +179,14 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
                 </p>
                 <h2
                   id="share-dialog-title"
-                  className="mt-2 text-2xl font-semibold text-text-primary"
+                  className="mt-2 font-life-serif text-2xl font-semibold text-life-ink dark:text-gray-100"
                 >
                   {localize('com_life_share_report_title')}
                 </h2>
               </div>
               <button
                 type="button"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-text-secondary hover:bg-surface-hover"
+                className="flex h-11 w-11 items-center justify-center rounded-[4px] text-life-muted hover:bg-life-paper-deep hover:text-life-ink dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100"
                 onClick={() => setShareOpen(false)}
                 aria-label={localize('com_life_close')}
               >
@@ -182,8 +194,8 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
               </button>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-life-cinnabar/20 bg-life-cinnabar/5 p-4 text-sm leading-6 text-text-secondary">
-              <p className="font-medium text-text-primary">
+            <div className="mt-5 border-y border-life-cinnabar/30 bg-life-cinnabar/5 px-1 py-4 text-sm leading-7 text-life-muted dark:bg-life-cinnabar/10 dark:text-gray-300">
+              <p className="font-medium text-life-ink dark:text-gray-100">
                 {localize('com_life_share_preview_title')}
               </p>
               <p className="mt-2">{localize('com_life_share_preview_help')}</p>
@@ -192,19 +204,19 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
 
             {!share.data && (
               <>
-                <label className="mt-5 block text-sm font-medium text-text-primary">
+                <label className="mt-5 block text-sm font-medium text-life-ink dark:text-gray-100">
                   {localize('com_life_share_expiry')}
                   <select
                     value={expiry}
                     onChange={(event) => setExpiry(event.target.value as 'never' | '7' | '30')}
-                    className="mt-2 h-11 w-full rounded-xl border border-border-light bg-surface-secondary px-3"
+                    className="mt-2 h-11 w-full rounded-[4px] border border-life-rule bg-life-paper-deep px-3 text-life-ink dark:border-white/15 dark:bg-surface-secondary dark:text-gray-100"
                   >
                     <option value="never">{localize('com_life_share_never')}</option>
                     <option value="7">{localize('com_life_share_7_days')}</option>
                     <option value="30">{localize('com_life_share_30_days')}</option>
                   </select>
                 </label>
-                <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl bg-surface-secondary p-4">
+                <label className="mt-5 flex cursor-pointer items-start gap-3 border border-life-rule bg-transparent p-4 dark:border-white/15">
                   <input
                     type="checkbox"
                     data-testid="life-share-confirm"
@@ -212,7 +224,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
                     onChange={(event) => setConfirmed(event.target.checked)}
                     className="mt-1 h-5 w-5 accent-life-moss"
                   />
-                  <span className="text-sm leading-6 text-text-primary">
+                  <span className="text-sm leading-7 text-life-ink dark:text-gray-100">
                     {localize('com_life_share_confirm')}
                   </span>
                 </label>
@@ -220,7 +232,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
                   type="button"
                   data-testid="life-share-create"
                   disabled={!confirmed || share.isLoading}
-                  className="mt-5 min-h-12 w-full rounded-xl bg-life-moss text-life-paper hover:bg-life-moss-deep"
+                  className="mt-5 min-h-12 w-full rounded-[4px] bg-life-moss font-life-sans text-life-paper hover:bg-life-moss-deep"
                   onClick={createShare}
                 >
                   {share.isLoading
@@ -232,7 +244,10 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
 
             {shareUrl && (
               <div className="mt-5">
-                <label className="text-sm font-medium text-text-primary" htmlFor="life-share-url">
+                <label
+                  className="text-sm font-medium text-life-ink dark:text-gray-100"
+                  htmlFor="life-share-url"
+                >
                   {copied
                     ? localize('com_life_link_copied')
                     : localize('com_life_copy_link_manually')}
@@ -242,7 +257,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
                   readOnly
                   value={shareUrl}
                   onFocus={(event) => event.currentTarget.select()}
-                  className="mt-2 h-11 w-full rounded-xl border border-border-light bg-surface-secondary px-3 text-sm text-text-primary"
+                  className="mt-2 h-11 w-full rounded-[4px] border border-life-rule bg-life-paper-deep px-3 text-sm text-life-ink dark:border-white/15 dark:bg-surface-secondary dark:text-gray-100"
                 />
               </div>
             )}

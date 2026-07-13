@@ -2164,6 +2164,8 @@
   "com_life_report_action_failed": "这项操作没有完成，请稍后重试。页面和报告都还在。",
   "com_life_report_actions": "报告操作",
   "com_life_report_count": "你已有 {{0}} 份阶段存档。",
+  "com_life_report_edition": "ARCHIVE EDITION / {{0}}",
+  "com_life_report_meta": "{{0}} / {{1}}",
   "com_life_report_not_found": "这份报告不存在或不属于你",
   "com_life_report_not_found_help": "为了保护隐私，我们不会透露其他账户是否拥有这份报告。",
   "com_life_reports_empty": "还没有报告。继续一次探索，聊到阶段结论时会自动存进这里。",
