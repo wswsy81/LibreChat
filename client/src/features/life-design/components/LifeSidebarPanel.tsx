@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Archive, Home, MessageCircleMore, NotebookPen } from 'lucide-react';
+import { Archive, Home, MessageCircleMore, NotebookPen, Plus } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useRecoilState } from 'recoil';
 import { useConversationsInfiniteQuery } from '~/data-provider';
@@ -101,6 +101,14 @@ export default function LifeSidebarPanel() {
 
       <div className="mx-2 my-5 border-t border-border-light" />
       <div className="min-h-0 flex-1 overflow-y-auto px-2">
+        <Link
+          to="/c/new"
+          onClick={closeMobile}
+          className="mb-4 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-3 text-sm font-medium text-amber-800 transition hover:bg-amber-500/15 dark:text-amber-200"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          {localize('com_life_new_conversation')}
+        </Link>
         <p className="mb-3 text-xs font-medium tracking-[0.12em] text-text-secondary">
           {localize('com_life_recent_conversations')}
         </p>
