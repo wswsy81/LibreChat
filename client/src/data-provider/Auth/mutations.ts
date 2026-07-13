@@ -65,7 +65,9 @@ export const useRefreshTokenMutation = (
     mutationFn: () => request.refreshToken(),
     ...(options || {}),
     onMutate: (vars) => {
-      queryClient.removeQueries();
+      queryClient.removeQueries({
+        predicate: (query) => query.queryKey[0] !== QueryKeys.startupConfig,
+      });
       options?.onMutate?.(vars);
     },
   });
