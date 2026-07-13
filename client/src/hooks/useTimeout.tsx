@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 type TUseTimeoutParams = {
   callback: (error: string | number | boolean | null) => void;
@@ -8,8 +8,13 @@ type TTimeout = ReturnType<typeof setTimeout> | null;
 
 function useTimeout({ callback, delay = 400 }: TUseTimeoutParams) {
   const timeout = useRef<TTimeout>(null);
+  const callbackRef = useRef(callback);
 
-  const callOnTimeout = (value?: string) => {
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  const callOnTimeout = useCallback((value?: string) => {
     // Clear existing timeout
     if (timeout.current !== null) {
       clearTimeout(timeout.current);
@@ -19,10 +24,10 @@ function useTimeout({ callback, delay = 400 }: TUseTimeoutParams) {
     if (value != null && value) {
       console.log(value);
       timeout.current = setTimeout(() => {
-        callback(value);
+        callbackRef.current(value);
       }, delay);
     }
-  };
+  }, [delay]);
 
   // Clear timeout when the component unmounts
   useEffect(() => {
