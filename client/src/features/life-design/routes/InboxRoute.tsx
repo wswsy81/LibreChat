@@ -47,7 +47,7 @@ export default function InboxRoute() {
     <main className="h-full overflow-y-auto bg-surface-secondary">
       <div className="mx-auto w-full max-w-3xl px-5 py-9 sm:px-8 lg:py-12">
         <header className="mb-7">
-          <p className="text-sm font-medium tracking-[0.18em] text-amber-700 dark:text-amber-300">
+          <p className="text-sm font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
             {localize('com_life_inbox_eyebrow')}
           </p>
           <h1 className="mt-2 text-4xl font-semibold tracking-tight text-text-primary sm:text-5xl">
@@ -73,7 +73,7 @@ export default function InboxRoute() {
             onKeyDown={onKeyDown}
             rows={4}
             placeholder={localize('com_life_inbox_placeholder')}
-            className="w-full resize-none rounded-2xl border border-border-light bg-surface-secondary p-4 text-text-primary outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+            className="w-full resize-none rounded-2xl border border-border-light bg-surface-secondary p-4 text-text-primary outline-none transition focus:border-life-moss focus:ring-2 focus:ring-life-moss/15"
           />
           <div className="mt-4 flex items-center justify-between gap-4">
             <span className="text-xs text-text-secondary">
@@ -83,7 +83,7 @@ export default function InboxRoute() {
               type="button"
               disabled={!canSubmit}
               onClick={submit}
-              className="min-h-11 rounded-xl bg-amber-600 px-6 text-white hover:bg-amber-700"
+              className="min-h-11 rounded-xl bg-life-moss px-6 text-life-paper hover:bg-life-moss-deep"
             >
               <NotebookPen className="mr-2 h-4 w-4" />
               {capture.isLoading
@@ -98,8 +98,8 @@ export default function InboxRoute() {
           )}
         </section>
 
-        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm leading-6 text-text-secondary">
-          <Sparkles className="mt-0.5 h-4 w-4 flex-none text-amber-600" />
+        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-life-cinnabar/20 bg-life-cinnabar/5 p-4 text-sm leading-6 text-text-secondary">
+          <Sparkles className="mt-0.5 h-4 w-4 flex-none text-life-cinnabar" />
           <span>{localize('com_life_inbox_digest_note')}</span>
         </div>
 
@@ -134,7 +134,7 @@ export default function InboxRoute() {
                       className={
                         entry.digested
                           ? 'text-emerald-700 dark:text-emerald-400'
-                          : 'text-amber-700 dark:text-amber-300'
+                          : 'text-life-cinnabar dark:text-[#D98A76]'
                       }
                     >
                       {localize(

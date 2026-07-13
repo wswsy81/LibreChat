@@ -39,7 +39,7 @@ function AuthLayout({
         <div className="mx-auto sm:max-w-sm">
           <ErrorMessage>
             {localize('com_auth_error_invalid_reset_token')}{' '}
-            <a className="font-semibold text-green-600 hover:underline" href="/forgot-password">
+            <a className="font-semibold text-life-cinnabar hover:underline" href="/forgot-password">
               {localize('com_auth_click_here')}
             </a>{' '}
             {localize('com_auth_to_try_again')}
@@ -57,15 +57,16 @@ function AuthLayout({
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-white dark:bg-gray-900">
+    <div className="relative flex min-h-screen flex-col bg-life-paper dark:bg-gray-900">
       <Banner />
       <BlinkAnimation active={isFetching}>
-        <div className="mt-6 h-10 w-full bg-cover">
-          <img
-            src="assets/logo.svg"
-            className="h-full w-full object-contain"
-            alt={localize('com_ui_logo', { 0: startupConfig?.appTitle ?? 'LibreChat' })}
-          />
+        <div className="mt-10 w-full text-center" style={{ userSelect: 'none' }}>
+          <p className="font-life-mono text-[10px] tracking-[0.26em] text-life-cinnabar">
+            LIFE DESIGN STUDIO
+          </p>
+          <p className="mt-1 font-life-serif text-2xl font-black text-life-ink dark:text-gray-100">
+            {localize('com_life_brand')}
+          </p>
         </div>
       </BlinkAnimation>
       <DisplayError />
@@ -74,10 +75,10 @@ function AuthLayout({
       </div>
 
       <main className="flex flex-grow items-center justify-center">
-        <div className="w-authPageWidth overflow-hidden bg-white px-6 py-4 dark:bg-gray-900 sm:max-w-md sm:rounded-lg">
+        <div className="w-authPageWidth overflow-hidden px-6 py-4 sm:max-w-md">
           {!hasStartupConfigError && !isFetching && header && (
             <h1
-              className="mb-4 text-center text-3xl font-semibold text-black dark:text-white"
+              className="mb-4 text-center font-life-serif text-2xl font-semibold text-life-ink dark:text-white"
               style={{ userSelect: 'none' }}
             >
               {header}

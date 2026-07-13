@@ -162,7 +162,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-medium tracking-[0.16em] text-amber-700 dark:text-amber-300">
+                <p className="text-xs font-medium tracking-[0.16em] text-life-cinnabar dark:text-[#D98A76]">
                   {localize('com_life_public_link')}
                 </p>
                 <h2
@@ -182,12 +182,12 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
               </button>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm leading-6 text-text-secondary">
+            <div className="mt-5 rounded-2xl border border-life-cinnabar/20 bg-life-cinnabar/5 p-4 text-sm leading-6 text-text-secondary">
               <p className="font-medium text-text-primary">
                 {localize('com_life_share_preview_title')}
               </p>
               <p className="mt-2">{localize('com_life_share_preview_help')}</p>
-              <p className="mt-2 font-medium text-amber-800 dark:text-amber-200">{title}</p>
+              <p className="mt-2 font-medium text-life-cinnabar dark:text-[#D98A76]">{title}</p>
             </div>
 
             {!share.data && (
@@ -210,7 +210,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
                     data-testid="life-share-confirm"
                     checked={confirmed}
                     onChange={(event) => setConfirmed(event.target.checked)}
-                    className="mt-1 h-5 w-5 accent-amber-600"
+                    className="mt-1 h-5 w-5 accent-life-moss"
                   />
                   <span className="text-sm leading-6 text-text-primary">
                     {localize('com_life_share_confirm')}
@@ -220,7 +220,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
                   type="button"
                   data-testid="life-share-create"
                   disabled={!confirmed || share.isLoading}
-                  className="mt-5 min-h-12 w-full rounded-xl bg-amber-600 text-white hover:bg-amber-700"
+                  className="mt-5 min-h-12 w-full rounded-xl bg-life-moss text-life-paper hover:bg-life-moss-deep"
                   onClick={createShare}
                 >
                   {share.isLoading

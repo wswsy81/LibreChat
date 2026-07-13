@@ -25,7 +25,7 @@ function ArchiveSection({
 }) {
   return (
     <section className="rounded-[28px] border border-border-light bg-surface-primary p-5 shadow-sm sm:p-7">
-      <p className="text-xs font-medium tracking-[0.16em] text-amber-700 dark:text-amber-300">
+      <p className="text-xs font-medium tracking-[0.16em] text-life-cinnabar dark:text-[#D98A76]">
         {eyebrow}
       </p>
       <h2 className="mt-2 text-2xl font-semibold text-text-primary">{title}</h2>
@@ -63,7 +63,7 @@ export default function ArchiveRoute() {
       <div className="mx-auto w-full max-w-6xl px-5 py-9 sm:px-8 lg:py-12">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-medium tracking-[0.18em] text-amber-700 dark:text-amber-300">
+            <p className="text-sm font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
               {localize('com_life_archive_eyebrow')}
             </p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-text-primary sm:text-5xl">
@@ -75,7 +75,7 @@ export default function ArchiveRoute() {
           </div>
           <Button
             type="button"
-            className="min-h-12 rounded-2xl bg-amber-600 px-6 text-white hover:bg-amber-700"
+            className="min-h-12 rounded-2xl bg-life-moss px-6 text-life-paper hover:bg-life-moss-deep"
             onClick={() => navigate('/resume')}
           >
             {localize('com_life_continue_archive')}
@@ -89,7 +89,7 @@ export default function ArchiveRoute() {
             title={localize('com_life_current_map')}
           >
             {profile.archetype && (
-              <blockquote className="mb-5 border-l-2 border-amber-500 pl-4 text-lg leading-8 text-text-primary">
+              <blockquote className="mb-5 border-l-2 border-life-cinnabar pl-4 text-lg leading-8 text-text-primary">
                 {profile.archetype}
               </blockquote>
             )}
@@ -125,8 +125,8 @@ export default function ArchiveRoute() {
                   </div>
                 )}
                 {problem.movable && (
-                  <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-                    <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                  <div className="rounded-2xl border border-life-cinnabar/20 bg-life-cinnabar/5 p-4">
+                    <p className="text-xs font-medium text-life-cinnabar dark:text-[#D98A76]">
                       {localize('com_life_movable_problem')}
                     </p>
                     <p className="mt-2 leading-7 text-text-primary">{problem.movable}</p>
@@ -161,7 +161,7 @@ export default function ArchiveRoute() {
                     key={signal.id || index}
                     className="flex gap-3 rounded-2xl bg-surface-secondary p-4"
                   >
-                    <MapPin className="mt-0.5 h-4 w-4 flex-none text-amber-600" />
+                    <MapPin className="mt-0.5 h-4 w-4 flex-none text-life-cinnabar" />
                     <div>
                       <p className="text-sm leading-6 text-text-primary">
                         {signal.description || localize('com_life_signal')}
@@ -204,9 +204,9 @@ export default function ArchiveRoute() {
                   <Link
                     key={report.id}
                     to={`/archive/reports/${report.id}`}
-                    className="flex min-h-20 items-center gap-4 rounded-2xl border border-border-light p-4 transition hover:border-amber-500/30 hover:bg-surface-hover"
+                    className="flex min-h-20 items-center gap-4 rounded-2xl border border-border-light p-4 transition hover:border-life-cinnabar/30 hover:bg-surface-hover"
                   >
-                    <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                    <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-life-cinnabar/10 text-life-cinnabar dark:text-[#D98A76]">
                       <FileText className="h-5 w-5" />
                     </span>
                     <span className="min-w-0 flex-1">

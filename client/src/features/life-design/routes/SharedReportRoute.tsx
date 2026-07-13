@@ -25,7 +25,7 @@ export default function SharedReportRoute() {
     <main className="min-h-screen bg-[#eee8df] px-3 py-4 dark:bg-[#171512] sm:px-6 sm:py-7">
       <header className="mx-auto mb-4 flex w-full max-w-6xl items-end justify-between gap-5 rounded-2xl bg-white/75 px-5 py-4 shadow-sm backdrop-blur dark:bg-white/5 sm:rounded-3xl sm:px-7">
         <div>
-          <p className="text-xs font-medium tracking-[0.18em] text-amber-700 dark:text-amber-300">
+          <p className="text-xs font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
             {localize('com_life_brand_eyebrow')}
           </p>
           <h1 className="mt-1 text-xl font-semibold text-[#211d18] dark:text-[#f5eee5] sm:text-2xl">

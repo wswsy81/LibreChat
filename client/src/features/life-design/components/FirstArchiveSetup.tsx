@@ -91,7 +91,7 @@ export default function FirstArchiveSetup({
   return (
     <section className="mx-auto w-full max-w-3xl" aria-labelledby="life-setup-title">
       <div className="mb-8">
-        <p className="mb-3 text-sm font-medium tracking-[0.18em] text-amber-700 dark:text-amber-300">
+        <p className="mb-3 text-sm font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
           {localize(diagnostic ? 'com_life_recheck_eyebrow' : 'com_life_setup_eyebrow')}
         </p>
         <h1
@@ -115,7 +115,7 @@ export default function FirstArchiveSetup({
               value={archiveName}
               maxLength={40}
               onChange={(event) => setArchiveName(event.target.value)}
-              className="h-12 w-full rounded-2xl border border-border-light bg-surface-secondary px-4 text-text-primary outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+              className="h-12 w-full rounded-2xl border border-border-light bg-surface-secondary px-4 text-text-primary outline-none transition focus:border-life-moss focus:ring-2 focus:ring-life-moss/15"
               aria-describedby="archive-name-help"
             />
             <span id="archive-name-help" className="mt-1.5 block text-xs text-text-secondary">
@@ -147,7 +147,7 @@ export default function FirstArchiveSetup({
                 step="1"
                 value={values[field.key]}
                 onChange={(event) => updateValue(field.key, Number(event.target.value))}
-                className="mt-4 h-3 w-full cursor-pointer accent-amber-600"
+                className="mt-4 h-3 w-full cursor-pointer accent-life-moss"
                 aria-label={localize(field.label)}
               />
               <span className="mt-2 flex justify-between text-xs text-text-secondary">
@@ -159,16 +159,16 @@ export default function FirstArchiveSetup({
         </div>
 
         {!diagnostic && (
-          <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border border-life-cinnabar/20 bg-life-cinnabar/5 p-4">
             <input
               type="checkbox"
               checked={birthOptIn}
               onChange={(event) => setBirthOptIn(event.target.checked)}
-              className="mt-1 h-5 w-5 rounded accent-amber-600"
+              className="mt-1 h-5 w-5 rounded accent-life-moss"
             />
             <span>
               <span className="flex items-center gap-2 font-medium text-text-primary">
-                <Sparkles className="h-4 w-4 text-amber-600" />
+                <Sparkles className="h-4 w-4 text-life-cinnabar" />
                 {localize('com_life_birth_opt_in')}
               </span>
               <span className="mt-1 block text-sm leading-6 text-text-secondary">
@@ -194,7 +194,7 @@ export default function FirstArchiveSetup({
           type="button"
           disabled={!isComplete || pending}
           onClick={submit}
-          className="min-h-12 w-full rounded-2xl bg-amber-600 text-white hover:bg-amber-700"
+          className="min-h-12 w-full rounded-2xl bg-life-moss text-life-paper hover:bg-life-moss-deep"
         >
           {pending
             ? localize('com_life_saving')

@@ -218,7 +218,8 @@ export function normalizeLocale(locale?: string | null): SupportedLocale {
 export function detectInitialLanguage() {
   const cookieLang = readCookie('lang');
   const storedLang = readStoredLanguage();
-  return normalizeLocale(cookieLang || storedLang || getNavigatorLanguage());
+  // 人生设计室是中文产品:用户没主动选过语言时默认简体中文,不跟浏览器语言走
+  return normalizeLocale(cookieLang || storedLang || 'zh-Hans');
 }
 
 export async function ensureLocale(locale?: string | null): Promise<SupportedLocale> {

@@ -40,7 +40,7 @@ export default function ReportRoute() {
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <div className="min-w-0">
-              <p className="text-xs font-medium tracking-[0.14em] text-amber-700 dark:text-amber-300">
+              <p className="text-xs font-medium tracking-[0.14em] text-life-cinnabar dark:text-[#D98A76]">
                 {localize('com_life_private_report')}
               </p>
               <h1 className="mt-1 truncate text-xl font-semibold text-text-primary sm:text-2xl">

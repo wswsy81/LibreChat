@@ -11,7 +11,7 @@ export function LifeLoading({ fullScreen = false }: { fullScreen?: boolean }) {
       aria-label={localize('com_life_loading')}
     >
       <div className="flex items-center gap-3 text-sm text-text-secondary">
-        <LoaderCircle className="h-5 w-5 animate-spin text-amber-600" />
+        <LoaderCircle className="h-5 w-5 animate-spin text-life-cinnabar" />
         {localize('com_life_loading')}
       </div>
     </main>
@@ -33,7 +33,7 @@ export function LifeError({
   return (
     <main className="flex h-full min-h-96 items-center justify-center overflow-y-auto bg-surface-primary p-6">
       <div className="w-full max-w-lg rounded-[28px] border border-border-light bg-surface-primary p-7 text-center shadow-sm">
-        <p className="text-xs font-medium tracking-[0.18em] text-amber-700 dark:text-amber-300">
+        <p className="text-xs font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
           {localize('com_life_archive_status')}
         </p>
         <h1 className="mt-3 text-2xl font-semibold text-text-primary">{title}</h1>
@@ -52,7 +52,7 @@ export function LifeError({
           {onContinue && (
             <Button
               type="button"
-              className="min-h-11 rounded-xl bg-amber-600 text-white"
+              className="min-h-11 rounded-xl bg-life-moss text-life-paper"
               onClick={onContinue}
             >
               {localize('com_life_continue_anyway')}

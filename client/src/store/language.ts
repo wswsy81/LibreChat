@@ -21,10 +21,8 @@ const readStoredLang = () => {
 };
 
 const defaultLang = () => {
-  const userLang =
-    (typeof navigator !== 'undefined' ? navigator.language || navigator.languages?.[0] : null) ??
-    'en';
-  return Cookies.get('lang') || readStoredLang() || userLang;
+  // 人生设计室是中文产品:用户没主动选过语言时默认简体中文,不跟浏览器语言走
+  return Cookies.get('lang') || readStoredLang() || 'zh-Hans';
 };
 
 const lang = atomWithLocalStorage('lang', defaultLang());
