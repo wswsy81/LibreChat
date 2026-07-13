@@ -19,6 +19,7 @@ import {
   ReportRoute,
   ResumeRoute,
   SharedReportRoute,
+  ShellGate,
 } from '~/features/life-design';
 import WithRum from '~/lib/rum/WithRum';
 import RouteErrorBoundary from './RouteErrorBoundary';
@@ -93,7 +94,11 @@ export const router = createBrowserRouter(
         },
         {
           path: 'home',
-          element: <HomeRoute />,
+          element: (
+            <ShellGate>
+              <HomeRoute />
+            </ShellGate>
+          ),
         },
       ],
     },
@@ -160,15 +165,27 @@ export const router = createBrowserRouter(
           children: [
             {
               path: 'resume',
-              element: <ResumeRoute />,
+              element: (
+                <ShellGate>
+                  <ResumeRoute />
+                </ShellGate>
+              ),
             },
             {
               path: 'archive',
-              element: <ArchiveRoute />,
+              element: (
+                <ShellGate>
+                  <ArchiveRoute />
+                </ShellGate>
+              ),
             },
             {
               path: 'archive/reports/:reportId',
-              element: <ReportRoute />,
+              element: (
+                <ShellGate>
+                  <ReportRoute />
+                </ShellGate>
+              ),
             },
             {
               path: 'c/:conversationId?',

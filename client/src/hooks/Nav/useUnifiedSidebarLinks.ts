@@ -3,12 +3,13 @@ import { Archive, Home, MessageCircleMore } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSetRecoilState } from 'recoil';
 import type { NavLink } from '~/common';
-import { LifeSidebarPanel } from '~/features/life-design';
+import { LifeSidebarPanel, useUnifiedShell } from '~/features/life-design';
 import store from '~/store';
 
 export default function useUnifiedSidebarLinks(): NavLink[] {
   const location = useLocation();
   const navigate = useNavigate();
+  const { enabled: shellEnabled } = useUnifiedShell();
   const setExpanded = useSetRecoilState(store.sidebarExpanded);
 
   const go = useCallback(
@@ -22,7 +23,11 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
   );
 
   return useMemo(
-    () => [
+    () => {
+      if (!shellEnabled) {
+        return [];
+      }
+      return [
       {
         title: 'com_life_nav_home',
         icon: Home,
@@ -47,7 +52,8 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
         isActive: location.pathname === '/archive' || location.pathname.startsWith('/archive/'),
         onClick: () => go('/archive'),
       },
-    ],
-    [go, location.pathname],
+      ];
+    },
+    [go, location.pathname, shellEnabled],
   );
 }

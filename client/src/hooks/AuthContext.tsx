@@ -112,7 +112,7 @@ const AuthContextProvider = ({
         return;
       }
       setError(undefined);
-      setUserContext({ token, isAuthenticated: true, user, redirect: '/resume' });
+      setUserContext({ token, isAuthenticated: true, user, redirect: '/' });
     },
     onError: (error: TResError | unknown) => {
       const resError = error as TResError;
@@ -203,7 +203,7 @@ const AuthContextProvider = ({
               ? rawPath.slice(baseUrl.length) || '/'
               : rawPath;
           const currentUrl = `${strippedPath}${window.location.search}`;
-          const fallbackRedirect = isSafeRedirect(currentUrl) ? currentUrl : '/c/new';
+          const fallbackRedirect = isSafeRedirect(currentUrl) ? currentUrl : '/';
           const redirect =
             storedRedirect && isSafeRedirect(storedRedirect) ? storedRedirect : fallbackRedirect;
           setUserContext({ user, token, isAuthenticated: true, redirect });

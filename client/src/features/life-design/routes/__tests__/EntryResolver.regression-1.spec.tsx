@@ -9,6 +9,7 @@ import EntryResolver from '../EntryResolver';
 
 const mockAuthState = { isAuthenticated: false, isAuthReady: false };
 const mockBootstrapQuery = jest.fn();
+const mockStartupConfig = { data: { lifeUnifiedShell: true }, isLoading: false };
 
 jest.mock('~/hooks', () => ({
   useAuthContext: () => mockAuthState,
@@ -16,6 +17,7 @@ jest.mock('~/hooks', () => ({
 
 jest.mock('~/data-provider', () => ({
   useLifeBootstrapQuery: (config: unknown) => mockBootstrapQuery(config),
+  useGetStartupConfig: () => mockStartupConfig,
 }));
 
 jest.mock('../../components/PageState', () => ({
@@ -29,6 +31,8 @@ function renderRoute() {
         <Route path="/" element={<EntryResolver />} />
         <Route path="/home" element={<div>home</div>} />
         <Route path="/resume" element={<div>resume</div>} />
+        <Route path="/login" element={<div>login</div>} />
+        <Route path="/c/new" element={<div>chat</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -38,6 +42,8 @@ describe('EntryResolver authentication gate', () => {
   beforeEach(() => {
     mockAuthState.isAuthenticated = false;
     mockAuthState.isAuthReady = false;
+    mockStartupConfig.data = { lifeUnifiedShell: true };
+    mockStartupConfig.isLoading = false;
     mockBootstrapQuery.mockReset();
     mockBootstrapQuery.mockReturnValue({ isLoading: false });
   });
@@ -69,5 +75,23 @@ describe('EntryResolver authentication gate', () => {
 
     expect(screen.getByText('resume')).toBeInTheDocument();
     expect(mockBootstrapQuery).toHaveBeenCalledWith({ enabled: true });
+  });
+
+  it('drops authenticated users into safe chat mode when the shell flag is off', () => {
+    mockAuthState.isAuthReady = true;
+    mockAuthState.isAuthenticated = true;
+    mockStartupConfig.data = { lifeUnifiedShell: false };
+    renderRoute();
+
+    expect(screen.getByText('chat')).toBeInTheDocument();
+    expect(mockBootstrapQuery).toHaveBeenCalledWith({ enabled: false });
+  });
+
+  it('sends anonymous visitors to login when the shell flag is off', () => {
+    mockAuthState.isAuthReady = true;
+    mockStartupConfig.data = { lifeUnifiedShell: false };
+    renderRoute();
+
+    expect(screen.getByText('login')).toBeInTheDocument();
   });
 });

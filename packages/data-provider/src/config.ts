@@ -1524,6 +1524,8 @@ export type TStartupConfig = {
   modelDescriptions?: Record<string, Record<string, string>>;
   sharedLinksEnabled: boolean;
   publicSharedLinksEnabled: boolean;
+  /** Unified life-design product shell; false enters LibreChat safe chat mode. */
+  lifeUnifiedShell?: boolean;
   /** Whether shared links snapshot conversation files (gates the per-link "share files" checkbox). */
   sharedLinksSnapshotFilesEnabled?: boolean;
   /** Effective default timing for when conversation titles become fetchable.

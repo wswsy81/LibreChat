@@ -1,14 +1,21 @@
 import { Navigate } from 'react-router-dom';
 import { useLifeBootstrapQuery } from '~/data-provider';
 import { useAuthContext } from '~/hooks';
+import useUnifiedShell from '../hooks/useUnifiedShell';
 import { LifeLoading } from '../components/PageState';
 
 export default function EntryResolver() {
   const { isAuthenticated, isAuthReady } = useAuthContext();
-  const bootstrap = useLifeBootstrapQuery({ enabled: isAuthReady && isAuthenticated });
+  const shell = useUnifiedShell();
+  const bootstrap = useLifeBootstrapQuery({
+    enabled: isAuthReady && isAuthenticated && shell.enabled,
+  });
 
-  if (!isAuthReady) {
+  if (!isAuthReady || shell.isLoading) {
     return <LifeLoading fullScreen />;
+  }
+  if (!shell.enabled) {
+    return <Navigate to={isAuthenticated ? '/c/new' : '/login'} replace />;
   }
   if (!isAuthenticated) {
     return <Navigate to="/home" replace />;

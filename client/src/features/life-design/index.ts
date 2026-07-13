@@ -5,3 +5,5 @@ export { default as ArchiveRoute } from './routes/ArchiveRoute';
 export { default as ReportRoute } from './routes/ReportRoute';
 export { default as SharedReportRoute } from './routes/SharedReportRoute';
 export { default as LifeSidebarPanel } from './components/LifeSidebarPanel';
+export { default as ShellGate } from './components/ShellGate';
+export { default as useUnifiedShell } from './hooks/useUnifiedShell';
