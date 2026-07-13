@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, FileText, MapPin } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@librechat/client';
 import { useLifeArchiveQuery } from '~/data-provider';
@@ -9,27 +9,66 @@ import { LifeError, LifeLoading } from '../components/PageState';
 const dateText = (value?: string | null) =>
   value ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium' }).format(new Date(value)) : '—';
 
-const contentText = (value?: string | string[]) => {
-  if (!value) return '';
-  return Array.isArray(value) ? value.join('；') : value;
+const compactDateText = (value?: string | null) =>
+  value
+    ? new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })
+        .format(new Date(value))
+        .replaceAll('/', ' / ')
+    : '—';
+
+const versionText = (value?: string | null) => {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const time = new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(parsed);
+  return `${compactDateText(value)} · ${time}`;
+};
+
+const contentItems = (value?: string | string[]) => {
+  if (!value) return [];
+  return Array.isArray(value) ? value.filter(Boolean) : [value];
 };
 
 function ArchiveSection({
+  id,
   eyebrow,
   title,
+  sectionLabel,
   children,
 }: {
+  id: string;
   eyebrow: string;
   title: string;
+  sectionLabel: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-border-light bg-surface-primary p-5 shadow-sm sm:p-7">
-      <p className="text-xs font-medium tracking-[0.16em] text-life-cinnabar dark:text-[#D98A76]">
-        {eyebrow}
-      </p>
-      <h2 className="mt-2 text-2xl font-semibold text-text-primary">{title}</h2>
-      <div className="mt-5">{children}</div>
+    <section
+      id={id}
+      className="scroll-mt-8 border-t border-life-ink/70 py-10 dark:border-white/30 sm:py-12"
+    >
+      <div className="grid gap-5 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-7">
+        <p className="font-life-mono text-[11px] tabular-nums tracking-[0.16em] text-life-cinnabar dark:text-[#D98A76]">
+          {sectionLabel}
+        </p>
+        <div className="min-w-0">
+          <p className="font-life-mono text-[11px] tracking-[0.18em] text-life-moss dark:text-emerald-400">
+            {eyebrow}
+          </p>
+          <h2 className="mt-3 font-life-serif text-3xl font-semibold leading-tight text-life-ink dark:text-gray-100 sm:text-4xl">
+            {title}
+          </h2>
+          <div className="mt-7">{children}</div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -53,185 +92,308 @@ export default function ArchiveRoute() {
     );
   }
 
-  const { profile, reports } = archive.data;
+  const { profile, reports, profileVersion } = archive.data;
   const problem = profile.problemFrame;
   const signals = profile.signals || [];
   const timeline = (profile.timeline || []).slice(-6).reverse();
+  const constraints = contentItems(problem?.constraints);
+  const energyGain = contentItems(profile.energy?.gain);
+
+  const contents = [
+    { id: 'archive-now', label: localize('com_life_current_map'), index: '01' },
+    { id: 'archive-problem', label: localize('com_life_problem_now'), index: '02' },
+    {
+      id: 'archive-evidence',
+      label: localize('com_life_signals_and_milestones'),
+      index: '03',
+    },
+    { id: 'archive-reports', label: localize('com_life_saved_reports'), index: '04' },
+  ];
 
   return (
-    <main className="h-full overflow-y-auto bg-surface-secondary">
-      <div className="mx-auto w-full max-w-6xl px-5 py-9 sm:px-8 lg:py-12">
-        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
-              {localize('com_life_archive_eyebrow')}
-            </p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-text-primary sm:text-5xl">
-              {profile.alias || localize('com_life_my_archive')}
-            </h1>
-            <p className="mt-3 text-sm text-text-secondary">
-              {localize('com_life_updated_at', { 0: dateText(profile.updatedAt) })}
-            </p>
+    <main className="h-full overflow-y-auto bg-life-paper text-life-ink dark:bg-surface-secondary dark:text-gray-100">
+      <div className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 lg:py-14">
+        <header className="max-w-4xl">
+          <p className="font-life-mono text-[11px] tracking-[0.22em] text-life-cinnabar dark:text-[#D98A76]">
+            {localize('com_life_archive_current_meta')}
+          </p>
+          <h1 className="mt-4 text-pretty font-life-serif text-5xl font-black leading-[1.12] text-life-ink dark:text-gray-100 sm:text-6xl">
+            {profile.alias || localize('com_life_my_archive')}
+          </h1>
+          <p className="mt-5 max-w-[34em] font-life-sans text-sm leading-7 text-life-muted dark:text-gray-400">
+            {localize('com_life_archive_ongoing', { 0: dateText(profile.updatedAt) })}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 font-life-mono text-[10px] tracking-[0.12em] text-life-muted dark:text-gray-500">
+            <span>{localize('com_life_archive_private')}</span>
+            <span>{localize('com_life_archive_version', { 0: versionText(profileVersion) })}</span>
           </div>
-          <Button
-            type="button"
-            className="min-h-12 rounded-2xl bg-life-moss px-6 text-life-paper hover:bg-life-moss-deep"
-            onClick={() => navigate('/resume')}
-          >
-            {localize('com_life_continue_archive')}
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
         </header>
 
-        <div className="mt-8 grid gap-5 lg:grid-cols-2">
-          <ArchiveSection
-            eyebrow={localize('com_life_now_me')}
-            title={localize('com_life_current_map')}
+        <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start lg:gap-12">
+          <nav
+            aria-label={localize('com_life_archive_contents_label')}
+            className="border-y border-life-ink/70 py-5 dark:border-white/30 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1"
           >
-            {profile.archetype && (
-              <blockquote className="mb-5 border-l-2 border-life-cinnabar pl-4 text-lg leading-8 text-text-primary">
-                {profile.archetype}
-              </blockquote>
-            )}
-            <DashboardBars values={profile.dashboards} />
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl bg-surface-secondary p-4">
-                <p className="text-xs text-text-secondary">{localize('com_life_workview')}</p>
-                <p className="mt-2 text-sm leading-6 text-text-primary">
-                  {profile.compass?.workview || localize('com_life_not_lit_yet')}
-                </p>
-              </div>
-              <div className="rounded-2xl bg-surface-secondary p-4">
-                <p className="text-xs text-text-secondary">{localize('com_life_energy_formula')}</p>
-                <p className="mt-2 text-sm leading-6 text-text-primary">
-                  {contentText(profile.energy?.gain) || localize('com_life_not_lit_yet')}
-                </p>
-              </div>
-            </div>
-          </ArchiveSection>
-
-          <ArchiveSection
-            eyebrow={localize('com_life_true_problem')}
-            title={localize('com_life_problem_now')}
-          >
-            {problem?.movable || problem?.surface ? (
-              <div className="space-y-4">
-                {problem.surface && (
-                  <div>
-                    <p className="text-xs text-text-secondary">
-                      {localize('com_life_surface_problem')}
-                    </p>
-                    <p className="mt-2 leading-7 text-text-primary">{problem.surface}</p>
-                  </div>
-                )}
-                {problem.movable && (
-                  <div className="rounded-2xl border border-life-cinnabar/20 bg-life-cinnabar/5 p-4">
-                    <p className="text-xs font-medium text-life-cinnabar dark:text-[#D98A76]">
-                      {localize('com_life_movable_problem')}
-                    </p>
-                    <p className="mt-2 leading-7 text-text-primary">{problem.movable}</p>
-                  </div>
-                )}
-                {contentText(problem.constraints) && (
-                  <div>
-                    <p className="text-xs text-text-secondary">
-                      {localize('com_life_constraints')}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-text-primary">
-                      {contentText(problem.constraints)}
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm leading-6 text-text-secondary">
-                {localize('com_life_problem_empty')}
-              </p>
-            )}
-          </ArchiveSection>
-
-          <ArchiveSection
-            eyebrow={localize('com_life_testing')}
-            title={localize('com_life_signals_and_milestones')}
-          >
-            {signals.length || timeline.length ? (
-              <div className="space-y-3">
-                {signals.slice(0, 5).map((signal, index) => (
-                  <div
-                    key={signal.id || index}
-                    className="flex gap-3 rounded-2xl bg-surface-secondary p-4"
+            <p className="font-life-mono text-[11px] tracking-[0.18em] text-life-moss dark:text-emerald-400">
+              {localize('com_life_archive_contents')}
+            </p>
+            <ol className="mt-4 grid md:grid-cols-2 md:gap-x-8 lg:grid-cols-1 lg:gap-x-0">
+              {contents.map((item) => (
+                <li key={item.id}>
+                  <a
+                    href={`#${item.id}`}
+                    className="flex min-h-11 items-center justify-between gap-4 border-b border-life-rule py-2 font-life-sans text-sm text-life-ink transition hover:border-life-ink hover:text-life-cinnabar dark:border-white/10 dark:text-gray-200 dark:hover:text-[#D98A76]"
                   >
-                    <MapPin className="mt-0.5 h-4 w-4 flex-none text-life-cinnabar" />
+                    <span>{item.label}</span>
+                    <span className="font-life-mono text-[10px] tabular-nums text-life-muted dark:text-gray-500">
+                      {item.index}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+            <Button
+              type="button"
+              className="mt-5 min-h-12 w-full rounded-[4px] bg-life-moss px-5 font-life-sans text-sm text-life-paper hover:bg-life-moss-deep"
+              onClick={() => navigate('/resume')}
+            >
+              {localize('com_life_continue_archive')}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </nav>
+
+          <article className="min-w-0 lg:col-start-1 lg:row-start-1">
+            <ArchiveSection
+              id="archive-now"
+              eyebrow={localize('com_life_archive_role_meta')}
+              title={localize('com_life_current_map')}
+              sectionLabel={localize('com_life_archive_section_count', { 0: '01' })}
+            >
+              {profile.archetype && (
+                <blockquote className="max-w-[30em] font-life-serif text-2xl font-semibold leading-[1.75] text-life-ink dark:text-gray-100 sm:text-3xl">
+                  <span className="mr-2 text-life-cinnabar">“</span>
+                  {profile.archetype}
+                  <span className="ml-1 text-life-cinnabar">”</span>
+                </blockquote>
+              )}
+
+              <div className="mt-9">
+                <DashboardBars values={profile.dashboards} />
+              </div>
+
+              <dl className="mt-8 grid border-y border-life-rule dark:border-white/10 sm:grid-cols-2">
+                <div className="py-5 sm:pr-6">
+                  <dt className="font-life-mono text-[10px] tracking-[0.16em] text-life-muted dark:text-gray-500">
+                    {localize('com_life_workview_meta', {
+                      0: localize('com_life_workview'),
+                    })}
+                  </dt>
+                  <dd className="mt-3 font-life-sans text-sm leading-7 text-life-ink dark:text-gray-200">
+                    {profile.compass?.workview || localize('com_life_not_lit_yet')}
+                  </dd>
+                </div>
+                <div className="border-t border-life-rule py-5 dark:border-white/10 sm:border-l sm:border-t-0 sm:pl-6">
+                  <dt className="font-life-mono text-[10px] tracking-[0.16em] text-life-muted dark:text-gray-500">
+                    {localize('com_life_recovery_meta', {
+                      0: localize('com_life_energy_formula'),
+                    })}
+                  </dt>
+                  <dd className="mt-3 font-life-sans text-sm leading-7 text-life-ink dark:text-gray-200">
+                    {energyGain.length ? energyGain.join('；') : localize('com_life_not_lit_yet')}
+                  </dd>
+                </div>
+              </dl>
+            </ArchiveSection>
+
+            <ArchiveSection
+              id="archive-problem"
+              eyebrow={localize('com_life_archive_question_meta')}
+              title={localize('com_life_problem_now')}
+              sectionLabel={localize('com_life_archive_section_count', { 0: '02' })}
+            >
+              {problem?.movable || problem?.surface ? (
+                <div>
+                  {problem.surface && (
                     <div>
-                      <p className="text-sm leading-6 text-text-primary">
-                        {signal.description || localize('com_life_signal')}
+                      <p className="font-life-mono text-[10px] tracking-[0.14em] text-life-muted dark:text-gray-500">
+                        {localize('com_life_surface_problem')}
                       </p>
-                      {signal.status && (
-                        <p className="mt-1 text-xs text-text-secondary">{signal.status}</p>
-                      )}
+                      <p className="mt-3 max-w-[34em] font-life-sans text-base leading-8 text-life-muted dark:text-gray-300">
+                        {problem.surface}
+                      </p>
                     </div>
-                  </div>
-                ))}
-                {timeline.map((entry, index) => (
-                  <div
-                    key={`${entry.when || 'timeline'}-${index}`}
-                    className="flex gap-3 rounded-2xl bg-surface-secondary p-4"
-                  >
-                    <Clock3 className="mt-0.5 h-4 w-4 flex-none text-text-secondary" />
-                    <div>
-                      <p className="text-sm leading-6 text-text-primary">{entry.what}</p>
-                      {entry.when && (
-                        <p className="mt-1 text-xs text-text-secondary">{dateText(entry.when)}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm leading-6 text-text-secondary">
-                {localize('com_life_testing_empty')}
-              </p>
-            )}
-          </ArchiveSection>
+                  )}
 
-          <ArchiveSection
-            eyebrow={localize('com_life_archive_history')}
-            title={localize('com_life_saved_reports')}
-          >
-            {reports.length ? (
-              <div className="space-y-3">
-                {reports.map((report) => (
-                  <Link
-                    key={report.id}
-                    to={`/archive/reports/${report.id}`}
-                    className="flex min-h-20 items-center gap-4 rounded-2xl border border-border-light p-4 transition hover:border-life-cinnabar/30 hover:bg-surface-hover"
-                  >
-                    <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-life-cinnabar/10 text-life-cinnabar dark:text-[#D98A76]">
-                      <FileText className="h-5 w-5" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-text-primary">
-                        {report.title}
-                      </span>
-                      <span className="mt-1 block text-xs text-text-secondary">
-                        {dateText(report.createdAt)} ·{' '}
-                        {localize(
-                          report.mode === 'decision'
-                            ? 'com_life_decision_report'
-                            : 'com_life_discovery_report',
-                        )}
-                      </span>
-                    </span>
-                    <ArrowRight className="h-4 w-4 flex-none text-text-secondary" />
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm leading-6 text-text-secondary">
-                {localize('com_life_reports_empty')}
-              </p>
-            )}
-          </ArchiveSection>
+                  {problem.movable && (
+                    <div className="mt-7 border-y-2 border-life-cinnabar bg-life-cinnabar/5 px-5 py-6 dark:bg-life-cinnabar/10 sm:px-7">
+                      <p className="font-life-mono text-[10px] tracking-[0.14em] text-life-cinnabar dark:text-[#D98A76]">
+                        {localize('com_life_movable_problem')}
+                      </p>
+                      <p className="mt-4 max-w-[34em] font-life-serif text-xl font-semibold leading-[1.8] text-life-ink dark:text-gray-100 sm:text-2xl">
+                        {problem.movable}
+                      </p>
+                    </div>
+                  )}
+
+                  {constraints.length > 0 && (
+                    <div className="mt-8">
+                      <p className="font-life-mono text-[10px] tracking-[0.14em] text-life-muted dark:text-gray-500">
+                        {localize('com_life_constraints')}
+                      </p>
+                      <ol className="mt-3">
+                        {constraints.map((constraint, index) => (
+                          <li
+                            key={`${constraint}-${index}`}
+                            className="grid grid-cols-[36px_minmax(0,1fr)] gap-3 border-b border-life-rule py-3.5 dark:border-white/10"
+                          >
+                            <span className="font-life-mono text-[10px] tabular-nums text-life-brass">
+                              {String(index + 1).padStart(2, '0')}
+                            </span>
+                            <span className="font-life-sans text-sm leading-7 text-life-ink dark:text-gray-200">
+                              {constraint}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="max-w-[34em] font-life-sans text-sm leading-7 text-life-muted dark:text-gray-400">
+                  {localize('com_life_problem_empty')}
+                </p>
+              )}
+            </ArchiveSection>
+
+            <ArchiveSection
+              id="archive-evidence"
+              eyebrow={localize('com_life_archive_evidence_meta')}
+              title={localize('com_life_signals_and_milestones')}
+              sectionLabel={localize('com_life_archive_section_count', { 0: '03' })}
+            >
+              {signals.length || timeline.length ? (
+                <div>
+                  {signals.length > 0 && (
+                    <div role="table" aria-label={localize('com_life_signals_and_milestones')}>
+                      <div
+                        role="row"
+                        className="hidden grid-cols-[92px_minmax(0,1fr)_112px] gap-4 border-b border-life-ink/70 pb-3 font-life-mono text-[10px] tracking-[0.12em] text-life-muted dark:border-white/30 dark:text-gray-500 sm:grid"
+                      >
+                        <span role="columnheader">{localize('com_life_planted_at')}</span>
+                        <span role="columnheader">
+                          {localize('com_life_archive_observable_signal')}
+                        </span>
+                        <span role="columnheader">
+                          {localize('com_life_archive_status_heading')}
+                        </span>
+                      </div>
+                      {signals.slice(0, 6).map((signal, index) => (
+                        <div
+                          role="row"
+                          key={signal.id || index}
+                          className="grid gap-2 border-b border-life-rule py-4 dark:border-white/10 sm:grid-cols-[92px_minmax(0,1fr)_112px] sm:items-start sm:gap-4"
+                        >
+                          <span
+                            role="cell"
+                            className="font-life-mono text-[10px] tabular-nums text-life-muted dark:text-gray-500"
+                          >
+                            {compactDateText(signal.plantedAt)}
+                          </span>
+                          <span role="cell" className="min-w-0">
+                            <span className="block font-life-sans text-sm leading-7 text-life-ink dark:text-gray-200">
+                              {signal.description || localize('com_life_signal')}
+                            </span>
+                            {signal.payoff && (
+                              <span className="mt-1 block font-life-kai text-sm leading-7 text-life-muted dark:text-gray-400">
+                                {localize('com_life_archive_observation', {
+                                  0: signal.payoff,
+                                })}
+                              </span>
+                            )}
+                          </span>
+                          <span
+                            role="cell"
+                            className="font-life-mono text-[10px] tracking-[0.08em] text-life-brass"
+                          >
+                            {signal.status || localize('com_life_archive_status_default')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {timeline.length > 0 && (
+                    <div className={signals.length ? 'mt-9' : ''}>
+                      <p className="font-life-mono text-[10px] tracking-[0.14em] text-life-muted dark:text-gray-500">
+                        {localize('com_life_recent_changes')}
+                      </p>
+                      <ol className="mt-3">
+                        {timeline.map((entry, index) => (
+                          <li
+                            key={`${entry.when || 'timeline'}-${index}`}
+                            className="grid gap-2 border-b border-life-rule py-3.5 dark:border-white/10 sm:grid-cols-[92px_minmax(0,1fr)_112px] sm:gap-4"
+                          >
+                            <span className="font-life-mono text-[10px] tabular-nums text-life-muted dark:text-gray-500">
+                              {compactDateText(entry.when)}
+                            </span>
+                            <span className="font-life-sans text-sm leading-7 text-life-ink dark:text-gray-200">
+                              {entry.what}
+                            </span>
+                            <span className="font-life-mono text-[10px] text-life-brass">
+                              {entry.source || localize('com_life_archive_timeline_source')}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="max-w-[34em] font-life-sans text-sm leading-7 text-life-muted dark:text-gray-400">
+                  {localize('com_life_testing_empty')}
+                </p>
+              )}
+            </ArchiveSection>
+
+            <ArchiveSection
+              id="archive-reports"
+              eyebrow={localize('com_life_archive_reports_meta')}
+              title={localize('com_life_saved_reports')}
+              sectionLabel={localize('com_life_archive_section_count', { 0: '04' })}
+            >
+              {reports.length ? (
+                <ol>
+                  {reports.map((report) => (
+                    <li key={report.id}>
+                      <Link
+                        to={`/archive/reports/${report.id}`}
+                        className="group grid min-h-16 gap-2 border-b border-life-rule py-4 transition hover:border-life-ink dark:border-white/10 dark:hover:border-white/40 sm:grid-cols-[92px_minmax(0,1fr)_112px_24px] sm:items-center sm:gap-4"
+                      >
+                        <span className="font-life-mono text-[10px] tabular-nums text-life-muted dark:text-gray-500">
+                          {compactDateText(report.createdAt)}
+                        </span>
+                        <span className="min-w-0 font-life-serif text-lg font-semibold leading-7 text-life-ink group-hover:text-life-cinnabar dark:text-gray-100 dark:group-hover:text-[#D98A76]">
+                          {report.title}
+                        </span>
+                        <span className="font-life-mono text-[10px] text-life-muted dark:text-gray-500">
+                          {localize(
+                            report.mode === 'decision'
+                              ? 'com_life_decision_report'
+                              : 'com_life_discovery_report',
+                          )}
+                        </span>
+                        <ArrowRight className="hidden h-4 w-4 text-life-cinnabar transition-transform group-hover:translate-x-1 sm:block" />
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="max-w-[34em] font-life-sans text-sm leading-7 text-life-muted dark:text-gray-400">
+                  {localize('com_life_reports_empty')}
+                </p>
+              )}
+            </ArchiveSection>
+          </article>
         </div>
       </div>
     </main>
