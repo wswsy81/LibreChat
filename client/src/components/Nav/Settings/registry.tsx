@@ -19,7 +19,7 @@ import DisplayUsernameMessages from '../SettingsTabs/Account/DisplayUsernameMess
 import ConversationModeSwitch from '../SettingsTabs/Speech/ConversationModeSwitch';
 import EnableTwoFactorItem from '../SettingsTabs/Account/TwoFactorAuthentication';
 import ImportConversations from '../SettingsTabs/Data/ImportConversations';
-import { toggleControl, ThemeSetting, LangSetting } from './controls';
+import { toggleControl, LangSetting } from './controls';
 import BackupCodesItem from '../SettingsTabs/Account/BackupCodesItem';
 import { EngineSTTSetting, EngineTTSSetting } from './SpeechControls';
 import FontSizeSelector from '../SettingsTabs/Chat/FontSizeSelector';
@@ -45,14 +45,8 @@ const { GENERAL, CHAT, SPEECH, DATA, ACCOUNT, ABOUT } = SettingsTabValues;
 
 export const registry: SettingEntry[] = [
   // General · Appearance
-  {
-    id: 'theme',
-    tab: GENERAL,
-    section: 'appearance',
-    labelKey: 'com_nav_theme',
-    keywords: ['dark', 'light', 'appearance', 'color'],
-    Component: ThemeSetting,
-  },
+  // 人生设计室:锁定亮色,不注册主题开关(见 DESIGN.md;与手机端无关)。
+  // 注意:请勿"restore theme selector"——暗色是有意关闭的产品决策,不是遗漏。
   {
     id: 'language',
     tab: GENERAL,

@@ -59,7 +59,9 @@ const NavIconButton = memo(function NavIconButton({
           data-testid={`nav-panel-${link.id}`}
           className={cn(
             'h-9 w-9 rounded-lg',
-            isActive ? 'bg-surface-active-alt text-text-primary' : 'text-text-secondary',
+            isActive
+              ? 'bg-life-cinnabar/10 text-life-cinnabar'
+              : 'text-life-muted hover:bg-life-ink/5',
           )}
           onClick={handleClick}
         >
@@ -91,7 +93,7 @@ function ExpandedPanel({
   const toggleSidebarAriaKey = useShortcutAriaKey('toggleSidebar');
 
   return (
-    <div className="flex h-full flex-shrink-0 flex-col gap-2 border-r border-border-light bg-surface-primary-alt px-2 py-2">
+    <div className="flex h-full flex-shrink-0 flex-col gap-2 border-r border-border-light bg-life-paper-deep px-2 py-2">
       <TooltipAnchor
         side="right"
         description={toggleSidebarHint}

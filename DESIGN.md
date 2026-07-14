@@ -49,7 +49,7 @@
 | Token | 色值 | 作用 |
 |---|---|---|
 | `--paper` | `#F2EFE6` | 暖纸背景 |
-| `--paper-deep` | `#E5DFD1` | 侧栏、分区 |
+| `--paper-deep` | `#E5DFD1` | 侧栏、分区(侧栏用 `bg-life-paper-deep`,与主区纸底同暖色家族,禁用 LibreChat 灰 `surface-primary-alt`) |
 | `--ink` | `#17201A` | 主文字 |
 | `--moss` | `#355B47` | **行动**:推进、确认、主按钮、主要路径 |
 | `--cinnabar` | `#B94831` | **警示/焦点**:真问题、低血条、关键转折、AI 朱批 |
@@ -96,7 +96,9 @@
 
 ## 硬标准
 
-响应式(1440/390 验证)· 键盘可达 · 200% 字体不破版 · 暗色模式 · Axe 0 violation · `prefers-reduced-motion`
+响应式(1440/390 验证)· 键盘可达 · 200% 字体不破版 · Axe 0 violation · `prefers-reduced-motion`
+
+**暗色模式:锁定关闭(定案)。** 纸墨编辑部只在暖光下成立,暗色与身份冲突。`getInitialTheme` 强制 `light`,设置页不注册主题开关。**勿"restore theme selector"**——这是有意的产品决策,不是遗漏(与手机端/响应式无关)。
 
 ## 落地顺序
 
