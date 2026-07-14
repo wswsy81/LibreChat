@@ -26,6 +26,15 @@ module.exports = {
         'life-kai': ['"LXGW WenKai"', '"Noto Serif SC"', 'serif'],
         'life-mono': ['"IBM Plex Mono"', 'monospace'],
       },
+      // 统一字号梯度(6 档,替换全站散乱硬编码;中文最小 12px)
+      fontSize: {
+        'life-display': ['2.125rem', { lineHeight: '1.3' }], // 34 页面主标题(中文视觉更满,不用 40)
+        'life-title': ['1.5rem', { lineHeight: '1.4' }], // 24 区块标题
+        'life-lead': ['1.25rem', { lineHeight: '1.7' }], // 20 真问题主角句
+        'life-body': ['1rem', { lineHeight: '1.9' }], // 16 正文
+        'life-sm': ['0.875rem', { lineHeight: '1.7' }], // 14 次要/按钮/列表
+        'life-meta': ['0.75rem', { lineHeight: '1.5' }], // 12 眉标/时间戳/mono
+      },
       width: {
         authPageWidth: '370px',
       },

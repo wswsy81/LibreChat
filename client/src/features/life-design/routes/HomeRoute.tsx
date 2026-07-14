@@ -22,14 +22,14 @@ function PublicHome() {
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-12">
         <header className="flex items-center justify-between gap-4 border-b border-life-rule pb-5 dark:border-white/10">
           <div>
-            <p className="font-life-mono text-[10px] tracking-[0.26em] text-life-cinnabar">
+            <p className="font-life-mono text-life-meta tracking-[0.26em] text-life-cinnabar">
               {localize('com_life_brand_eyebrow')}
             </p>
-            <p className="mt-1 font-life-serif text-lg font-black">{localize('com_life_brand')}</p>
+            <p className="mt-1 font-life-serif text-life-lead font-black">{localize('com_life_brand')}</p>
           </div>
           <Link
             to="/login?redirect_to=%2Fhome"
-            className="inline-flex min-h-11 items-center border border-life-ink/20 px-5 font-life-sans text-sm transition hover:bg-life-ink/5 dark:border-white/15 dark:hover:bg-white/5"
+            className="inline-flex min-h-11 items-center border border-life-ink/20 px-5 font-life-sans text-life-sm transition hover:bg-life-ink/5 dark:border-white/15 dark:hover:bg-white/5"
           >
             {localize('com_life_login_archive')}
           </Link>
@@ -37,19 +37,19 @@ function PublicHome() {
 
         <div className="grid flex-1 items-center gap-14 py-14 lg:grid-cols-[1.15fr_0.85fr] lg:py-20">
           <section>
-            <p className="font-life-mono text-xs tracking-[0.2em] text-life-muted dark:text-gray-400">
+            <p className="font-life-mono text-life-meta tracking-[0.2em] text-life-muted dark:text-gray-400">
               {localize('com_life_public_kicker')}
             </p>
-            <h1 className="mt-6 max-w-4xl font-life-serif text-[44px] font-black leading-[1.32] sm:text-[56px] sm:leading-[1.28]">
+            <h1 className="mt-6 max-w-4xl font-life-serif text-life-title font-black leading-[1.32] sm:text-life-display sm:leading-[1.28]">
               {localize('com_life_public_title')}
             </h1>
-            <p className="mt-7 max-w-[32em] font-life-sans text-lg leading-9 text-life-muted dark:text-[#c8bdad]">
+            <p className="mt-7 max-w-[32em] font-life-sans text-life-lead leading-9 text-life-muted dark:text-[#c8bdad]">
               {localize('com_life_public_description')}
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Button
                 asChild
-                className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-[15px] text-life-paper hover:bg-life-moss-deep"
+                className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
               >
                 <Link to="/register">
                   {localize('com_life_start_first')}
@@ -64,7 +64,7 @@ function PublicHome() {
                 <Link to="/login?redirect_to=%2Fhome">{localize('com_life_login_archive')}</Link>
               </Button>
             </div>
-            <p className="mt-6 font-life-mono text-xs text-life-muted dark:text-[#a99f92]">
+            <p className="mt-6 font-life-mono text-life-meta text-life-muted dark:text-[#a99f92]">
               {localize('com_life_boundary_short')}
             </p>
           </section>
@@ -75,7 +75,7 @@ function PublicHome() {
               <p className="font-life-mono text-[10.5px] tracking-[0.14em] text-life-muted dark:text-gray-400">
                 {localize('com_life_sample_no')}
               </p>
-              <p className="mt-4 font-life-serif text-[22px] font-semibold leading-[1.7] underline decoration-life-cinnabar/50 decoration-2 underline-offset-[6px]">
+              <p className="mt-4 font-life-serif text-life-lead font-semibold leading-[1.7] underline decoration-life-cinnabar/50 decoration-2 underline-offset-[6px]">
                 {localize('com_life_sample_problem')}
               </p>
               <div className="mt-6 border-t border-life-ink/50 dark:border-white/20">
@@ -84,7 +84,7 @@ function PublicHome() {
                     key={bar.label}
                     className="flex items-center gap-4 border-b border-life-rule py-2.5 dark:border-white/10"
                   >
-                    <span className="w-12 flex-none font-life-serif text-sm font-semibold">
+                    <span className="w-12 flex-none font-life-serif text-life-sm font-semibold">
                       {localize(bar.label)}
                     </span>
                     <span className="flex h-[5px] flex-1 gap-[2px]">
@@ -102,7 +102,7 @@ function PublicHome() {
                       ))}
                     </span>
                     <span
-                      className={`w-10 flex-none text-right font-life-mono text-xs tabular-nums ${
+                      className={`w-10 flex-none text-right font-life-mono text-life-meta tabular-nums ${
                         bar.low ? 'text-life-cinnabar' : 'text-life-muted dark:text-gray-400'
                       }`}
                     >
@@ -116,7 +116,7 @@ function PublicHome() {
                   (key, index) => (
                     <span
                       key={key}
-                      className={`border px-3 py-1 font-life-mono text-[11px] ${
+                      className={`border px-3 py-1 font-life-mono text-life-meta ${
                         index === 2
                           ? 'border-life-cinnabar/50 text-life-cinnabar'
                           : 'border-life-ink/25 text-life-muted dark:border-white/20 dark:text-gray-400'
@@ -128,7 +128,7 @@ function PublicHome() {
                 )}
               </div>
             </div>
-            <p className="mt-4 font-life-kai text-[15px] leading-7 text-life-brass">
+            <p className="mt-4 font-life-kai text-life-body leading-7 text-life-brass">
               {localize('com_life_sample_caption')}
             </p>
           </section>

@@ -29,10 +29,10 @@ export default function DashboardBars({ values = {} }: { values?: LifeDashboards
             className="grid grid-cols-[96px_1fr_72px] items-center gap-5 border-b border-life-rule py-4 dark:border-white/10"
           >
             <div>
-              <span className="font-life-serif text-base font-semibold text-life-ink dark:text-gray-100">
+              <span className="font-life-serif text-life-body font-semibold text-life-ink dark:text-gray-100">
                 {localize(item.label)}
               </span>
-              <span className="block font-life-mono text-[10px] tracking-[0.14em] text-life-muted dark:text-gray-500">
+              <span className="block font-life-mono text-life-meta tracking-[0.14em] text-life-muted dark:text-gray-500">
                 {item.en}
               </span>
             </div>
@@ -45,7 +45,7 @@ export default function DashboardBars({ values = {} }: { values?: LifeDashboards
               ))}
             </div>
             <span
-              className={`text-right font-life-mono text-[15px] tabular-nums ${
+              className={`text-right font-life-mono text-life-body tabular-nums ${
                 low ? 'text-life-cinnabar' : 'text-life-ink dark:text-gray-200'
               }`}
             >

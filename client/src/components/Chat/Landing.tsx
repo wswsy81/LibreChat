@@ -20,19 +20,20 @@ const containerClassName =
   'shadow-stroke relative flex h-full items-center justify-center rounded-full bg-white dark:bg-presentation dark:text-white text-black dark:after:shadow-none ';
 
 function getTextSizeClass(text: string | undefined | null) {
+  // 人生设计室:欢迎语用统一字号梯度,不再飙到 4xl/5xl(见 DESIGN.md 字号梯度)
   if (!text) {
-    return 'text-xl sm:text-2xl';
+    return 'text-life-title';
   }
 
   if (text.length < 40) {
-    return 'text-2xl sm:text-4xl';
+    return 'text-life-title sm:text-life-display';
   }
 
   if (text.length < 70) {
-    return 'text-xl sm:text-2xl';
+    return 'text-life-title';
   }
 
-  return 'text-lg sm:text-md';
+  return 'text-life-lead';
 }
 
 export default function Landing() {

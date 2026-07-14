@@ -91,16 +91,16 @@ export default function FirstArchiveSetup({
   return (
     <section className="mx-auto w-full max-w-3xl" aria-labelledby="life-setup-title">
       <div className="mb-8">
-        <p className="mb-3 text-sm font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
+        <p className="mb-3 text-life-sm font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
           {localize(diagnostic ? 'com_life_recheck_eyebrow' : 'com_life_setup_eyebrow')}
         </p>
         <h1
           id="life-setup-title"
-          className="text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl"
+          className="text-life-title font-semibold tracking-tight text-text-primary sm:text-life-display"
         >
           {localize(diagnostic ? 'com_life_recheck_title' : 'com_life_setup_title')}
         </h1>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-text-secondary">
+        <p className="mt-3 max-w-2xl text-life-body leading-7 text-text-secondary">
           {localize(diagnostic ? 'com_life_recheck_description' : 'com_life_setup_description')}
         </p>
       </div>
@@ -108,7 +108,7 @@ export default function FirstArchiveSetup({
       <div className="space-y-6 rounded-[28px] border border-border-light bg-surface-primary p-5 shadow-sm sm:p-8">
         {!diagnostic && (
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-text-primary">
+            <span className="mb-2 block text-life-sm font-medium text-text-primary">
               {localize('com_life_archive_name')}
             </span>
             <input
@@ -118,7 +118,7 @@ export default function FirstArchiveSetup({
               className="h-12 w-full rounded-2xl border border-border-light bg-surface-secondary px-4 text-text-primary outline-none transition focus:border-life-moss focus:ring-2 focus:ring-life-moss/15"
               aria-describedby="archive-name-help"
             />
-            <span id="archive-name-help" className="mt-1.5 block text-xs text-text-secondary">
+            <span id="archive-name-help" className="mt-1.5 block text-life-meta text-text-secondary">
               {localize('com_life_archive_name_help')}
             </span>
           </label>
@@ -132,7 +132,7 @@ export default function FirstArchiveSetup({
                   <span className="block font-medium text-text-primary">
                     {localize(field.label)}
                   </span>
-                  <span className="mt-1 block text-sm text-text-secondary">
+                  <span className="mt-1 block text-life-sm text-text-secondary">
                     {localize(field.hint)}
                   </span>
                 </span>
@@ -150,7 +150,7 @@ export default function FirstArchiveSetup({
                 className="mt-4 h-3 w-full cursor-pointer accent-life-moss"
                 aria-label={localize(field.label)}
               />
-              <span className="mt-2 flex justify-between text-xs text-text-secondary">
+              <span className="mt-2 flex justify-between text-life-meta text-text-secondary">
                 <span>{localize('com_life_bar_empty')}</span>
                 <span>{localize('com_life_bar_full')}</span>
               </span>
@@ -171,21 +171,21 @@ export default function FirstArchiveSetup({
                 <Sparkles className="h-4 w-4 text-life-cinnabar" />
                 {localize('com_life_birth_opt_in')}
               </span>
-              <span className="mt-1 block text-sm leading-6 text-text-secondary">
+              <span className="mt-1 block text-life-sm leading-6 text-text-secondary">
                 {localize('com_life_birth_opt_in_help')}
               </span>
             </span>
           </label>
         )}
 
-        <div className="rounded-2xl bg-surface-secondary px-4 py-3 text-sm text-text-secondary">
+        <div className="rounded-2xl bg-surface-secondary px-4 py-3 text-life-sm text-text-secondary">
           {touched.size === fields.length
             ? localize('com_life_lowest_bar', { 0: localize(lowest.label) })
             : localize('com_life_touch_all_bars')}
         </div>
 
         {error && (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="text-life-sm text-red-600 dark:text-red-400">
             {error}
           </p>
         )}

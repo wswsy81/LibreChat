@@ -81,22 +81,22 @@ export default function ReportRoute() {
           <div className="min-w-0">
             <Link
               to="/archive"
-              className="inline-flex min-h-11 items-center gap-2 font-life-sans text-sm text-life-muted transition hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-100"
+              className="inline-flex min-h-11 items-center gap-2 font-life-sans text-life-sm text-life-muted transition hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-100"
               aria-label={localize('com_life_back_archive')}
             >
               <ArrowLeft className="h-4 w-4" />
               {localize('com_life_back_archive')}
             </Link>
-            <p className="mt-5 font-life-mono text-[11px] tracking-[0.2em] text-life-cinnabar dark:text-[#D98A76]">
+            <p className="mt-5 font-life-mono text-life-meta tracking-[0.2em] text-life-cinnabar dark:text-[#D98A76]">
               {localize('com_life_report_meta', {
                 0: localize('com_life_private_report'),
                 1: reportType,
               })}
             </p>
-            <h1 className="mt-3 max-w-[22em] text-pretty font-life-serif text-3xl font-semibold leading-[1.35] text-life-ink dark:text-gray-100 sm:text-4xl">
+            <h1 className="mt-3 max-w-[22em] text-pretty font-life-serif text-life-title font-semibold leading-[1.35] text-life-ink dark:text-gray-100 sm:text-life-display">
               {reportMeta.title}
             </h1>
-            <p className="mt-3 font-life-mono text-[10px] tabular-nums tracking-[0.12em] text-life-muted dark:text-[#B4B7B0]">
+            <p className="mt-3 font-life-mono text-life-meta tabular-nums tracking-[0.12em] text-life-muted dark:text-[#B4B7B0]">
               {localize('com_life_report_edition', { 0: dateText(reportMeta.createdAt) })}
             </p>
           </div>

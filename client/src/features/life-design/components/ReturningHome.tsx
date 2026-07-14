@@ -55,7 +55,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
           {localize('com_life_meta_observer')} ·{' '}
           {localize('com_life_updated_at', { 0: dateText(archive.data?.profile.updatedAt) || '—' })}
         </p>
-        <h1 className="mt-3 font-life-serif text-2xl font-semibold text-life-ink dark:text-gray-100 sm:text-3xl">
+        <h1 className="mt-3 font-life-serif text-life-title font-semibold text-life-ink dark:text-gray-100 sm:text-life-display">
           {localize('com_life_welcome_back', { 0: name })}
         </h1>
 
@@ -63,18 +63,18 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
         <section className="mt-8" aria-labelledby="problem-title">
           <p
             id="problem-title"
-            className="font-life-mono text-[11px] tracking-[0.18em] text-life-muted dark:text-gray-500"
+            className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
           >
             —— {localize('com_life_last_time')}
           </p>
-          <p className="mt-4 max-w-[34em] font-life-serif text-3xl font-semibold leading-[1.6] text-life-ink underline decoration-life-cinnabar/50 decoration-2 underline-offset-8 dark:text-gray-100 sm:text-4xl sm:leading-[1.55]">
+          <p className="mt-4 max-w-[34em] font-life-serif text-life-lead font-semibold text-life-ink underline decoration-life-cinnabar/50 decoration-2 underline-offset-8 dark:text-gray-100">
             {bootstrap.summary?.lastSurface || localize('com_life_archive_waiting')}
           </p>
           {/* ② 唯一主行动 */}
           <div className="mt-9 flex flex-wrap items-center gap-4">
             <Button
               type="button"
-              className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-[15px] text-life-paper hover:bg-life-moss-deep"
+              className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
               onClick={() => navigate('/resume')}
             >
               {localize('com_life_continue_here')}
@@ -82,7 +82,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
             </Button>
             <button
               type="button"
-              className="min-h-11 border-b border-life-rule px-1 font-life-sans text-sm text-life-muted transition hover:border-life-ink hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
+              className="min-h-11 border-b border-life-rule px-1 font-life-sans text-life-sm text-life-muted transition hover:border-life-ink hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
               onClick={() => navigate('/archive')}
             >
               {localize('com_life_view_archive')}
@@ -99,7 +99,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
           >
             <p
               id="testing-title"
-              className="font-life-mono text-[11px] tracking-[0.18em] text-life-moss"
+              className="font-life-mono text-life-meta tracking-[0.18em] text-life-moss"
             >
               {localize('com_life_testing_now')}
             </p>
@@ -107,11 +107,11 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
               <ul className="mt-4 space-y-4">
                 {signals.map((signal, index) => (
                   <li key={signal.id || index}>
-                    <p className="font-life-serif text-lg font-semibold leading-8 text-life-ink dark:text-gray-100">
+                    <p className="font-life-serif text-life-lead font-semibold leading-8 text-life-ink dark:text-gray-100">
                       {signal.description}
                     </p>
                     {signal.status && (
-                      <span className="mt-1 inline-block font-life-mono text-[11px] text-life-brass">
+                      <span className="mt-1 inline-block font-life-mono text-life-meta text-life-brass">
                         {signal.status}
                       </span>
                     )}
@@ -119,7 +119,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                 ))}
               </ul>
             ) : (
-              <p className="mt-4 text-sm leading-7 text-life-muted dark:text-gray-400">
+              <p className="mt-4 text-life-sm leading-7 text-life-muted dark:text-gray-400">
                 {localize('com_life_no_signal_yet')}
               </p>
             )}
@@ -131,7 +131,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
           >
             <p
               id="capture-title"
-              className="font-life-mono text-[11px] tracking-[0.18em] text-life-muted dark:text-gray-500"
+              className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
             >
               {localize('com_life_quick_capture')}
             </p>
@@ -147,7 +147,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                   saveNote();
                 }
               }}
-              className="mt-4 w-full resize-none border-b border-life-rule bg-transparent pb-2 font-life-kai text-[16px] leading-8 text-[#3E4A40] outline-none placeholder:text-life-muted/60 focus:border-life-ink dark:text-gray-200 dark:placeholder:text-gray-600"
+              className="mt-4 w-full resize-none border-b border-life-rule bg-transparent pb-2 font-life-kai text-life-body leading-8 text-[#3E4A40] outline-none placeholder:text-life-muted/60 focus:border-life-ink dark:text-gray-200 dark:placeholder:text-gray-600"
             />
             <div className="mt-3 flex items-center justify-between gap-3">
               <span className="font-life-mono text-[10.5px] text-life-muted dark:text-gray-500">
@@ -157,7 +157,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                 type="button"
                 disabled={!note.trim() || capture.isLoading}
                 onClick={saveNote}
-                className="min-h-10 border border-life-moss px-4 font-life-sans text-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper disabled:opacity-40"
+                className="min-h-10 border border-life-moss px-4 font-life-sans text-life-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper disabled:opacity-40"
               >
                 {capture.isSuccess && !note
                   ? localize('com_life_quick_capture_done')
@@ -172,13 +172,13 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
           <div className="mb-4 flex items-end justify-between gap-4">
             <h2
               id="bars-title"
-              className="font-life-serif text-xl font-semibold text-life-ink dark:text-gray-100"
+              className="font-life-serif text-life-lead font-semibold text-life-ink dark:text-gray-100"
             >
               {localize('com_life_four_bars')}
             </h2>
             <button
               type="button"
-              className="inline-flex min-h-11 items-center gap-2 font-life-mono text-xs text-life-muted transition hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
+              className="inline-flex min-h-11 items-center gap-2 font-life-mono text-life-meta text-life-muted transition hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
               onClick={() => setDiagnostic(true)}
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -193,7 +193,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
           <section className="mt-12" aria-labelledby="changes-title">
             <h2
               id="changes-title"
-              className="font-life-mono text-[11px] tracking-[0.18em] text-life-muted dark:text-gray-500"
+              className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
             >
               {localize('com_life_recent_changes')}
             </h2>
@@ -203,10 +203,10 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                   key={`${entry.when || 'entry'}-${index}`}
                   className="flex items-baseline gap-5 border-b border-life-rule py-3.5 dark:border-white/10"
                 >
-                  <span className="w-14 flex-none font-life-mono text-xs text-life-muted dark:text-gray-500">
+                  <span className="w-14 flex-none font-life-mono text-life-meta text-life-muted dark:text-gray-500">
                     {dateText(entry.when)}
                   </span>
-                  <span className="flex-1 text-sm leading-7 text-life-ink dark:text-gray-200">
+                  <span className="flex-1 text-life-sm leading-7 text-life-ink dark:text-gray-200">
                     {entry.what}
                   </span>
                   {entry.source && (
@@ -224,21 +224,21 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
         <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-life-ink/60 pt-6 dark:border-white/30">
           <Link
             to="/archive"
-            className="font-life-sans text-sm text-life-ink underline decoration-life-rule underline-offset-4 hover:decoration-life-ink dark:text-gray-200"
+            className="font-life-sans text-life-sm text-life-ink underline decoration-life-rule underline-offset-4 hover:decoration-life-ink dark:text-gray-200"
           >
             {localize('com_life_archive_card')} →
           </Link>
           {bootstrap.latestReportId && (
             <Link
               to={`/archive/reports/${bootstrap.latestReportId}`}
-              className="font-life-sans text-sm text-life-ink underline decoration-life-rule underline-offset-4 hover:decoration-life-ink dark:text-gray-200"
+              className="font-life-sans text-life-sm text-life-ink underline decoration-life-rule underline-offset-4 hover:decoration-life-ink dark:text-gray-200"
             >
               {localize('com_life_latest_report')} →
             </Link>
           )}
           <button
             type="button"
-            className="ml-auto inline-flex min-h-11 items-center gap-2 font-life-sans text-sm text-life-muted transition hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
+            className="ml-auto inline-flex min-h-11 items-center gap-2 font-life-sans text-life-sm text-life-muted transition hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
             onClick={() => logout('/home')}
           >
             <LogOut className="h-4 w-4" />

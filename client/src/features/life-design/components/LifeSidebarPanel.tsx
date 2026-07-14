@@ -35,7 +35,7 @@ export default function LifeSidebarPanel() {
   };
 
   let recentContent = (
-    <p className="rounded-xl bg-surface-secondary p-3 text-sm leading-6 text-text-secondary">
+    <p className="rounded-xl bg-surface-secondary p-3 text-life-sm leading-6 text-text-secondary">
       {localize('com_life_no_recent_conversations')}
     </p>
   );
@@ -55,7 +55,7 @@ export default function LifeSidebarPanel() {
             key={conversation.conversationId}
             to={`/c/${conversation.conversationId}`}
             onClick={closeMobile}
-            className="block truncate rounded-xl px-3 py-2.5 text-sm text-text-secondary transition hover:bg-surface-hover hover:text-text-primary"
+            className="block truncate rounded-xl px-3 py-2.5 text-life-sm text-text-secondary transition hover:bg-surface-hover hover:text-text-primary"
           >
             {conversation.title || localize('com_life_untitled_conversation')}
           </Link>
@@ -67,10 +67,10 @@ export default function LifeSidebarPanel() {
   return (
     <div className="flex h-full min-h-0 flex-col px-3 py-4">
       <div className="px-2 pb-5">
-        <p className="font-life-mono text-[10px] tracking-[0.24em] text-life-cinnabar dark:text-[#D98A76]">
+        <p className="font-life-mono text-life-meta tracking-[0.24em] text-life-cinnabar dark:text-[#D98A76]">
           {localize('com_life_brand_eyebrow')}
         </p>
-        <p className="mt-1 font-life-serif text-lg font-black text-text-primary">
+        <p className="mt-1 font-life-serif text-life-lead font-black text-text-primary">
           {localize('com_life_brand')}
         </p>
       </div>
@@ -87,7 +87,7 @@ export default function LifeSidebarPanel() {
               to={item.href}
               onClick={closeMobile}
               className={cn(
-                'flex min-h-11 items-center gap-3 border-l-2 px-3 font-life-sans text-sm transition-colors',
+                'flex min-h-11 items-center gap-3 border-l-2 px-3 font-life-sans text-life-sm transition-colors',
                 active
                   ? 'border-life-cinnabar bg-life-cinnabar/5 font-medium text-text-primary'
                   : 'border-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary',
@@ -106,12 +106,12 @@ export default function LifeSidebarPanel() {
         <Link
           to="/c/new"
           onClick={closeMobile}
-          className="mb-4 flex min-h-11 items-center justify-center gap-2 border border-dashed border-life-moss/60 px-3 font-life-sans text-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper dark:border-emerald-700/60 dark:text-emerald-400 dark:hover:bg-emerald-800 dark:hover:text-white"
+          className="mb-4 flex min-h-11 items-center justify-center gap-2 border border-dashed border-life-moss/60 px-3 font-life-sans text-life-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper dark:border-emerald-700/60 dark:text-emerald-400 dark:hover:bg-emerald-800 dark:hover:text-white"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           {localize('com_life_new_conversation')}
         </Link>
-        <p className="mb-3 font-life-mono text-[10px] tracking-[0.16em] text-text-secondary">
+        <p className="mb-3 font-life-mono text-life-meta tracking-[0.16em] text-text-secondary">
           {localize('com_life_recent_conversations')}
         </p>
         {recentContent}

@@ -156,7 +156,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
         </Button>
       </div>
       {hasError && (
-        <p role="alert" className="mt-2 text-sm text-life-cinnabar dark:text-[#D98A76]">
+        <p role="alert" className="mt-2 text-life-sm text-life-cinnabar dark:text-[#D98A76]">
           {localize('com_life_report_action_failed')}
         </p>
       )}
@@ -174,12 +174,12 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-medium tracking-[0.16em] text-life-cinnabar dark:text-[#D98A76]">
+                <p className="text-life-meta font-medium tracking-[0.16em] text-life-cinnabar dark:text-[#D98A76]">
                   {localize('com_life_public_link')}
                 </p>
                 <h2
                   id="share-dialog-title"
-                  className="mt-2 font-life-serif text-2xl font-semibold text-life-ink dark:text-gray-100"
+                  className="mt-2 font-life-serif text-life-title font-semibold text-life-ink dark:text-gray-100"
                 >
                   {localize('com_life_share_report_title')}
                 </h2>
@@ -194,7 +194,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
               </button>
             </div>
 
-            <div className="mt-5 border-y border-life-cinnabar/30 bg-life-cinnabar/5 px-1 py-4 text-sm leading-7 text-life-muted dark:bg-life-cinnabar/10 dark:text-gray-300">
+            <div className="mt-5 border-y border-life-cinnabar/30 bg-life-cinnabar/5 px-1 py-4 text-life-sm leading-7 text-life-muted dark:bg-life-cinnabar/10 dark:text-gray-300">
               <p className="font-medium text-life-ink dark:text-gray-100">
                 {localize('com_life_share_preview_title')}
               </p>
@@ -204,7 +204,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
 
             {!share.data && (
               <>
-                <label className="mt-5 block text-sm font-medium text-life-ink dark:text-gray-100">
+                <label className="mt-5 block text-life-sm font-medium text-life-ink dark:text-gray-100">
                   {localize('com_life_share_expiry')}
                   <select
                     value={expiry}
@@ -224,7 +224,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
                     onChange={(event) => setConfirmed(event.target.checked)}
                     className="mt-1 h-5 w-5 accent-life-moss"
                   />
-                  <span className="text-sm leading-7 text-life-ink dark:text-gray-100">
+                  <span className="text-life-sm leading-7 text-life-ink dark:text-gray-100">
                     {localize('com_life_share_confirm')}
                   </span>
                 </label>
@@ -245,7 +245,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
             {shareUrl && (
               <div className="mt-5">
                 <label
-                  className="text-sm font-medium text-life-ink dark:text-gray-100"
+                  className="text-life-sm font-medium text-life-ink dark:text-gray-100"
                   htmlFor="life-share-url"
                 >
                   {copied
@@ -257,7 +257,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
                   readOnly
                   value={shareUrl}
                   onFocus={(event) => event.currentTarget.select()}
-                  className="mt-2 h-11 w-full rounded-[4px] border border-life-rule bg-life-paper-deep px-3 text-sm text-life-ink dark:border-white/15 dark:bg-surface-secondary dark:text-gray-100"
+                  className="mt-2 h-11 w-full rounded-[4px] border border-life-rule bg-life-paper-deep px-3 text-life-sm text-life-ink dark:border-white/15 dark:bg-surface-secondary dark:text-gray-100"
                 />
               </div>
             )}

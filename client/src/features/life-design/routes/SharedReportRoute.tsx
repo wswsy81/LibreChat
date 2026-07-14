@@ -52,14 +52,14 @@ export default function SharedReportRoute() {
     <main className="min-h-screen bg-life-paper px-4 py-8 text-life-ink dark:bg-surface-secondary dark:text-gray-100 sm:px-8 sm:py-12">
       <header className="mx-auto flex w-full max-w-5xl flex-col gap-4 border-b border-life-ink/70 pb-7 dark:border-white/30 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <p className="font-life-mono text-[11px] tracking-[0.2em] text-life-cinnabar dark:text-[#D98A76]">
+          <p className="font-life-mono text-life-meta tracking-[0.2em] text-life-cinnabar dark:text-[#D98A76]">
             {localize('com_life_brand_eyebrow')}
           </p>
-          <h1 className="mt-3 max-w-[22em] text-pretty font-life-serif text-3xl font-semibold leading-[1.35] text-life-ink dark:text-gray-100 sm:text-4xl">
+          <h1 className="mt-3 max-w-[22em] text-pretty font-life-serif text-life-title font-semibold leading-[1.35] text-life-ink dark:text-gray-100 sm:text-life-display">
             {share.data.report.title}
           </h1>
         </div>
-        <p className="font-life-mono text-[10px] tracking-[0.12em] text-life-muted dark:text-[#B4B7B0]">
+        <p className="font-life-mono text-life-meta tracking-[0.12em] text-life-muted dark:text-[#B4B7B0]">
           {localize('com_life_read_only_share')}
         </p>
       </header>
@@ -76,7 +76,7 @@ export default function SharedReportRoute() {
         />
       </section>
 
-      <p className="mx-auto mt-6 max-w-5xl text-center font-life-sans text-xs leading-6 text-life-muted dark:text-[#B4B7B0]">
+      <p className="mx-auto mt-6 max-w-5xl text-center font-life-sans text-life-meta leading-6 text-life-muted dark:text-[#B4B7B0]">
         {localize('com_life_shared_boundary')}
       </p>
     </main>
