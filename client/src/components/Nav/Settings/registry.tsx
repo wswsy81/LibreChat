@@ -19,7 +19,7 @@ import DisplayUsernameMessages from '../SettingsTabs/Account/DisplayUsernameMess
 import ConversationModeSwitch from '../SettingsTabs/Speech/ConversationModeSwitch';
 import EnableTwoFactorItem from '../SettingsTabs/Account/TwoFactorAuthentication';
 import ImportConversations from '../SettingsTabs/Data/ImportConversations';
-import { toggleControl, LangSetting } from './controls';
+import { toggleControl, ThemeSetting, LangSetting } from './controls';
 import BackupCodesItem from '../SettingsTabs/Account/BackupCodesItem';
 import { EngineSTTSetting, EngineTTSSetting } from './SpeechControls';
 import FontSizeSelector from '../SettingsTabs/Chat/FontSizeSelector';
@@ -45,7 +45,14 @@ const { GENERAL, CHAT, SPEECH, DATA, ACCOUNT, ABOUT } = SettingsTabValues;
 
 export const registry: SettingEntry[] = [
   // General · Appearance
-  // 人生设计室:锁定亮色,不给用户切暗色(见 DESIGN.md),故不注册 theme 项。
+  {
+    id: 'theme',
+    tab: GENERAL,
+    section: 'appearance',
+    labelKey: 'com_nav_theme',
+    keywords: ['dark', 'light', 'appearance', 'color'],
+    Component: ThemeSetting,
+  },
   {
     id: 'language',
     tab: GENERAL,

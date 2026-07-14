@@ -22,7 +22,17 @@ export const applyFontSize = (val: string): void => {
 };
 
 export const getInitialTheme = (): string => {
-  // 人生设计室:锁定亮色/暖纸(见 DESIGN.md)。暗色与纸墨编辑部身份冲突,不提供;
-  // 忽略历史 stored 'dark' 与系统偏好,强制亮色。
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const storedPrefs = window.localStorage.getItem('color-theme');
+    if (typeof storedPrefs === 'string') {
+      return storedPrefs;
+    }
+
+    const userMedia = window.matchMedia('(prefers-color-scheme: dark)');
+    if (userMedia.matches) {
+      return 'dark';
+    }
+  }
+
   return 'light';
 };
