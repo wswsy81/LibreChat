@@ -135,7 +135,8 @@
 
 html {
   --brand-purple: #ab68ff;
-  --presentation: var(--white);
+  /* 人生设计室:亮色对话区用暖纸底(见 DESIGN.md),暗色保持原值 */
+  --presentation: #f2efe6;
   --text-primary: var(--gray-800);
   --text-secondary: var(--gray-600);
   --text-secondary-alt: var(--gray-500);

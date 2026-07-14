@@ -213,8 +213,20 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
               dangerouslySetInnerHTML={{ __html: sanitizeDescription(description) }}
             />
           ) : (
-            <div className="animate-fadeIn mt-4 max-w-md text-center text-sm font-normal text-text-primary">
-              {description}
+            <div className="animate-fadeIn mt-5 max-w-[36em] text-left text-[15px] font-normal leading-8 text-life-muted dark:text-gray-400">
+              {/* 旧会话 greeting 里存有 **加粗** markdown:解析成 strong,不再裸奔 */}
+              {description.split(/\*\*(.+?)\*\*/g).map((part, index) =>
+                index % 2 === 1 ? (
+                  <strong
+                    key={index}
+                    className="font-semibold text-life-ink dark:text-text-primary"
+                  >
+                    {part}
+                  </strong>
+                ) : (
+                  part
+                ),
+              )}
             </div>
           ))}
         {selectedAgent && (
