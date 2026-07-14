@@ -1,9 +1,8 @@
 import React, { useState, useMemo, memo } from 'react';
 import { useRecoilState } from 'recoil';
-import { EditIcon, Clipboard, CheckMark, ContinueIcon, RegenerateIcon } from '@librechat/client';
+import { Clipboard, CheckMark, ContinueIcon, RegenerateIcon } from '@librechat/client';
 import type { TConversation, TMessage, TFeedback } from 'librechat-data-provider';
 import { useGenerationsByLatest, useLocalize } from '~/hooks';
-import { Fork } from '~/components/Conversations';
 import MessageAudio from './MessageAudio';
 import Feedback from './Feedback';
 import { cn } from '~/utils';
@@ -116,7 +115,6 @@ HoverButton.displayName = 'HoverButton';
 const HoverButtons = ({
   index,
   isEditing,
-  enterEdit,
   copyToClipboard,
   conversation,
   isSubmitting,
@@ -150,13 +148,7 @@ const HoverButtons = ({
     latestMessageId: latestMessageId,
   });
 
-  const {
-    hideEditButton,
-    regenerateEnabled,
-    continueSupported,
-    forkingSupported,
-    isEditableEndpoint,
-  } = generationCapabilities;
+  const { regenerateEnabled, continueSupported } = generationCapabilities;
 
   if (!conversation) {
     return null;
@@ -179,13 +171,6 @@ const HoverButtons = ({
       </div>
     );
   }
-
-  const onEdit = () => {
-    if (isEditing) {
-      return enterEdit(true);
-    }
-    enterEdit();
-  };
 
   const handleCopy = () => copyToClipboard(setIsCopied);
 
@@ -226,30 +211,6 @@ const HoverButtons = ({
             : '',
         )}
         dataTestId={!isCreatedByUser ? 'copy-response-button' : undefined}
-      />
-
-      {/* Edit Button */}
-      {isEditableEndpoint && (
-        <HoverButton
-          id={`edit-${message.messageId}`}
-          onClick={onEdit}
-          title={localize('com_ui_edit')}
-          icon={<EditIcon size="19" />}
-          isActive={isEditing}
-          isVisible={!hideEditButton}
-          isDisabled={hideEditButton}
-          isLast={isLast}
-          className={isCreatedByUser ? '' : 'active'}
-        />
-      )}
-
-      {/* Fork Button */}
-      <Fork
-        messageId={message.messageId}
-        conversationId={conversation.conversationId}
-        forkingSupported={forkingSupported}
-        latestMessageId={latestMessageId}
-        isLast={isLast}
       />
 
       {/* Feedback Buttons */}
