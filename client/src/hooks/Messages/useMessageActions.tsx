@@ -131,7 +131,8 @@ export default function useMessageActions(props: TMessageActions) {
     } else if (assistant) {
       return assistant.name ?? 'Assistant';
     } else {
-      return message?.sender;
+      // 人生设计室:AI 发言人一律显示产品名,不泄漏底层模型名(GPT-5.6 等)
+      return '人生设计室';
     }
   }, [message, agent, assistant, UsernameDisplay, user, localize]);
 

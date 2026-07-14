@@ -148,6 +148,18 @@ const Part = memo(function Part({
       return null;
     }
 
+    // 人生设计室:隐藏 MCP(mingli)工具的通用"运行 X in Y"运行卡。
+    // 排盘/画像蒸馏/存档面板/报告等工具要么静默(update_profile/load_profile),
+    // 要么自己渲染 UI 资源(show_map/render_report/生辰选择器),都不需要这张暴露
+    // 内部工具名与服务名的噪音卡(见 DESIGN.md 对话)。
+    if (
+      'name' in toolCall &&
+      typeof toolCall.name === 'string' &&
+      toolCall.name.includes(Constants.mcp_delimiter)
+    ) {
+      return null;
+    }
+
     const isToolCall =
       'args' in toolCall && (!toolCall.type || toolCall.type === ToolCallTypes.TOOL_CALL);
     if (isToolCall) {

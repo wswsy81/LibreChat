@@ -133,6 +133,21 @@
   }
 }
 
+/* 人生设计室批注流:AI 与用户的发言标签色彩/字体区分(见 DESIGN.md 对话=批注流) */
+.agent-turn > h2 {
+  color: #b94831; /* 朱砂:AI 是拿红笔的批注者 */
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.user-turn > h2 {
+  color: #585f57; /* 墨:用户自己的声音 */
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
 html {
   --brand-purple: #ab68ff;
   /* 人生设计室:亮色对话区用暖纸底(见 DESIGN.md),暗色保持原值 */

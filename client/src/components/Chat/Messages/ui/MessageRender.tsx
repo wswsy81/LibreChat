@@ -197,11 +197,14 @@ const MessageRender = memo(function MessageRender({
       )}
     >
       {!hasParallelContent && (
-        <div className="relative flex flex-shrink-0 flex-col items-center">
-          <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full">
-            <MessageIcon iconData={iconData} assistant={assistant} agent={agent} />
-          </div>
-        </div>
+        // 人生设计室批注流:去机器人头像,改角色色竖条——AI=朱砂批注,用户=墨线(见 DESIGN.md)
+        <div
+          aria-hidden="true"
+          className={cn(
+            'mt-1.5 w-[3px] flex-shrink-0 self-stretch rounded-full',
+            msg.isCreatedByUser ? 'bg-life-ink/25' : 'bg-life-cinnabar/70',
+          )}
+        />
       )}
 
       <div
