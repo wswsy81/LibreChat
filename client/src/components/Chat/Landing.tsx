@@ -35,7 +35,7 @@ function getTextSizeClass(text: string | undefined | null) {
   return 'text-lg sm:text-md';
 }
 
-export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: boolean }) {
+export default function Landing() {
   const { conversation } = useChatContext();
   const agentsMap = useAgentsMapContext();
   const assistantMap = useAssistantsMapContext();
@@ -167,9 +167,10 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
 
   return (
     <div
-      className={`flex min-h-0 w-full flex-1 transform-gpu flex-col items-center overflow-y-auto pb-16 pt-8 transition-all duration-200 ${centerFormOnLanding ? 'max-h-full sm:max-h-0' : 'max-h-full'} ${getDynamicMargin}`}
+      className={`flex max-h-full min-h-0 w-full flex-1 transform-gpu flex-col items-center overflow-y-auto pb-16 pt-8 transition-all duration-200 ${getDynamicMargin}`}
+      style={{ justifyContent: 'safe center' }}
     >
-      <div ref={contentRef} className="my-auto flex flex-col items-center gap-0 p-2">
+      <div ref={contentRef} className="flex flex-col items-center gap-0 p-2">
         <div
           className={`flex ${textHasMultipleLines ? 'flex-col' : 'flex-col'} items-center justify-center gap-2`}
         >

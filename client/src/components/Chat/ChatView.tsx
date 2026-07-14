@@ -41,7 +41,6 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
   const localize = useLocalize();
   const rootSubmission = useRecoilValue(store.submissionByIndex(index));
   const isSubmitting = useRecoilValue(store.isSubmittingFamily(index));
-  const centerFormOnLanding = useRecoilValue(store.centerFormOnLanding);
 
   const methods = useForm<ChatFormValues>({
     defaultValues: { text: '' },
@@ -87,7 +86,7 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
   } else if (!isLandingPage) {
     content = <MessagesView messagesTree={messagesTree} />;
   } else {
-    content = <Landing centerFormOnLanding={centerFormOnLanding} />;
+    content = <Landing />;
   }
 
   const chatFormPlaceholder =

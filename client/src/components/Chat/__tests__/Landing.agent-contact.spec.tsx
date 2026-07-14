@@ -110,7 +110,7 @@ describe('Landing agent contact', () => {
       },
     };
 
-    render(<Landing centerFormOnLanding={false} />);
+    render(<Landing />);
 
     expect(screen.getByText('Portal Remote Agent')).toBeInTheDocument();
     expect(screen.getByText('Remote Agent Showcase')).toBeInTheDocument();
@@ -129,7 +129,7 @@ describe('Landing agent contact', () => {
     };
     mockAgentsMap = {};
 
-    render(<Landing centerFormOnLanding={false} />);
+    render(<Landing />);
 
     expect(screen.queryByText('Contact:')).not.toBeInTheDocument();
     expect(screen.queryByText('No contact available')).not.toBeInTheDocument();
@@ -148,20 +148,20 @@ describe('Landing agent contact', () => {
       },
     };
 
-    render(<Landing centerFormOnLanding={false} />);
+    render(<Landing />);
 
     expect(screen.getByText('Assistant')).toBeInTheDocument();
     expect(screen.queryByText('Contact:')).not.toBeInTheDocument();
   });
 
-  it('keeps long welcome copy in a shrinkable scroll region above the composer', () => {
+  it('top-aligns overflowing welcome copy while keeping short copy safely centered', () => {
     const greeting = 'A long life-design welcome message. '.repeat(20);
     mockConversation = {
       endpoint: 'openAI',
       greeting,
     };
 
-    render(<Landing centerFormOnLanding={false} />);
+    render(<Landing />);
 
     const description = screen.getByText(
       (_, element) => element?.classList.contains('animate-fadeIn') ?? false,
@@ -170,7 +170,10 @@ describe('Landing agent contact', () => {
     const landing = content?.parentElement;
 
     expect(landing).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
+    expect(landing).toHaveStyle({ justifyContent: 'safe center' });
+    expect(landing).not.toHaveClass('justify-[safe_center]');
     expect(landing).not.toHaveClass('h-full');
-    expect(content).toHaveClass('my-auto');
+    expect(landing).not.toHaveClass('sm:max-h-0');
+    expect(content).not.toHaveClass('my-auto');
   });
 });
