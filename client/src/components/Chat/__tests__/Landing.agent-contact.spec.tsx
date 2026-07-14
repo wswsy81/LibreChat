@@ -153,4 +153,24 @@ describe('Landing agent contact', () => {
     expect(screen.getByText('Assistant')).toBeInTheDocument();
     expect(screen.queryByText('Contact:')).not.toBeInTheDocument();
   });
+
+  it('keeps long welcome copy in a shrinkable scroll region above the composer', () => {
+    const greeting = 'A long life-design welcome message. '.repeat(20);
+    mockConversation = {
+      endpoint: 'openAI',
+      greeting,
+    };
+
+    render(<Landing centerFormOnLanding={false} />);
+
+    const description = screen.getByText(
+      (_, element) => element?.classList.contains('animate-fadeIn') ?? false,
+    );
+    const content = description.parentElement;
+    const landing = content?.parentElement;
+
+    expect(landing).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
+    expect(landing).not.toHaveClass('h-full');
+    expect(content).toHaveClass('my-auto');
+  });
 });

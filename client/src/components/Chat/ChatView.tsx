@@ -105,7 +105,7 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
               <>
                 <div
                   className={cn(
-                    'flex flex-col',
+                    'flex min-h-0 flex-col',
                     isLandingPage
                       ? 'flex-1 items-center justify-end sm:justify-center'
                       : 'h-full overflow-y-auto',
@@ -115,7 +115,8 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
                   <div
                     className={cn(
                       'w-full',
-                      isLandingPage && 'max-w-3xl transition-all duration-200 xl:max-w-4xl',
+                      isLandingPage &&
+                        'max-w-3xl shrink-0 transition-all duration-200 xl:max-w-4xl',
                     )}
                   >
                     {isProjectLandingPage && project && <ProjectLandingChip project={project} />}
