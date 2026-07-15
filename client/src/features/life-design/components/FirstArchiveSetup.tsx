@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { LifeDashboards } from 'librechat-data-provider';
 import { Button } from '@librechat/client';
 import { useLifeDiagnosticMutation, useLifeOnboardingMutation } from '~/data-provider';
 import { useLocalize } from '~/hooks';
+import { track } from '~/utils/track';
 import { isConsumed, markConsumed } from '../oneShot';
 
 const fields = [
@@ -57,15 +58,34 @@ export default function FirstArchiveSetup({
     [values],
   );
 
+  useEffect(() => {
+    track(diagnostic ? 'recheck_view' : 'onboarding_view');
+  }, [diagnostic]);
+
   const updateValue = (key: keyof LifeDashboards, value: number) => {
     setValues((current) => ({ ...current, [key]: value }));
-    setTouched((current) => new Set(current).add(key));
+    setTouched((current) => {
+      const next = new Set(current).add(key);
+      if (!current.has(key)) {
+        // 首次拨动某条血条:只记类别,不记分值
+        track('onboarding_bar_touched', { bar: key });
+        if (next.size === fields.length) {
+          track('onboarding_all_touched');
+        }
+      }
+      return next;
+    });
   };
 
   const submit = () => {
     if (!isComplete || pending) {
       return;
     }
+    // 只记最低那条血条的类别 + 是否给生辰,不记具体分值
+    track(diagnostic ? 'recheck_submit' : 'onboarding_submit', {
+      lowest_bar: lowest.key,
+      birth_optin: birthOptIn,
+    });
     if (diagnostic) {
       diagnostics.mutate({ dashboards: values }, { onSuccess: () => onSaved?.() });
       return;

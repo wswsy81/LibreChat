@@ -9,6 +9,7 @@ import type { TRegisterUser, TError } from 'librechat-data-provider';
 import type { TLoginLayoutContext } from '~/common';
 import { useLoginUserMutation } from '~/data-provider/Auth/mutations';
 import { useLocalize, TranslationKeys } from '~/hooks';
+import { track } from '~/utils/track';
 import { ErrorMessage } from './ErrorMessage';
 
 const Registration: React.FC = () => {
@@ -65,6 +66,7 @@ const Registration: React.FC = () => {
       setIsSubmitting(true);
     },
     onSuccess: (_data, registration) => {
+      track('register_success');
       if (startupConfig?.emailEnabled === false) {
         loginUser.mutate({
           email: registration.email,

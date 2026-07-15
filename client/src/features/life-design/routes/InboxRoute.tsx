@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@librechat/client';
 import { useLifeInboxMutation, useLifeInboxQuery } from '~/data-provider';
 import { useLocalize } from '~/hooks';
+import { track } from '~/utils/track';
 import { LifeError, LifeLoading } from '../components/PageState';
 
 const MAX_TEXT = 2000;
@@ -30,7 +31,10 @@ export default function InboxRoute() {
       return;
     }
     capture.mutate(trimmed, {
-      onSuccess: () => setText(''),
+      onSuccess: () => {
+        track('inbox_captured');
+        setText('');
+      },
     });
   };
 

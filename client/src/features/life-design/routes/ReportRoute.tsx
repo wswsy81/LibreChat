@@ -5,6 +5,7 @@ import { ThemeContext, useMediaQuery } from '@librechat/client';
 import { useLifeReportHtmlQuery, useLifeReportQuery } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import ReportActions from '../components/ReportActions';
+import { track } from '~/utils/track';
 import { LifeError, LifeLoading } from '../components/PageState';
 import {
   applyLifeReportTheme,
@@ -37,6 +38,13 @@ export default function ReportRoute() {
   useEffect(() => {
     setFrameHeight(900);
   }, [reportId]);
+
+  useEffect(() => {
+    if (report.data) {
+      // 看报告 = 关键转化(报告只有过了指南针关卡才会生成)。零内容。
+      track('report_viewed');
+    }
+  }, [report.data]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {

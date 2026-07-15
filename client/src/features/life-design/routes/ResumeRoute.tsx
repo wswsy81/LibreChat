@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLifeResumeMutation } from '~/data-provider';
 import { useLocalize } from '~/hooks';
+import { track } from '~/utils/track';
 import { LifeError, LifeLoading } from '../components/PageState';
 import { isConsumed, markConsumed } from '../oneShot';
 
@@ -20,6 +21,7 @@ export default function ResumeRoute() {
       return;
     }
     requested.current = true;
+    track('resume_clicked');
     resume.mutate(undefined, {
       onSuccess: (result) => {
         if (result.action !== 'new' || !result.operationId) {
