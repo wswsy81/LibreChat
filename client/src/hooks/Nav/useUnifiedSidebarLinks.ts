@@ -1,14 +1,17 @@
 import { useCallback, useMemo } from 'react';
-import { Archive, Home, MessageCircleMore, NotebookPen } from 'lucide-react';
+import { Archive, Home, LayoutDashboard, MessageCircleMore, NotebookPen } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSetRecoilState } from 'recoil';
 import type { NavLink } from '~/common';
 import { LifeSidebarPanel, useUnifiedShell } from '~/features/life-design';
+import { useAuthContext } from '~/hooks/AuthContext';
 import store from '~/store';
 
 export default function useUnifiedSidebarLinks(): NavLink[] {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuthContext();
+  const isAdmin = user?.role === 'ADMIN';
   const { enabled: shellEnabled } = useUnifiedShell();
   const setExpanded = useSetRecoilState(store.sidebarExpanded);
 
@@ -60,8 +63,21 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
         isActive: location.pathname === '/archive' || location.pathname.startsWith('/archive/'),
         onClick: () => go('/archive'),
       },
+      // 运营台:仅管理员可见,排在最后
+      ...(isAdmin
+        ? [
+            {
+              title: 'com_life_nav_admin',
+              icon: LayoutDashboard,
+              id: 'life-admin',
+              Component: LifeSidebarPanel,
+              isActive: location.pathname === '/admin',
+              onClick: () => go('/admin'),
+            },
+          ]
+        : []),
       ];
     },
-    [go, location.pathname, shellEnabled],
+    [go, location.pathname, shellEnabled, isAdmin],
   );
 }

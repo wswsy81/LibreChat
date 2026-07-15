@@ -76,6 +76,7 @@ services:
       - ./api/server/services/lifeOperations.js:/app/api/server/services/lifeOperations.js:ro
       - ./config/invite-user.js:/app/config/invite-user.js:ro
       - ./api/server/middleware/checkInviteUser.js:/app/api/server/middleware/checkInviteUser.js:ro
+      - ./api/strategies/validators.js:/app/api/strategies/validators.js:ro
       # 运行时可写目录(持久化用户上传/日志/图片,重启不丢)
       - ./uploads:/app/uploads
       - ./logs:/app/logs
