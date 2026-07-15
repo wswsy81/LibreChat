@@ -24,6 +24,7 @@ import {
 } from './Parts';
 import { getAskUserQuestionPart } from '~/utils/approval';
 import AskUserQuestionCall from './AskUserQuestionCall';
+import McpUIResources from './McpUIResources';
 import { isBashProgrammaticToolCall } from './routing';
 import { ErrorMessage } from './MessageContent';
 import AskUserQuestion from './AskUserQuestion';
@@ -149,15 +150,20 @@ const Part = memo(function Part({
     }
 
     // 人生设计室:隐藏 MCP(mingli)工具的通用"运行 X in Y"运行卡。
-    // 排盘/画像蒸馏/存档面板/报告等工具要么静默(update_profile/load_profile),
-    // 要么自己渲染 UI 资源(show_map/render_report/生辰选择器),都不需要这张暴露
-    // 内部工具名与服务名的噪音卡(见 DESIGN.md 对话)。
+    // 排盘/画像蒸馏等静默工具(update_profile/load_profile/paipan…)没有 UI 资源,
+    // 直接不渲染;但话题卡/生辰选择器/存档面板/报告等自带交互式 UI 资源的工具,
+    // 只渲染那份 UI 资源(去掉暴露内部工具名与服务名的噪音卡,见 DESIGN.md 对话)。
     if (
       'name' in toolCall &&
       typeof toolCall.name === 'string' &&
       toolCall.name.includes(Constants.mcp_delimiter)
     ) {
-      return null;
+      return (
+        <McpUIResources
+          attachments={attachments}
+          toolCallId={'id' in toolCall ? toolCall.id : undefined}
+        />
+      );
     }
 
     const isToolCall =
