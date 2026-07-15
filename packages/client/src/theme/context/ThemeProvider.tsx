@@ -68,20 +68,11 @@ const isValidThemeColors = (value: unknown): value is IThemeRGB => {
 };
 
 /**
- * Get initial theme from localStorage or default to 'system'
+ * 人生设计室:锁定亮色/暖纸(见 DESIGN.md)。暗色与纸墨编辑部身份冲突,不提供。
+ * 忽略 localStorage 历史值与系统偏好——否则手机系统深色时 theme='system' 会跟着变黑。
+ * (这是真正生效的 provider;utils/theme.ts 里那个 getInitialTheme 未被使用。)
  */
-const getInitialTheme = (): string => {
-  if (typeof window === 'undefined') return 'system';
-  try {
-    const stored = localStorage.getItem(THEME_KEY);
-    if (stored && ['light', 'dark', 'system'].includes(stored)) {
-      return stored;
-    }
-  } catch {
-    // localStorage not available
-  }
-  return 'system';
-};
+const getInitialTheme = (): string => 'light';
 
 /**
  * Get initial theme colors from localStorage

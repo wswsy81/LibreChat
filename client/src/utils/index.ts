@@ -159,16 +159,11 @@ ${JSON.stringify(params, null, 2)}
 Execute the tool that is mentioned in the message using the tools available to you.
     `;
   } else if (type === 'prompt') {
+    // 人生设计室:话题卡/生辰选择器点一下,那句 prompt 就是用户想说的话——
+    // 直接当用户消息发,别裹英文说明+代码围栏(会作为消息原样显示,极丑)。
     const { prompt } = payload;
-    messageText = `The user clicked a button in an embedded UI Resource, and we got a message of type \`prompt\`.
-The prompt is:
-
-\`\`\`
-${prompt}
-\`\`\`
-
-Execute the intention of the prompt that is mentioned in the message using the tools available to you.
-    `;
+    ask({ text: String(prompt ?? '') });
+    return;
   }
 
   logger.debug('MCP-UI', 'About to submit message:', messageText);
