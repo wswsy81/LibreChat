@@ -85,17 +85,47 @@ services:
       - future
     # 不发布 3080,Caddy 内网反代
 
+  # 产品分析:Umami(自建,数据留本机)。漏斗/留存/路径/仪表盘全用它原生。
+  umami-db:
+    image: postgres:16-alpine
+    container_name: umami-db
+    restart: always
+    environment:
+      - POSTGRES_DB=umami
+      - POSTGRES_USER=umami
+      - POSTGRES_PASSWORD=${UMAMI_DB_PASSWORD}
+    volumes:
+      - ./umami-db-data:/var/lib/postgresql/data
+    networks:
+      - future
+
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: umami
+    restart: always
+    depends_on:
+      - umami-db
+    environment:
+      - DATABASE_URL=postgresql://umami:${UMAMI_DB_PASSWORD}@umami-db:5432/umami
+      - DATABASE_TYPE=postgresql
+      - APP_SECRET=${UMAMI_APP_SECRET}
+    networks:
+      - future
+    # 不发布端口,Caddy 内网反代到 analytics 子域
+
   caddy:
     image: caddy:2-alpine
     container_name: future-caddy
     restart: always
     depends_on:
       - api
+      - umami
     ports:
       - "80:80"
       - "443:443"
     environment:
       - DOMAIN=${DOMAIN}
+      - ANALYTICS_DOMAIN=${ANALYTICS_DOMAIN}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data          # 证书,别丢(丢了会重新签,有速率限制)

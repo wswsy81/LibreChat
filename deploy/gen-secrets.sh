@@ -12,4 +12,6 @@ echo "CREDS_IV=$(openssl rand -hex 16)"                      # 16字节
 echo "JWT_SECRET=$(openssl rand -hex 32)"
 echo "JWT_REFRESH_SECRET=$(openssl rand -hex 32)"
 echo "FUTURE_ENGINE_INTERNAL_TOKEN=$(openssl rand -hex 24)"
+echo "UMAMI_DB_PASSWORD=$(openssl rand -hex 16)"
+echo "UMAMI_APP_SECRET=$(openssl rand -hex 32)"
 echo "# ── 生成完毕。别把这些贴进聊天/git ──"

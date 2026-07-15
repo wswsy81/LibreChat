@@ -20,4 +20,15 @@
 	}
 }
 
+# 产品分析 Umami:独立子域,自动 HTTPS,内网反代到 umami:3000
+{$ANALYTICS_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy umami:3000
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+}
+
 # 裸 HTTP 自动 301 到 HTTPS(Caddy 默认行为,无需额外配置)
