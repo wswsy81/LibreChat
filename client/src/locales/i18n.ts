@@ -329,9 +329,36 @@ export async function changeLanguageSafely(locale?: string | null) {
   return loadedLocale;
 }
 
+/**
+ * 文案覆盖层:运营台改过的文案存在服务端(/api/life/copy),启动时拉一次、
+ * 深合并进 en(fallback 源)与 zh-Hans 包。失败或超 2 秒直接放弃,绝不阻塞首屏。
+ * 必须在 changeLanguageSafely 之后调用——先让真实语言包载入,再覆盖。
+ */
+async function applyCopyOverrides() {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2000);
+    const response = await fetch('/api/life/copy', { signal: controller.signal });
+    clearTimeout(timer);
+    if (!response.ok) {
+      return;
+    }
+    const data = await response.json();
+    const overrides = data?.overrides;
+    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+      return;
+    }
+    i18n.addResourceBundle('en', defaultNS, overrides, true, true);
+    i18n.addResourceBundle('zh-Hans', defaultNS, overrides, true, true);
+  } catch {
+    /* 文案覆盖失败不影响产品 */
+  }
+}
+
 export async function initializeI18n() {
   const initialLanguage = detectInitialLanguage();
   await changeLanguageSafely(initialLanguage);
+  await applyCopyOverrides();
   return initialLanguage;
 }
 

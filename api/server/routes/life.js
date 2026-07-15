@@ -1,12 +1,14 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const { createHmac, randomUUID } = require('crypto');
-const { createLifeEngineClient, LifeEngineError } = require('@librechat/api');
+const { createLifeEngineClient, LifeEngineError, createInvite } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
+const checkAdmin = require('~/server/middleware/roles/admin');
 const { lifeShareLimiter } = require('~/server/middleware/limiters');
 const optionalJwtAuth = require('~/server/middleware/optionalJwtAuth');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const { runLifeOperation, LifeOperationPendingError } = require('~/server/services/lifeOperations');
+const { createToken } = require('~/models');
 
 const router = express.Router();
 const engine = createLifeEngineClient({
@@ -195,6 +197,30 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
       recommendedRoute: '/home',
       error: { code: 'PROFILE_UNAVAILABLE', message: '人生存档暂时读取失败', retryable: true },
     });
+  }
+});
+
+/** 文案覆盖层(运营台可改的"广告位"):mongo 存 key→文案,前端启动拉一次盖掉内置值。 */
+const lifeCopySchema = new mongoose.Schema(
+  {
+    key: { type: String, unique: true, required: true },
+    value: { type: String, required: true },
+  },
+  { timestamps: true },
+);
+const LifeCopy = mongoose.models.LifeCopy || mongoose.model('LifeCopy', lifeCopySchema);
+const COPY_KEY_PATTERN = /^com_[a-z0-9_]{1,80}$/;
+
+router.get('/copy', async (_req, res) => {
+  try {
+    const rows = await LifeCopy.find({}).select({ _id: 0, key: 1, value: 1 }).lean();
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.json({
+      overrides: Object.fromEntries(rows.map((row) => [row.key, row.value])),
+    });
+  } catch (error) {
+    logger.error('[life] copy overrides read failed', error);
+    return res.json({ overrides: {} });
   }
 });
 
@@ -424,6 +450,143 @@ router.delete('/reports/:id/shares/:shareId', async (req, res) => {
   } catch (error) {
     return engineError(res, error);
   }
+});
+
+/** 运营台(仅 ADMIN):邀请/用户/文案/状态。刻意不提供读用户对话与存档的入口——「你的存档只属于你」。 */
+const UNBOUND_INVITE_EMAIL = 'invite@future-lines.local';
+const admin = express.Router();
+router.use('/admin', checkAdmin, admin);
+
+const byUserFilter = (id) => {
+  const or = [{ user: id }];
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    or.push({ user: new mongoose.Types.ObjectId(id) });
+  }
+  return { $or: or };
+};
+
+admin.post('/invites', async (req, res) => {
+  const token = await createInvite(UNBOUND_INVITE_EMAIL, { createToken });
+  if (typeof token !== 'string') {
+    return res.status(500).json({ error: { code: 'INVITE_FAILED', message: '邀请创建失败' } });
+  }
+  const base = process.env.DOMAIN_CLIENT || 'http://localhost:3080';
+  return res.status(201).json({ url: `${base}/register?token=${token}` });
+});
+
+admin.get('/invites', async (_req, res) => {
+  const Token = mongoose.models.Token;
+  if (!Token) {
+    return res.json({ invites: [] });
+  }
+  const rows = await Token.find({ email: UNBOUND_INVITE_EMAIL })
+    .select({ _id: 0, createdAt: 1, expiresAt: 1 })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .lean();
+  return res.json({
+    invites: rows.map((row) => ({
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
+      expired: row.expiresAt ? new Date(row.expiresAt) < new Date() : false,
+    })),
+  });
+});
+
+admin.get('/users', async (_req, res) => {
+  const [users, activity] = await Promise.all([
+    mongoose.models.User.find({})
+      .select({ name: 1, username: 1, email: 1, role: 1, createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean(),
+    mongoose.models.Conversation.aggregate([
+      { $group: { _id: '$user', conversations: { $sum: 1 }, lastActive: { $max: '$updatedAt' } } },
+    ]),
+  ]);
+  const byUser = new Map(activity.map((row) => [String(row._id), row]));
+  return res.json({
+    users: users.map((user) => {
+      const stats = byUser.get(String(user._id));
+      return {
+        id: String(user._id),
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+        conversations: stats?.conversations || 0,
+        lastActive: stats?.lastActive || null,
+      };
+    }),
+  });
+});
+
+admin.delete('/users/:id', async (req, res) => {
+  const id = String(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: { code: 'INVALID_USER_ID', message: '无效的用户 ID' } });
+  }
+  if (id === userId(req)) {
+    return res.status(400).json({ error: { code: 'SELF_DELETE', message: '不能删除自己' } });
+  }
+  const target = await mongoose.models.User.findById(id).select({ role: 1 }).lean();
+  if (!target) {
+    return res.status(404).json({ error: { code: 'USER_NOT_FOUND', message: '用户不存在' } });
+  }
+  if (target.role === 'ADMIN') {
+    return res.status(400).json({ error: { code: 'ADMIN_DELETE', message: '不能删除管理员' } });
+  }
+  const filter = byUserFilter(id);
+  const cascade = ['Message', 'Conversation', 'Transaction', 'Session', 'Balance'];
+  const removed = {};
+  for (const name of cascade) {
+    const model = mongoose.models[name];
+    if (model) {
+      removed[name] = (await model.deleteMany(filter)).deletedCount;
+    }
+  }
+  await mongoose.models.User.deleteOne({ _id: id });
+  logger.info(`[life][admin] user ${id} deleted by ${userId(req)}`, removed);
+  return res.json({ deleted: true, removed });
+});
+
+admin.get('/status', async (_req, res) => {
+  const [engineHealth, users] = await Promise.all([
+    engine.json('/health').catch((error) => ({ ok: false, error: error.message })),
+    mongoose.models.User.estimatedDocumentCount(),
+  ]);
+  return res.json({
+    engine: engineHealth,
+    mongo: mongoose.connection.readyState === 1,
+    users,
+    uptimeSec: Math.round(process.uptime()),
+  });
+});
+
+admin.get('/copy', async (_req, res) => {
+  const rows = await LifeCopy.find({})
+    .select({ _id: 0, key: 1, value: 1, updatedAt: 1 })
+    .sort({ updatedAt: -1 })
+    .lean();
+  return res.json({ overrides: rows });
+});
+
+admin.put('/copy', async (req, res) => {
+  const key = String(req.body?.key || '');
+  const value = String(req.body?.value ?? '');
+  if (!COPY_KEY_PATTERN.test(key)) {
+    return res.status(422).json({ error: { code: 'INVALID_COPY_KEY', message: '无效的文案 key' } });
+  }
+  if (value.length > 2000) {
+    return res.status(422).json({ error: { code: 'COPY_TOO_LONG', message: '文案不能超过 2000 字' } });
+  }
+  if (value.trim() === '') {
+    await LifeCopy.deleteOne({ key });
+    return res.json({ key, restored: true });
+  }
+  await LifeCopy.updateOne({ key }, { $set: { value } }, { upsert: true });
+  return res.json({ key, value });
 });
 
 module.exports = router;

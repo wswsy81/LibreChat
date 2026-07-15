@@ -13,6 +13,7 @@ import AgentMarketplace from '~/components/Agents/Marketplace';
 import { OAuthSuccess, OAuthError } from '~/components/OAuth';
 import { AuthContextProvider } from '~/hooks/AuthContext';
 import {
+  AdminRoute,
   ArchiveRoute,
   EntryResolver,
   HomeRoute,
@@ -185,6 +186,14 @@ export const router = createBrowserRouter(
               element: (
                 <ShellGate>
                   <InboxRoute />
+                </ShellGate>
+              ),
+            },
+            {
+              path: 'admin',
+              element: (
+                <ShellGate>
+                  <AdminRoute />
                 </ShellGate>
               ),
             },
