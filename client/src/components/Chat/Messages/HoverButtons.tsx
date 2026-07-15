@@ -1,13 +1,14 @@
 import React, { useState, useMemo, memo } from 'react';
-import { useRecoilState } from 'recoil';
 import { Clipboard, CheckMark, ContinueIcon, RegenerateIcon } from '@librechat/client';
 import type { TConversation, TMessage, TFeedback } from 'librechat-data-provider';
 import { useGenerationsByLatest, useLocalize } from '~/hooks';
-import MessageAudio from './MessageAudio';
-import Feedback from './Feedback';
 import { cn } from '~/utils';
-import store from '~/store';
 
+/**
+ * 人生设计室:消息动作栏只留 复制 / 重说一次 / 继续。
+ * 砍掉原生 TTS(🔊,浏览器只有英文音色,读中文出英文腔)与 👍👎 反馈(含"准确/创造/清晰/
+ * 细节"风格下拉)——聊天软件那套评分噪音,破坏"另一个自己"的镜子感。
+ */
 type THoverButtons = {
   isEditing: boolean;
   enterEdit: (cancel?: boolean) => void;
@@ -35,38 +36,6 @@ type HoverButtonProps = {
   className?: string;
   buttonStyle?: string;
   dataTestId?: string;
-};
-
-const extractMessageContent = (message: TMessage): string => {
-  if (typeof message.content === 'string') {
-    return message.content;
-  }
-
-  if (Array.isArray(message.content)) {
-    return message.content
-      .map((part) => {
-        if (part == null) {
-          return '';
-        }
-        if (typeof part === 'string') {
-          return part;
-        }
-        if ('text' in part) {
-          return part.text || '';
-        }
-        if ('think' in part) {
-          const think = part.think;
-          if (typeof think === 'string') {
-            return think;
-          }
-          return think && 'text' in think ? think.text || '' : '';
-        }
-        return '';
-      })
-      .join('');
-  }
-
-  return message.text || '';
 };
 
 const HoverButton = memo(
@@ -123,11 +92,9 @@ const HoverButtons = ({
   handleContinue,
   latestMessageId,
   isLast,
-  handleFeedback,
 }: THoverButtons) => {
   const localize = useLocalize();
   const [isCopied, setIsCopied] = useState(false);
-  const [TextToSpeech] = useRecoilState<boolean>(store.textToSpeech);
 
   const endpoint = useMemo(() => {
     if (!conversation) {
@@ -176,26 +143,6 @@ const HoverButtons = ({
 
   return (
     <div className="group visible flex justify-center gap-0.5 self-end focus-within:outline-none lg:justify-start">
-      {/* Text to Speech */}
-      {TextToSpeech && (
-        <MessageAudio
-          index={index}
-          isLast={isLast}
-          messageId={message.messageId}
-          content={extractMessageContent(message)}
-          renderButton={(props) => (
-            <HoverButton
-              onClick={props.onClick}
-              title={props.title}
-              icon={props.icon}
-              isActive={props.isActive}
-              isLast={isLast}
-              dataTestId={isLast && !isCreatedByUser ? 'read-aloud-button' : undefined}
-            />
-          )}
-        />
-      )}
-
       {/* Copy Button */}
       <HoverButton
         onClick={handleCopy}
@@ -212,11 +159,6 @@ const HoverButtons = ({
         )}
         dataTestId={!isCreatedByUser ? 'copy-response-button' : undefined}
       />
-
-      {/* Feedback Buttons */}
-      {!isCreatedByUser && handleFeedback != null && (
-        <Feedback handleFeedback={handleFeedback} feedback={message.feedback} isLast={isLast} />
-      )}
 
       {/* Regenerate Button */}
       {regenerateEnabled && (
