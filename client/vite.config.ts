@@ -182,6 +182,13 @@ export default defineConfig(({ command }) => ({
     sourcemap: buildSourceMap,
     outDir: './dist',
     minify: 'oxc',
+    // 人生设计室:把只在特定场景才用到的重块踢出首屏 modulepreload
+    // (mermaid 画图 2.7M / sandpack 代码沙箱 / codemirror 编辑器)。
+    // 它们仍在真正需要时按需加载,只是不再每次打开都预拉、拖慢中国跨境首屏。
+    modulePreload: {
+      resolveDependencies: (_filename: string, deps: string[]) =>
+        deps.filter((dep) => !/(mermaid|sandpack|codemirror)/.test(dep)),
+    },
     rolldownOptions: {
       preserveEntrySignatures: 'strict',
       output: {
@@ -199,15 +206,20 @@ export default defineConfig(({ command }) => ({
                     return 'rum';
                   }
 
-                  // IMPORTANT: mermaid and ALL its dependencies must be in the same chunk
-                  // to avoid initialization order issues. This includes chevrotain, langium,
-                  // dagre-d3-es, and their nested lodash-es dependencies.
+                  // 人生设计室:lodash-es 首屏到处在用,原来它被塞进 mermaid chunk,
+                  // 导致 2.7MB 的 mermaid 被 modulepreload 拉上首屏。拆成独立块,
+                  // mermaid(只在渲染图时懒加载)就掉出首屏关键路径。
+                  if (normalizedId.includes('lodash-es')) {
+                    return 'lodash-es';
+                  }
+                  // mermaid 及其(非 lodash-es)依赖仍同块,避免初始化顺序问题。
+                  // 只匹配 node_modules 里的库——原来 includes('mermaid') 把源文件
+                  // utils/mermaid.ts(首屏 hook 静态引用)也归进来,导致整块 2.7MB 变 eager。
                   if (
-                    normalizedId.includes('mermaid') ||
+                    normalizedId.includes('node_modules/mermaid') ||
                     normalizedId.includes('dagre-d3-es') ||
                     normalizedId.includes('chevrotain') ||
-                    normalizedId.includes('langium') ||
-                    normalizedId.includes('lodash-es')
+                    normalizedId.includes('langium')
                   ) {
                     return 'mermaid';
                   }
