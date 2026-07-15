@@ -322,3 +322,13 @@ p.whitespace-pre-wrap a, li a {
 .dark p.whitespace-pre-wrap a, .dark li a {
   color: #52a0ff;
 }
+/* 人生设计室:iOS Safari 在输入框字号 <16px 时聚焦会自动放大整页,
+   且跳转后不缩回(注册页打完字→建档页停在放大态,看着像布局溢出)。
+   移动端把所有表单控件字号钉到 ≥16px,根治自动缩放。 */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}
