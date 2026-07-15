@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { Tools } from 'librechat-data-provider';
 import { UIResourceRenderer } from '@mcp-ui/client';
 import type { TAttachment, UIResource } from 'librechat-data-provider';
@@ -19,6 +20,24 @@ export default function McpUIResources({
   toolCallId?: string;
 }) {
   const { ask } = useOptionalMessagesOperations();
+  const navigate = useNavigate();
+
+  // 沙箱 iframe(存档面板等)里的链接靠 postMessage {type:'link'} 上来:
+  // 站内路径走 SPA 跳转,站外开新窗;其余动作(prompt/tool/intent)照旧交给 handleUIAction。
+  const onUIAction = async (result: { type?: string; payload?: { url?: string } }) => {
+    if (result?.type === 'link' && result.payload?.url) {
+      const url = String(result.payload.url);
+      const path = url.replace(/^https?:\/\/[^/]+/, '');
+      if (path.startsWith('/')) {
+        navigate(path);
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      return;
+    }
+    return handleUIAction(result as Parameters<typeof handleUIAction>[0], ask);
+  };
+
   const uiResources: UIResource[] =
     attachments
       ?.filter(
@@ -39,7 +58,7 @@ export default function McpUIResources({
       ) : (
         <UIResourceRenderer
           resource={uiResources[0]}
-          onUIAction={async (result) => handleUIAction(result, ask)}
+          onUIAction={onUIAction}
           htmlProps={{ autoResizeIframe: { width: true, height: true } }}
         />
       )}
