@@ -263,6 +263,24 @@ export default function ToolCallGroup({
     }
   }, [hasActiveToolCall, userOverride]);
 
+  /** 人生设计室:纯 MCP(mingli)组不渲染"Used N tools — mingli"折叠壳——
+   *  暴露内部服务名与工具数,破坏方法隐形(产品哲学九条第3条)。直接渲染内容:
+   *  有交互 UI 资源的(话题卡/生辰选择器/存档面板)照常出现,静默工具本来就是 null。 */
+  const allMcpTools =
+    count > 0 && toolNames.every((name) => name.includes(Constants.mcp_delimiter));
+  if (allMcpTools) {
+    return (
+      <div ref={rootRef}>
+        {parts.map(({ part, idx }) =>
+          renderPart(part, idx, isLast && idx === lastContentIdx, handleToolExpand),
+        )}
+        {groupAttachments && groupAttachments.length > 0 && (
+          <AttachmentGroup attachments={groupAttachments} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="mb-2 mt-1" ref={rootRef}>
       <button

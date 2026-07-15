@@ -13,7 +13,6 @@ import {
   ExecuteCode,
   AgentUpdate,
   EmptyText,
-  Reasoning,
   Summary,
   Text,
   SkillCall,
@@ -127,11 +126,9 @@ const Part = memo(function Part({
       </Container>
     );
   } else if (part.type === ContentTypes.THINK) {
-    const reasoning = typeof part.think === 'string' ? part.think : part.think?.value;
-    if (typeof reasoning !== 'string') {
-      return null;
-    }
-    return <Reasoning reasoning={reasoning} isLast={isLast ?? false} />;
+    // 人生设计室:思考过程不展示——"哲学与方法论隐形"(产品哲学九条第3条)。
+    // 推理痕迹(多为英文内部规划)破坏"另一个自己"的镜子感。
+    return null;
   } else if (part.type === ContentTypes.SUMMARY) {
     return (
       <Summary
