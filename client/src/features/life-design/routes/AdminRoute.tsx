@@ -32,7 +32,10 @@ export default function AdminRoute() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6" aria-labelledby="admin-title">
+    <main
+      className="mx-auto h-full w-full max-w-4xl overflow-y-auto px-4 py-8 sm:px-6"
+      aria-labelledby="admin-title"
+    >
       <p className="mb-2 text-life-meta font-medium tracking-[0.18em] text-life-cinnabar">
         OPERATIONS
       </p>
