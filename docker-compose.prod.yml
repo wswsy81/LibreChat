@@ -1,0 +1,111 @@
+# 未来线 · 生产编排(腾讯首尔 x64)
+# 自包含四件套:mongodb + future-engine(shim) + api(LibreChat) + caddy(自动 HTTPS)
+# 模型层复用宿主已有的 new-api(:3000),经 host.docker.internal 连,不在此编排内。
+#
+# 起停:
+#   cd librechat
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+#   docker compose -f docker-compose.prod.yml down
+#
+# 前置:.env 已生成(见 deploy/gen-secrets.sh)、DNS 域名 A 记录已指向本机、安全组放行 80/443。
+
+services:
+  mongodb:
+    image: mongo:8.0.20
+    container_name: chat-mongodb
+    restart: always
+    volumes:
+      - ./data-node:/data/db            # 账号/对话/消息,持久化,务必进备份
+    networks:
+      - future
+    # 不发布端口,只在内网,绝不公网
+
+  future-engine:
+    build:
+      context: ../future-engine-shim    # 用 shim 的生产 Dockerfile(x64 免编译)
+    image: future-engine:prod
+    container_name: future-engine
+    restart: always
+    environment:
+      - SHIM_PORT=8899
+      - CHAT_URL=https://${DOMAIN}       # 报告链接 APP_BASE 用它,必须是公网 https 域名
+      - FUTURE_ENGINE_INTERNAL_TOKEN=${FUTURE_ENGINE_INTERNAL_TOKEN}
+      - POLARIS_URL=http://host.docker.internal:3000/v1   # 宿主 new-api
+      - POLARIS_KEY=${POLARIS_KEY}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../future-engine-shim/data:/app/data   # 画像/报告/邀请码,持久化,务必进备份
+    networks:
+      - future
+    # 不发布 8899,只在内网
+
+  api:
+    # 钉死 digest:与开发机验证通过的同一镜像(:latest 会漂移,内部结构变了会崩)
+    image: registry.librechat.ai/danny-avila/librechat-dev@sha256:7f95c733d6c9b29de9feb7dd14efa8b29cb0d369bf49710daf7e9b302a8bbe41
+    container_name: LibreChat
+    restart: always
+    depends_on:
+      - mongodb
+      - future-engine
+    env_file:
+      - .env
+    environment:
+      # 清空 host 透传的代理,避免容器出网全 Connection error(同 dev override)
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - http_proxy=
+      - https_proxy=
+      - PROXY=
+      - no_proxy=localhost,127.0.0.1,::1,mongodb,chat-mongodb,future-engine
+      - NO_PROXY=localhost,127.0.0.1,::1,mongodb,chat-mongodb,future-engine
+      - FUTURE_ENGINE_URL=http://future-engine:8899
+      - FUTURE_ENGINE_INTERNAL_TOKEN=${FUTURE_ENGINE_INTERNAL_TOKEN}
+    volumes:
+      # 自定义配置 + 构建产物 + 未来线定制源文件(镜像基线之上覆盖,同 dev override)
+      - ./librechat.yaml:/app/librechat.yaml
+      - ./client/dist:/app/client/dist:ro
+      - ./packages/api/dist:/app/packages/api/dist:ro
+      - ./packages/data-provider/dist:/app/packages/data-provider/dist:ro
+      - ./api/server/index.js:/app/api/server/index.js:ro
+      - ./api/server/routes/config.js:/app/api/server/routes/config.js:ro
+      - ./api/server/routes/index.js:/app/api/server/routes/index.js:ro
+      - ./api/server/routes/life.js:/app/api/server/routes/life.js:ro
+      - ./api/server/middleware/limiters/index.js:/app/api/server/middleware/limiters/index.js:ro
+      - ./api/server/middleware/limiters/lifeShareLimiter.js:/app/api/server/middleware/limiters/lifeShareLimiter.js:ro
+      - ./api/server/services/lifeOperations.js:/app/api/server/services/lifeOperations.js:ro
+      - ./config/invite-user.js:/app/config/invite-user.js:ro
+      - ./api/server/middleware/checkInviteUser.js:/app/api/server/middleware/checkInviteUser.js:ro
+      # 运行时可写目录(持久化用户上传/日志/图片,重启不丢)
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./images:/app/client/public/images
+    networks:
+      - future
+    # 不发布 3080,Caddy 内网反代
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: future-caddy
+    restart: always
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data          # 证书,别丢(丢了会重新签,有速率限制)
+      - caddy_config:/config
+    networks:
+      - future
+
+networks:
+  future:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,23 @@
+# 未来线 · Caddy 反代 + 自动 HTTPS
+# {$DOMAIN} 来自 compose 注入的环境变量(= .env 里的 DOMAIN)
+# Caddy 自动向 Let's Encrypt 申请/续期证书,零配置。
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# 反代到内网 api 容器;SSE 流式、WebSocket、文件上传 Caddy 默认透传
+	reverse_proxy api:3080 {
+		# 大文件上传不设上限(LibreChat 图片/文档上传)
+		flush_interval -1
+	}
+
+	# 基本安全响应头
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# 裸 HTTP 自动 301 到 HTTPS(Caddy 默认行为,无需额外配置)
