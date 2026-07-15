@@ -26,7 +26,6 @@ import FontSizeSelector from '../SettingsTabs/Chat/FontSizeSelector';
 import AdvancedPrompts from '../SettingsTabs/Chat/AdvancedPrompts';
 import DeleteAccount from '../SettingsTabs/Account/DeleteAccount';
 import { ForkSettings } from '../SettingsTabs/Chat/ForkSettings';
-import ChatDirection from '../SettingsTabs/Chat/ChatDirection';
 import { DeleteCache } from '../SettingsTabs/Data/DeleteCache';
 import { RevokeKeys } from '../SettingsTabs/Data/RevokeKeys';
 import { ClearChats } from '../SettingsTabs/Data/ClearChats';
@@ -63,48 +62,7 @@ export const registry: SettingEntry[] = [
     keywords: ['text', 'zoom'],
     Component: FontSizeSelector,
   },
-  {
-    id: 'chatDirection',
-    tab: GENERAL,
-    section: 'appearance',
-    labelKey: 'com_nav_chat_direction',
-    keywords: ['rtl', 'ltr'],
-    Component: ChatDirection,
-  },
-  // General · Layout
-  {
-    id: 'maximizeChatSpace',
-    tab: GENERAL,
-    section: 'layout',
-    labelKey: 'com_nav_maximize_chat_space',
-    Component: toggleControl({
-      stateAtom: store.maximizeChatSpace,
-      localizationKey: 'com_nav_maximize_chat_space',
-      switchId: 'maximizeChatSpace',
-    }),
-  },
-  {
-    id: 'centerFormOnLanding',
-    tab: GENERAL,
-    section: 'layout',
-    labelKey: 'com_nav_center_chat_input',
-    Component: toggleControl({
-      stateAtom: store.centerFormOnLanding,
-      localizationKey: 'com_nav_center_chat_input',
-      switchId: 'centerFormOnLanding',
-    }),
-  },
-  {
-    id: 'showScrollButton',
-    tab: GENERAL,
-    section: 'layout',
-    labelKey: 'com_nav_scroll_button',
-    Component: toggleControl({
-      stateAtom: store.showScrollButton,
-      localizationKey: 'com_nav_scroll_button',
-      switchId: 'showScrollButton',
-    }),
-  },
+  // 人生设计室:裁掉「对话方向 / 布局开关(最大化/居中/滚动按钮)」——对普通用户是噪音。
   // General · Accessibility
   {
     id: 'keepScreenAwake',
