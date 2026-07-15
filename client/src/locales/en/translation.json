@@ -2200,7 +2200,7 @@
   "com_life_switch_person": "不是我，退出并换个人",
   "com_life_testing": "下一步要验证什么",
   "com_life_testing_empty": "还没有要验证的下一步。下次聊清之后，会把判断落成一个小实验。",
-  "com_life_touch_all_bars": "请亲手碰一下四条血条。默认值不算你的回答。",
+  "com_life_touch_all_bars": "拨动血条给自己打个分,拨过一条就能进；默认值不算你的回答。",
   "com_life_true_problem": "真正卡住你的事",
   "com_life_untitled_conversation": "未命名进度",
   "com_life_updated_at": "最近更新：{{0}}",

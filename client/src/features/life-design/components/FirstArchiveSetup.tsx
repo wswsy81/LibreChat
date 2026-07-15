@@ -52,7 +52,8 @@ export default function FirstArchiveSetup({
   const error = readError(onboarding.error || diagnostics.error);
   const isNameValid =
     diagnostic || (archiveName.trim().length >= 3 && archiveName.trim().length <= 40);
-  const isComplete = touched.size === fields.length && isNameValid;
+  // 只要拨动过至少一条血条就放行(不逼用户四条全拨——太死会卡住人),诊断模式默认已全拨。
+  const isComplete = touched.size >= 1 && isNameValid;
   const lowest = useMemo(
     () => fields.reduce((best, field) => (values[field.key] < values[best.key] ? field : best)),
     [values],
@@ -199,7 +200,7 @@ export default function FirstArchiveSetup({
         )}
 
         <div className="rounded-2xl bg-surface-secondary px-4 py-3 text-life-sm text-text-secondary">
-          {touched.size === fields.length
+          {touched.size >= 1
             ? localize('com_life_lowest_bar', { 0: localize(lowest.label) })
             : localize('com_life_touch_all_bars')}
         </div>
