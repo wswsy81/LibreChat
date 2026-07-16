@@ -58,6 +58,10 @@ export const lifeReportShares = (id: string) => `${lifeReport(id)}/shares`;
 export const lifeReportShare = (id: string, shareId: string) =>
   `${lifeReportShares(id)}/${encodeURIComponent(shareId)}`;
 export const lifeShare = (token: string) => `${lifeRoot}/shares/${encodeURIComponent(token)}`;
+export const lifeDossierHtml = (revision: boolean) =>
+  `${lifeRoot}/dossier/html${revision ? '?revision=1' : ''}`;
+export const lifeDossierAnnotate = () => `${lifeRoot}/dossier/annotate`;
+export const lifeMapHtml = () => `${lifeRoot}/map/html`;
 
 export const balance = () => `${BASE_URL}/api/balance`;
 

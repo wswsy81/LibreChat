@@ -80,6 +80,20 @@ export function getLifeShare(token: string): Promise<t.LifePublicShareResponse> 
   return request.get(endpoints.lifeShare(token));
 }
 
+export function getLifeDossierHtml(revision: boolean): Promise<string> {
+  return request.get(endpoints.lifeDossierHtml(revision));
+}
+
+export function getLifeMapHtml(): Promise<string> {
+  return request.get(endpoints.lifeMapHtml());
+}
+
+export function annotateLifeDossier(
+  payload: t.LifeDossierAnnotateRequest,
+): Promise<t.LifeDossierAnnotateResponse> {
+  return request.post(endpoints.lifeDossierAnnotate(), payload, idempotencyHeaders());
+}
+
 export function revokeUserKey(name: string): Promise<unknown> {
   return request.delete(endpoints.revokeUserKey(name));
 }

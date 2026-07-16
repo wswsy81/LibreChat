@@ -62,6 +62,27 @@ export const useLifeReportHtmlQuery = (
     { enabled: Boolean(reportId), retry: false, cacheTime: 0, staleTime: 0, ...config },
   );
 
+export const useLifeDossierHtmlQuery = (
+  revision: boolean,
+  config?: UseQueryOptions<string>,
+): QueryObserverResult<string> =>
+  useQuery<string>(
+    [QueryKeys.lifeDossierHtml, revision],
+    () => dataService.getLifeDossierHtml(revision),
+    { retry: 1, cacheTime: 0, staleTime: 0, refetchOnWindowFocus: false, ...config },
+  );
+
+export const useLifeMapHtmlQuery = (
+  config?: UseQueryOptions<string>,
+): QueryObserverResult<string> =>
+  useQuery<string>([QueryKeys.lifeMapHtml], dataService.getLifeMapHtml, {
+    retry: 1,
+    cacheTime: 0,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    ...config,
+  });
+
 export const useLifeShareQuery = (
   token: string,
   config?: UseQueryOptions<LifePublicShareResponse>,

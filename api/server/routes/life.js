@@ -372,9 +372,7 @@ router.get('/inbox', async (req, res) => {
 router.post('/inbox', async (req, res) => {
   const text = String(req.body?.text || '').trim();
   if (!text) {
-    return res
-      .status(422)
-      .json({ error: { code: 'INBOX_EMPTY', message: '随手记内容不能为空' } });
+    return res.status(422).json({ error: { code: 'INBOX_EMPTY', message: '随手记内容不能为空' } });
   }
   try {
     const result = await engine.json('/internal/inbox', {
@@ -383,6 +381,65 @@ router.post('/inbox', async (req, res) => {
       body: { text },
     });
     return res.status(201).json(result);
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+router.get('/dossier/html', async (req, res) => {
+  try {
+    const revision = req.query.revision === '1' ? '?revision=1' : '';
+    const html = await engine.text(`/internal/dossier/html${revision}`, { userId: userId(req) });
+    res.type('html');
+    res.set(
+      'Content-Security-Policy',
+      "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'",
+    );
+    return res.send(html);
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+router.get('/map/html', async (req, res) => {
+  try {
+    const html = await engine.text('/internal/map/html', { userId: userId(req) });
+    res.type('html');
+    res.set(
+      'Content-Security-Policy',
+      "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'",
+    );
+    return res.send(html);
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+router.post('/dossier/annotate', async (req, res) => {
+  const section = String(req.body?.section || '');
+  const entryId = String(req.body?.entryId || '');
+  const action = String(req.body?.action || '');
+  const text = req.body?.text === undefined ? undefined : String(req.body.text);
+  if (!section || !entryId || !action) {
+    return res.status(422).json({ error: { code: 'ANNOTATE_INVALID', message: '批注参数不完整' } });
+  }
+  const key = idempotencyKeyOf(req, res);
+  if (!key) {
+    return;
+  }
+  try {
+    const result = await runLifeOperation({
+      userId: userId(req),
+      operation: 'dossier-annotate',
+      idempotencyKey: key,
+      executor: () =>
+        engine.json('/internal/dossier/annotate', {
+          userId: userId(req),
+          method: 'POST',
+          body: { section, entryId, action, text },
+        }),
+    });
+    return res.json(result);
   } catch (error) {
     return engineError(res, error);
   }
@@ -579,7 +636,9 @@ admin.put('/copy', async (req, res) => {
     return res.status(422).json({ error: { code: 'INVALID_COPY_KEY', message: '无效的文案 key' } });
   }
   if (value.length > 2000) {
-    return res.status(422).json({ error: { code: 'COPY_TOO_LONG', message: '文案不能超过 2000 字' } });
+    return res
+      .status(422)
+      .json({ error: { code: 'COPY_TOO_LONG', message: '文案不能超过 2000 字' } });
   }
   if (value.trim() === '') {
     await LifeCopy.deleteOne({ key });

@@ -4,6 +4,8 @@ import { Button } from '@librechat/client';
 import { useLifeArchiveQuery } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import DashboardBars from '../components/DashboardBars';
+import ArchiveDossier from '../components/ArchiveDossier';
+import ArchiveMap from '../components/ArchiveMap';
 import { LifeError, LifeLoading } from '../components/PageState';
 
 const dateText = (value?: string | null) =>
@@ -101,13 +103,15 @@ export default function ArchiveRoute() {
 
   const contents = [
     { id: 'archive-now', label: localize('com_life_current_map'), index: '01' },
-    { id: 'archive-problem', label: localize('com_life_problem_now'), index: '02' },
+    { id: 'archive-dossier', label: localize('com_life_dossier'), index: '02' },
+    { id: 'archive-map', label: localize('com_life_map'), index: '03' },
+    { id: 'archive-problem', label: localize('com_life_problem_now'), index: '04' },
     {
       id: 'archive-evidence',
       label: localize('com_life_signals_and_milestones'),
-      index: '03',
+      index: '05',
     },
-    { id: 'archive-reports', label: localize('com_life_saved_reports'), index: '04' },
+    { id: 'archive-reports', label: localize('com_life_saved_reports'), index: '06' },
   ];
 
   return (
@@ -206,10 +210,28 @@ export default function ArchiveRoute() {
             </ArchiveSection>
 
             <ArchiveSection
+              id="archive-dossier"
+              eyebrow={localize('com_life_dossier_meta')}
+              title={localize('com_life_dossier')}
+              sectionLabel={localize('com_life_archive_section_count', { 0: '02' })}
+            >
+              <ArchiveDossier />
+            </ArchiveSection>
+
+            <ArchiveSection
+              id="archive-map"
+              eyebrow={localize('com_life_map_meta')}
+              title={localize('com_life_map')}
+              sectionLabel={localize('com_life_archive_section_count', { 0: '03' })}
+            >
+              <ArchiveMap />
+            </ArchiveSection>
+
+            <ArchiveSection
               id="archive-problem"
               eyebrow={localize('com_life_archive_question_meta')}
               title={localize('com_life_problem_now')}
-              sectionLabel={localize('com_life_archive_section_count', { 0: '02' })}
+              sectionLabel={localize('com_life_archive_section_count', { 0: '04' })}
             >
               {problem?.movable || problem?.surface ? (
                 <div>
@@ -269,7 +291,7 @@ export default function ArchiveRoute() {
               id="archive-evidence"
               eyebrow={localize('com_life_archive_evidence_meta')}
               title={localize('com_life_signals_and_milestones')}
-              sectionLabel={localize('com_life_archive_section_count', { 0: '03' })}
+              sectionLabel={localize('com_life_archive_section_count', { 0: '05' })}
             >
               {signals.length || timeline.length ? (
                 <div>
@@ -359,7 +381,7 @@ export default function ArchiveRoute() {
               id="archive-reports"
               eyebrow={localize('com_life_archive_reports_meta')}
               title={localize('com_life_saved_reports')}
-              sectionLabel={localize('com_life_archive_section_count', { 0: '04' })}
+              sectionLabel={localize('com_life_archive_section_count', { 0: '06' })}
             >
               {reports.length ? (
                 <ol>

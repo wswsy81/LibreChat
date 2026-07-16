@@ -92,6 +92,8 @@ export enum QueryKeys {
   lifeReports = 'lifeReports',
   lifeReport = 'lifeReport',
   lifeReportHtml = 'lifeReportHtml',
+  lifeDossierHtml = 'lifeDossierHtml',
+  lifeMapHtml = 'lifeMapHtml',
   lifeShare = 'lifeShare',
 }
 
@@ -139,5 +141,6 @@ export enum MutationKeys {
   lifeOnboarding = 'lifeOnboarding',
   lifeDiagnostic = 'lifeDiagnostic',
   lifeResume = 'lifeResume',
+  lifeDossierAnnotate = 'lifeDossierAnnotate',
   lifeShare = 'lifeShare',
 }

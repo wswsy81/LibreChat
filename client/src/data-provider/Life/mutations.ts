@@ -3,6 +3,8 @@ import { dataService, QueryKeys } from 'librechat-data-provider';
 import type { UseMutationResult } from '@tanstack/react-query';
 import type {
   LifeDiagnosticRequest,
+  LifeDossierAnnotateRequest,
+  LifeDossierAnnotateResponse,
   LifeDiagnosticResponse,
   LifeInboxCreateResponse,
   LifeOnboardingRequest,
@@ -42,7 +44,11 @@ export const useLifeDiagnosticMutation = (): UseMutationResult<
 export const useLifeResumeMutation = (): UseMutationResult<LifeResumeResponse, Error, void> =>
   useMutation(() => dataService.resumeLifeConversation());
 
-export const useLifeInboxMutation = (): UseMutationResult<LifeInboxCreateResponse, Error, string> => {
+export const useLifeInboxMutation = (): UseMutationResult<
+  LifeInboxCreateResponse,
+  Error,
+  string
+> => {
   const queryClient = useQueryClient();
   return useMutation((text: string) => dataService.createLifeInboxEntry(text), {
     onSuccess: () => {
@@ -62,3 +68,21 @@ export const useLifeHtmlExportMutation = (): UseMutationResult<string, Error, st
 
 export const useLifePrintMutation = (): UseMutationResult<string, Error, string> =>
   useMutation((reportId) => dataService.getLifeReportPrint(reportId));
+
+export const useLifeDossierAnnotateMutation = (): UseMutationResult<
+  LifeDossierAnnotateResponse,
+  Error,
+  LifeDossierAnnotateRequest
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    (payload: LifeDossierAnnotateRequest) => dataService.annotateLifeDossier(payload),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([QueryKeys.lifeDossierHtml]);
+        queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
+        queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+      },
+    },
+  );
+};

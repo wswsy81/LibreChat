@@ -155,3 +155,23 @@ export interface LifePublicShareResponse {
   schemaVersion: number;
   report: Pick<LifeReportSummary, 'id' | 'title' | 'createdAt'> & { html: string };
 }
+
+export type LifeDossierSection = 'chapters' | 'scenes' | 'traits' | 'tensions' | 'language';
+
+export type LifeDossierAction = 'keep' | 'rewrite' | 'strike';
+
+export interface LifeDossierAnnotateRequest {
+  section: LifeDossierSection;
+  entryId: string;
+  action: LifeDossierAction;
+  text?: string;
+}
+
+export interface LifeDossierAnnotateResponse {
+  ok: boolean;
+  entry: {
+    id: string;
+    status: string;
+    confidence?: number;
+  };
+}
