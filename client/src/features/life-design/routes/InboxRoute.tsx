@@ -110,6 +110,20 @@ export default function InboxRoute() {
           </p>
         </header>
 
+        {list.data?.homework?.text ? (
+          <aside
+            aria-label={localize('com_life_inbox_homework_label')}
+            className="grid gap-3 border-b-2 border-life-cinnabar/70 bg-life-cinnabar/5 py-6 dark:bg-life-cinnabar/10 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-8"
+          >
+            <p className="px-1 font-life-mono text-life-meta tracking-[0.16em] text-life-cinnabar dark:text-[#D98A76]">
+              {localize('com_life_inbox_homework_label')}
+            </p>
+            <p className="max-w-[34em] px-1 font-life-kai text-life-lead leading-9 text-life-ink dark:text-gray-200">
+              {list.data.homework.text}
+            </p>
+          </aside>
+        ) : null}
+
         <section
           className="grid gap-4 border-b border-life-ink/70 py-8 dark:border-white/30 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-8 sm:py-10"
           aria-labelledby="life-inbox-capture"

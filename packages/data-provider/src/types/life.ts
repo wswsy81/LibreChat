@@ -32,7 +32,6 @@ export interface LifeBootstrapResponse {
 export interface LifeOnboardingRequest {
   archiveName: string;
   dashboards: Required<LifeDashboards>;
-  birthOptIn: boolean;
 }
 
 export interface LifeOnboardingResponse {
@@ -141,9 +140,16 @@ export interface LifeInboxEntry {
   digestedAt: string | null;
 }
 
+export interface LifeInboxHomework {
+  text: string;
+  stage: string | null;
+  assignedAt: string | null;
+}
+
 export interface LifeInboxListResponse {
   schemaVersion: number;
   items: LifeInboxEntry[];
+  homework?: LifeInboxHomework | null;
 }
 
 export interface LifeInboxCreateResponse {

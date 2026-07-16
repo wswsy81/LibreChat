@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { LifeDashboards } from 'librechat-data-provider';
 import { Button } from '@librechat/client';
@@ -37,7 +37,6 @@ export default function FirstArchiveSetup({
   const onboarding = useLifeOnboardingMutation();
   const diagnostics = useLifeDiagnosticMutation();
   const [archiveName, setArchiveName] = useState(initialName);
-  const [birthOptIn, setBirthOptIn] = useState(false);
   const [values, setValues] = useState<Required<LifeDashboards>>({
     health: initialDashboards.health ?? 5,
     work: initialDashboards.work ?? 5,
@@ -82,17 +81,16 @@ export default function FirstArchiveSetup({
     if (!isComplete || pending) {
       return;
     }
-    // 只记最低那条血条的类别 + 是否给生辰,不记具体分值
+    // 只记最低那条血条的类别,不记具体分值(生辰后移 S2,建档层零生辰)
     track(diagnostic ? 'recheck_submit' : 'onboarding_submit', {
       lowest_bar: lowest.key,
-      birth_optin: birthOptIn,
     });
     if (diagnostic) {
       diagnostics.mutate({ dashboards: values }, { onSuccess: () => onSaved?.() });
       return;
     }
     onboarding.mutate(
-      { archiveName: archiveName.trim(), dashboards: values, birthOptIn },
+      { archiveName: archiveName.trim(), dashboards: values },
       {
         onSuccess: (result) => {
           if (result.operationId) {
@@ -139,7 +137,10 @@ export default function FirstArchiveSetup({
               className="h-12 w-full rounded-2xl border border-border-light bg-surface-secondary px-4 text-text-primary outline-none transition focus:border-life-moss focus:ring-2 focus:ring-life-moss/15"
               aria-describedby="archive-name-help"
             />
-            <span id="archive-name-help" className="mt-1.5 block text-life-meta text-text-secondary">
+            <span
+              id="archive-name-help"
+              className="mt-1.5 block text-life-meta text-text-secondary"
+            >
               {localize('com_life_archive_name_help')}
             </span>
           </label>
@@ -178,26 +179,6 @@ export default function FirstArchiveSetup({
             </label>
           ))}
         </div>
-
-        {!diagnostic && (
-          <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border border-life-cinnabar/20 bg-life-cinnabar/5 p-4">
-            <input
-              type="checkbox"
-              checked={birthOptIn}
-              onChange={(event) => setBirthOptIn(event.target.checked)}
-              className="mt-1 h-5 w-5 rounded accent-life-moss"
-            />
-            <span>
-              <span className="flex items-center gap-2 font-medium text-text-primary">
-                <Sparkles className="h-4 w-4 text-life-cinnabar" />
-                {localize('com_life_birth_opt_in')}
-              </span>
-              <span className="mt-1 block text-life-sm leading-6 text-text-secondary">
-                {localize('com_life_birth_opt_in_help')}
-              </span>
-            </span>
-          </label>
-        )}
 
         <div className="rounded-2xl bg-surface-secondary px-4 py-3 text-life-sm text-text-secondary">
           {touched.size >= 1

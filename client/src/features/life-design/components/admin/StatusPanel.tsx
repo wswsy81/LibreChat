@@ -2,7 +2,12 @@ import { request } from 'librechat-data-provider';
 import { useQuery } from '@tanstack/react-query';
 
 type StatusData = {
-  engine: { ok?: boolean; tools?: string[]; error?: string };
+  engine: {
+    ok?: boolean;
+    tools?: string[];
+    error?: string;
+    background?: { runs: number; failures: number; totalTokens: number; lastAt: string | null };
+  };
   mongo: boolean;
   users: number;
   uptimeSec: number;
@@ -74,6 +79,20 @@ export default function StatusPanel() {
         <p className="mt-1 font-mono text-life-lead font-semibold tabular-nums text-text-primary">
           {uptimeText(uptimeSec)}
         </p>
+      </div>
+      <div className="rounded-2xl border border-border-light bg-surface-primary p-5 sm:col-span-2">
+        <p className="text-life-meta text-text-secondary">后台分析回合</p>
+        {engine?.background ? (
+          <p className="mt-1 font-mono text-life-sm tabular-nums text-text-primary">
+            共 {engine.background.runs} 轮 · 失败 {engine.background.failures} · 累计{' '}
+            {Math.round(engine.background.totalTokens / 1000)}k tokens
+            {engine.background.lastAt
+              ? ` · 最近 ${new Date(engine.background.lastAt).toLocaleString('zh-CN')}`
+              : ''}
+          </p>
+        ) : (
+          <p className="mt-1 text-life-sm text-text-secondary">还没跑过。</p>
+        )}
       </div>
       <p className="text-life-meta text-text-secondary sm:col-span-2">
         每 30 秒自动刷新。备份每日 4:00 自动跑(服务器 ~/backups,保留 14 天)。

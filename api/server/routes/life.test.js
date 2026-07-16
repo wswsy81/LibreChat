@@ -147,12 +147,14 @@ test('onboarding validates all four bars and returns a one-time auto-submit rout
     .send({
       archiveName: '张东',
       dashboards: { health: 6, work: 3, play: 7, love: 5 },
-      birthOptIn: false,
+      birthOptIn: true,
     });
   expect(valid.status).toBe(200);
   expect(valid.body.route).toMatch(/^\/c\/new\?/);
   expect(valid.body.route).toContain('submit=true');
   expect(decodeURIComponent(valid.body.route)).toContain('最低的是「工作」');
+  // 生辰后移 S2(M4-A1):旧客户端就算传 birthOptIn 也不再进开场词,建档层零生辰
+  expect(decodeURIComponent(valid.body.route)).not.toContain('出生时间');
 });
 
 test('resume restores an existing conversation and only creates D-mode when none exists', async () => {

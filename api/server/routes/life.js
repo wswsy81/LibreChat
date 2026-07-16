@@ -99,7 +99,8 @@ function engineError(res, error) {
   });
 }
 
-function onboardingPrompt(dashboards, birthOptIn) {
+// 生辰后移 S2(2026-07-16 M4-A1):建档层零生辰,邀请只发生在 S2 卡壳后、由阶段卡唯一话术触发。
+function onboardingPrompt(dashboards) {
   const names = { health: '健康', work: '工作', play: '玩', love: '爱' };
   const entries = Object.keys(names).map((key) => ({
     key,
@@ -111,10 +112,7 @@ function onboardingPrompt(dashboards, birthOptIn) {
     entries[0],
   );
   const bars = entries.map((item) => `${item.name} ${item.value}`).join('、');
-  const snapshot = `我的人生血条(0-10)：${bars}。最低的是「${lowest.name}」。`;
-  return birthOptIn
-    ? `我想先给出生时间，拿角色卡和血条出厂设置（八字/星盘）。${snapshot}`
-    : snapshot;
+  return `我的人生血条(0-10)：${bars}。最低的是「${lowest.name}」。`;
 }
 
 function chatRoute(prompt) {
@@ -265,7 +263,7 @@ router.post('/onboarding', async (req, res) => {
             dashboards,
           },
         });
-        const prompt = onboardingPrompt(dashboards, req.body?.birthOptIn === true);
+        const prompt = onboardingPrompt(dashboards);
         return { ...result, prompt, route: chatRoute(prompt), operationId: randomUUID() };
       },
     });
