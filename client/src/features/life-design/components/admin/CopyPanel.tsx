@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+/* eslint-disable i18next/no-literal-string */
+import { useCallback, useMemo, useState } from 'react';
 import { request } from 'librechat-data-provider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@librechat/client';
@@ -86,7 +87,7 @@ export default function CopyPanel() {
   const [search, setSearch] = useState('');
 
   const overridesQuery = useQuery<{ overrides: OverrideRow[] }>(['lifeAdminCopy'], () =>
-    request.get('/api/life/admin/copy'),
+    request.get<{ overrides: OverrideRow[] }>('/api/life/admin/copy'),
   );
   const save = useMutation<unknown, Error, { key: string; value: string }>(
     (body) => request.put('/api/life/admin/copy', body),
@@ -103,7 +104,10 @@ export default function CopyPanel() {
     [overridesQuery.data],
   );
 
-  const currentOf = (key: string) => overrideByKey.get(key) ?? defaultsMap[key] ?? '';
+  const currentOf = useCallback(
+    (key: string) => overrideByKey.get(key) ?? defaultsMap[key] ?? '',
+    [overrideByKey],
+  );
   const startEdit = (key: string) => {
     setEditingKey(key);
     setDraft(currentOf(key));
@@ -117,7 +121,7 @@ export default function CopyPanel() {
         )
       : ALL_LIFE_KEYS.filter((k) => !CURATED_KEYS.has(k));
     return base.slice(0, 60);
-  }, [search, overrideByKey]);
+  }, [currentOf, search]);
 
   const renderRow = (key: string, label?: string) => {
     const overridden = overrideByKey.has(key);
@@ -187,13 +191,14 @@ export default function CopyPanel() {
   return (
     <section>
       <p className="mb-5 text-life-meta text-text-secondary">
-        改完点保存,刷新页面全站生效;「恢复默认」= 清掉改动回到内置文案。AI 开场白与报告内文案不在这里(在服务端配置)。
+        改完点保存,刷新页面全站生效;「恢复默认」= 清掉改动回到内置文案。AI
+        开场白与报告内文案不在这里(在服务端配置)。
       </p>
 
       {/* 精选:按位置分组 */}
       {CURATED.map((grp) => (
         <div key={grp.group} className="mb-6">
-          <h3 className="mb-1 border-b border-border-light pb-2 font-serif text-life-lead font-semibold text-text-primary">
+          <h3 className="font-serif mb-1 border-b border-border-light pb-2 text-life-lead font-semibold text-text-primary">
             {grp.group}
           </h3>
           <ul className="divide-y divide-border-light">

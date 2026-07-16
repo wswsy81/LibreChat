@@ -1,3 +1,4 @@
+/* eslint-disable i18next/no-literal-string */
 import { request } from 'librechat-data-provider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -13,14 +14,12 @@ type UserRow = {
 };
 
 const dateText = (value?: string | null) =>
-  value
-    ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium' }).format(new Date(value))
-    : '—';
+  value ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium' }).format(new Date(value)) : '—';
 
 export default function UsersPanel() {
   const queryClient = useQueryClient();
   const list = useQuery<{ users: UserRow[] }>(['lifeAdminUsers'], () =>
-    request.get('/api/life/admin/users'),
+    request.get<{ users: UserRow[] }>('/api/life/admin/users'),
   );
   const remove = useMutation<{ deleted: boolean }, Error, string>(
     (id) => request.delete(`/api/life/admin/users/${encodeURIComponent(id)}`),

@@ -25,14 +25,13 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
     [navigate, setExpanded],
   );
 
-  return useMemo(
-    () => {
-      if (!shellEnabled) {
-        return [];
-      }
-      return [
+  return useMemo<NavLink[]>(() => {
+    if (!shellEnabled) {
+      return [];
+    }
+    return [
       {
-        title: 'com_life_nav_home',
+        title: 'com_life_nav_home' as const,
         icon: Home,
         id: 'life-home',
         Component: LifeSidebarPanel,
@@ -40,7 +39,7 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
         onClick: () => go('/home'),
       },
       {
-        title: 'com_life_nav_resume',
+        title: 'com_life_nav_resume' as const,
         icon: MessageCircleMore,
         id: 'life-resume',
         Component: LifeSidebarPanel,
@@ -48,7 +47,7 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
         onClick: () => go('/resume'),
       },
       {
-        title: 'com_life_nav_inbox',
+        title: 'com_life_nav_inbox' as const,
         icon: NotebookPen,
         id: 'life-inbox',
         Component: LifeSidebarPanel,
@@ -56,7 +55,7 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
         onClick: () => go('/inbox'),
       },
       {
-        title: 'com_life_nav_archive',
+        title: 'com_life_nav_archive' as const,
         icon: Archive,
         id: 'life-archive',
         Component: LifeSidebarPanel,
@@ -67,7 +66,7 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
       ...(isAdmin
         ? [
             {
-              title: 'com_life_nav_admin',
+              title: 'com_life_nav_admin' as const,
               icon: LayoutDashboard,
               id: 'life-admin',
               Component: LifeSidebarPanel,
@@ -76,8 +75,6 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
             },
           ]
         : []),
-      ];
-    },
-    [go, location.pathname, shellEnabled, isAdmin],
-  );
+    ];
+  }, [go, location.pathname, shellEnabled, isAdmin]);
 }

@@ -1,3 +1,4 @@
+/* eslint-disable i18next/no-literal-string */
 import { useState } from 'react';
 import { Copy, Link2 } from 'lucide-react';
 import { request } from 'librechat-data-provider';
@@ -19,7 +20,7 @@ export default function InvitesPanel() {
   const [copied, setCopied] = useState(false);
 
   const list = useQuery<{ invites: InviteRow[] }>(['lifeAdminInvites'], () =>
-    request.get('/api/life/admin/invites'),
+    request.get<{ invites: InviteRow[] }>('/api/life/admin/invites'),
   );
   const create = useMutation<{ url: string }>(() => request.post('/api/life/admin/invites', {}), {
     onSuccess: (data) => {
@@ -76,7 +77,7 @@ export default function InvitesPanel() {
       </div>
 
       <div>
-        <h2 className="mb-3 font-serif text-life-lead font-semibold text-text-primary">
+        <h2 className="font-serif mb-3 text-life-lead font-semibold text-text-primary">
           已生成的邀请
         </h2>
         {list.isLoading && <p className="text-life-sm text-text-secondary">读取中…</p>}
