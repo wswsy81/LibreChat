@@ -299,3 +299,21 @@ describe('mcpUIResourcePlugin', () => {
     });
   });
 });
+
+describe('collectInlineResourceIds', () => {
+  const { collectInlineResourceIds } = jest.requireActual('../plugin');
+
+  it('collects single, multi and comma markers across text parts, ignores empties', () => {
+    const ids = collectInlineResourceIds([
+      '先给一句话 \\ui{9f0ad3c3d6} 然后继续',
+      undefined,
+      '两张卡 \\ui{aaa111,bbb222}',
+      '没有标记的普通文本',
+    ]);
+    expect(ids).toEqual(new Set(['9f0ad3c3d6', 'aaa111', 'bbb222']));
+  });
+
+  it('returns empty set when no markers present', () => {
+    expect(collectInlineResourceIds(['纯文本', undefined])).toEqual(new Set());
+  });
+});

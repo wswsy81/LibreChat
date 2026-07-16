@@ -46,6 +46,7 @@ type PartProps = {
   attachments?: TAttachment[];
   hideAttachments?: boolean;
   onToolExpand?: () => void;
+  inlineResourceIds?: Set<string>;
 };
 
 const Part = memo(function Part({
@@ -57,6 +58,7 @@ const Part = memo(function Part({
   isCreatedByUser,
   hideAttachments,
   onToolExpand,
+  inlineResourceIds,
 }: PartProps) {
   if (!part) {
     return null;
@@ -159,6 +161,7 @@ const Part = memo(function Part({
         <McpUIResources
           attachments={attachments}
           toolCallId={'id' in toolCall ? toolCall.id : undefined}
+          inlineResourceIds={inlineResourceIds}
         />
       );
     }

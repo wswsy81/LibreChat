@@ -89,3 +89,27 @@ export function mcpUIResourcePlugin() {
     processTree(tree);
   };
 }
+
+/**
+ * Collects every resource ID referenced by an inline `\ui{...}` marker across
+ * the given text parts. Used to suppress the attachment-side render of the same
+ * resource so a card the model placed inline is not shown twice in one message.
+ */
+export function collectInlineResourceIds(texts: Array<string | undefined>): Set<string> {
+  const ids = new Set<string>();
+  for (const text of texts) {
+    if (!text) {
+      continue;
+    }
+    UI_RESOURCE_PATTERN.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = UI_RESOURCE_PATTERN.exec(text)) !== null) {
+      match[1]
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .forEach((id) => ids.add(id));
+    }
+  }
+  return ids;
+}

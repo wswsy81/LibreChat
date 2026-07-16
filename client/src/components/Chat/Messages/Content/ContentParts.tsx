@@ -8,6 +8,7 @@ import type {
 } from 'librechat-data-provider';
 import type { ToolCallGroupExpansionState } from './ToolCallGroup';
 import { ParallelContentRenderer, type PartWithIndex } from './ParallelContent';
+import { collectInlineResourceIds } from '~/components/MCPUIResource/plugin';
 import { mapAttachments, groupSequentialToolCalls } from '~/utils';
 import { MessageContext, SearchContext } from '~/Providers';
 import PendingSkillCall from './Parts/PendingSkillCall';
@@ -47,6 +48,7 @@ type PartWithContextProps = {
   partAttachments: TAttachment[] | undefined;
   hideAttachments?: boolean;
   onToolExpand?: () => void;
+  inlineResourceIds?: Set<string>;
 };
 
 const PartWithContext = memo(function PartWithContext({
@@ -63,6 +65,7 @@ const PartWithContext = memo(function PartWithContext({
   partAttachments,
   hideAttachments,
   onToolExpand,
+  inlineResourceIds,
 }: PartWithContextProps) {
   const contextValue = useMemo(
     () => ({
@@ -89,6 +92,7 @@ const PartWithContext = memo(function PartWithContext({
         showCursor={isLastPart && isLast}
         hideAttachments={hideAttachments}
         onToolExpand={onToolExpand}
+        inlineResourceIds={inlineResourceIds}
       />
     </MessageContext.Provider>
   );
@@ -228,6 +232,23 @@ const ContentParts = memo(function ContentParts({
       <PendingSkillCall key={`pending-skill-${name}`} skillName={name} loaded={hasRealContent} />
     ));
 
+  /**
+   * 正文 \ui{id} 标记已内联渲染的资源 id 集合。传给 Part → McpUIResources
+   * 跳过附件侧重复渲染，保证题头卡/收获卡等 MCP UI 卡一条消息只出现一次。
+   */
+  const inlineResourceIds = useMemo(
+    () =>
+      collectInlineResourceIds(
+        (content ?? []).map((part) => {
+          if (part?.type !== ContentTypes.TEXT) {
+            return undefined;
+          }
+          return typeof part.text === 'string' ? part.text : part.text?.value;
+        }),
+      ),
+    [content],
+  );
+
   const renderPart = useCallback(
     (part: TMessageContentParts, idx: number, isLastPart: boolean) => {
       return (
@@ -244,6 +265,7 @@ const ContentParts = memo(function ContentParts({
           nextType={content?.[idx + 1]?.type}
           isSubmitting={effectiveIsSubmitting}
           partAttachments={attachmentMap[getToolCallId(part)]}
+          inlineResourceIds={inlineResourceIds}
         />
       );
     },
@@ -252,6 +274,7 @@ const ContentParts = memo(function ContentParts({
       content,
       conversationId,
       effectiveIsSubmitting,
+      inlineResourceIds,
       isCreatedByUser,
       isLast,
       isLatestMessage,
@@ -277,6 +300,7 @@ const ContentParts = memo(function ContentParts({
           partAttachments={attachmentMap[getToolCallId(part)]}
           hideAttachments
           onToolExpand={onToolExpand}
+          inlineResourceIds={inlineResourceIds}
         />
       );
     },
@@ -285,6 +309,7 @@ const ContentParts = memo(function ContentParts({
       content,
       conversationId,
       effectiveIsSubmitting,
+      inlineResourceIds,
       isCreatedByUser,
       isLast,
       isLatestMessage,

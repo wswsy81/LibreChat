@@ -16,9 +16,12 @@ import { handleUIAction } from '~/utils';
 export default function McpUIResources({
   attachments,
   toolCallId,
+  inlineResourceIds,
 }: {
   attachments?: TAttachment[];
   toolCallId?: string;
+  /** 正文里 \ui{id} 标记已内联渲染的资源；这里跳过它们，同一张卡一条消息只出现一次。 */
+  inlineResourceIds?: Set<string>;
 }) {
   const { ask } = useOptionalMessagesOperations();
   const navigate = useNavigate();
@@ -39,14 +42,15 @@ export default function McpUIResources({
     return handleUIAction(result, ask);
   };
 
-  const uiResources: UIResource[] =
+  const uiResources: UIResource[] = (
     attachments
       ?.filter(
         (attachment) =>
           attachment.type === Tools.ui_resources &&
           (!toolCallId || attachment.toolCallId === toolCallId),
       )
-      .flatMap((attachment) => attachment[Tools.ui_resources] as UIResource[]) ?? [];
+      .flatMap((attachment) => attachment[Tools.ui_resources] as UIResource[]) ?? []
+  ).filter((resource) => !(resource.resourceId && inlineResourceIds?.has(resource.resourceId)));
 
   if (uiResources.length === 0) {
     return null;
