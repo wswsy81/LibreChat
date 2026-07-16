@@ -75,6 +75,7 @@ if [[ "$MODE" == "--full" ]]; then
     cd "$REPO_ROOT"
     run npm run typecheck --workspace @librechat/frontend
     lint_changed_files
+    run npm run build:data-provider
     run npm run build:client-package
     run npm run build:client
   )
