@@ -42,7 +42,6 @@ const useSpeechToTextBrowser = (
   const timeoutRef = useRef<NodeJS.Timeout | null>();
   const [autoSendText] = useRecoilState(store.autoSendText);
   const [languageSTT] = useRecoilState<string>(store.languageSTT);
-  const [autoTranscribeAudio] = useRecoilState<boolean>(store.autoTranscribeAudio);
 
   const {
     listening,
@@ -92,7 +91,7 @@ const useSpeechToTextBrowser = (
     };
   }, [setText, onTranscriptionComplete, resetTranscript, finalTranscript, autoSendText]);
 
-  const toggleListening = useCallback(() => {
+  const startRecording = useCallback(() => {
     if (!browserSupportsSpeechRecognition) {
       showToast({
         message: sttExternal
@@ -121,16 +120,15 @@ const useSpeechToTextBrowser = (
       return;
     }
 
-    if (isListening === true) {
-      SpeechRecognition.stopListening();
-    } else {
-      SpeechRecognition.startListening({
-        language: languageSTT,
-        continuous: autoTranscribeAudio,
-      });
+    if (isListening) {
+      return;
     }
+
+    SpeechRecognition.startListening({
+      language: languageSTT,
+      continuous: true,
+    });
   }, [
-    autoTranscribeAudio,
     browserSupportsSpeechRecognition,
     isListening,
     isMicrophoneAvailable,
@@ -139,6 +137,21 @@ const useSpeechToTextBrowser = (
     showToast,
     sttExternal,
   ]);
+
+  const stopRecording = useCallback(() => {
+    if (!isListening || !hasSpeechRecognitionController(SpeechRecognition)) {
+      return;
+    }
+    SpeechRecognition.stopListening();
+  }, [isListening]);
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      stopRecording();
+      return;
+    }
+    startRecording();
+  }, [isListening, startRecording, stopRecording]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -164,8 +177,8 @@ const useSpeechToTextBrowser = (
   return {
     isListening,
     isLoading: false,
-    startRecording: toggleListening,
-    stopRecording: toggleListening,
+    startRecording,
+    stopRecording,
     resetAfterSubmit,
   };
 };
