@@ -280,6 +280,30 @@ describe('formatToolContent', () => {
       expect(uiResourceArtifact?.resourceId).toEqual(expect.any(String));
     });
 
+    it('keeps large UI resource bodies out of model tool content while preserving the artifact', () => {
+      const html = `<html>${'报告正文'.repeat(20_000)}</html>`;
+      const result: t.MCPToolCallResponse = {
+        content: [
+          { type: 'text', text: '报告已生成' },
+          {
+            type: 'resource',
+            resource: {
+              uri: 'ui://future-lines/report',
+              mimeType: 'text/html',
+              text: html,
+            },
+          },
+        ],
+      };
+
+      const [content, artifacts] = formatToolContent(result, 'openai');
+      expect(content).toContain('报告已生成');
+      expect(content).toContain('UI Resource Marker: \\ui{');
+      expect(content).not.toContain(html);
+      expect(content.length).toBeLessThan(2_000);
+      expect(artifacts?.ui_resources?.data?.[0]?.text).toBe(html);
+    });
+
     it('should handle regular resources', () => {
       const result: t.MCPToolCallResponse = {
         content: [
