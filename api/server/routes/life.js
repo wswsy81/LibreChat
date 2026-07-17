@@ -401,13 +401,45 @@ router.get('/dossier/html', async (req, res) => {
 
 router.get('/map/html', async (req, res) => {
   try {
-    const html = await engine.text('/internal/map/html', { userId: userId(req) });
+    const view = req.query.view === 'full' ? '?view=full' : '';
+    const html = await engine.text(`/internal/map/html${view}`, { userId: userId(req) });
     res.type('html');
     res.set(
       'Content-Security-Policy',
       "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'",
     );
     return res.send(html);
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+router.post('/map/houses/annotate', async (req, res) => {
+  const houseKey = String(req.body?.houseKey || '');
+  const action = String(req.body?.action || '');
+  const text = req.body?.text === undefined ? undefined : String(req.body.text);
+  if (!houseKey || !action) {
+    return res
+      .status(422)
+      .json({ error: { code: 'MAP_ANNOTATE_INVALID', message: '批注参数不完整' } });
+  }
+  const key = idempotencyKeyOf(req, res);
+  if (!key) {
+    return;
+  }
+  try {
+    const result = await runLifeOperation({
+      userId: userId(req),
+      operation: 'map-house-annotate',
+      idempotencyKey: key,
+      executor: () =>
+        engine.json('/internal/map/houses/annotate', {
+          userId: userId(req),
+          method: 'POST',
+          body: { houseKey, action, text },
+        }),
+    });
+    return res.json(result);
   } catch (error) {
     return engineError(res, error);
   }

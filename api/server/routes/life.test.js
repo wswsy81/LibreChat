@@ -8,6 +8,7 @@ const mockLifeShareLimiter = jest.fn((_req, _res, next) => next());
 const mockRunLifeOperation = jest.fn();
 
 jest.mock('@librechat/api', () => ({
+  ...jest.requireActual('@librechat/api'),
   createLifeEngineClient: jest.fn(() => mockEngine),
   LifeEngineError: class LifeEngineError extends Error {
     constructor(status, message, payload) {
@@ -18,10 +19,17 @@ jest.mock('@librechat/api', () => ({
   },
 }));
 
-jest.mock('@librechat/data-schemas', () => ({ logger: mockLogger }));
-jest.mock('mongoose', () => ({
-  models: { Conversation: { findOne: (...args) => mockFindOne(...args) } },
+jest.mock('@librechat/data-schemas', () => ({
+  ...jest.requireActual('@librechat/data-schemas'),
+  logger: mockLogger,
 }));
+jest.mock('mongoose', () => {
+  const actual = jest.requireActual('mongoose');
+  return {
+    ...actual,
+    models: { ...actual.models, Conversation: { findOne: (...args) => mockFindOne(...args) } },
+  };
+});
 jest.mock('~/server/middleware/limiters', () => ({
   lifeShareLimiter: (...args) => mockLifeShareLimiter(...args),
 }));
@@ -251,4 +259,39 @@ test('share creation exposes only the branded public route, never the raw engine
   expect(mockEngine.json.mock.calls[0][1].body.token).toBe(
     mockEngine.json.mock.calls[1][1].body.token,
   );
+});
+
+test('N1: map html passes view=full through; house annotate requires idempotency and proxies engine', async () => {
+  const app = buildApp({ id: 'user-1', name: '张东' });
+
+  mockEngine.text.mockResolvedValue('<html>full</html>');
+  const full = await request(app).get('/api/life/map/html?view=full');
+  expect(full.status).toBe(200);
+  expect(mockEngine.text).toHaveBeenCalledWith('/internal/map/html?view=full', {
+    userId: 'user-1',
+  });
+
+  const missingKey = await request(app)
+    .post('/api/life/map/houses/annotate')
+    .send({ houseKey: 'h2', action: 'keep' });
+  expect(missingKey.status).toBe(400);
+
+  mockEngine.json.mockResolvedValue({ ok: true, house: { status: 'confirmed', conf: 0.9 } });
+  const annotated = await request(app)
+    .post('/api/life/map/houses/annotate')
+    .set('Idempotency-Key', 'map-house-1')
+    .send({ houseKey: 'h2', action: 'keep' });
+  expect(annotated.status).toBe(200);
+  expect(annotated.body.house.status).toBe('confirmed');
+  expect(mockEngine.json).toHaveBeenCalledWith('/internal/map/houses/annotate', {
+    userId: 'user-1',
+    method: 'POST',
+    body: { houseKey: 'h2', action: 'keep', text: undefined },
+  });
+
+  const invalid = await request(app)
+    .post('/api/life/map/houses/annotate')
+    .set('Idempotency-Key', 'map-house-2')
+    .send({ houseKey: '', action: 'keep' });
+  expect(invalid.status).toBe(422);
 });

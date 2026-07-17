@@ -2,11 +2,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { dataService, QueryKeys } from 'librechat-data-provider';
 import type { UseMutationResult } from '@tanstack/react-query';
 import type {
-  LifeDiagnosticRequest,
+  LifeMapHouseAnnotateRequest,
+  LifeMapHouseAnnotateResponse,
   LifeDossierAnnotateRequest,
   LifeDossierAnnotateResponse,
-  LifeDiagnosticResponse,
   LifeInboxCreateResponse,
+  LifeDiagnosticRequest,
+  LifeDiagnosticResponse,
   LifeOnboardingRequest,
   LifeOnboardingResponse,
   LifeResumeResponse,
@@ -81,6 +83,24 @@ export const useLifeDossierAnnotateMutation = (): UseMutationResult<
       onSuccess: () => {
         queryClient.invalidateQueries([QueryKeys.lifeDossierHtml]);
         queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
+        queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+      },
+    },
+  );
+};
+
+export const useLifeMapHouseAnnotateMutation = (): UseMutationResult<
+  LifeMapHouseAnnotateResponse,
+  Error,
+  LifeMapHouseAnnotateRequest
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    (payload: LifeMapHouseAnnotateRequest) => dataService.annotateLifeMapHouse(payload),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
+        queryClient.invalidateQueries([QueryKeys.lifeDossierHtml]);
         queryClient.invalidateQueries([QueryKeys.lifeArchive]);
       },
     },

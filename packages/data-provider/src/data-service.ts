@@ -84,14 +84,20 @@ export function getLifeDossierHtml(revision: boolean): Promise<string> {
   return request.get(endpoints.lifeDossierHtml(revision));
 }
 
-export function getLifeMapHtml(): Promise<string> {
-  return request.get(endpoints.lifeMapHtml());
+export function getLifeMapHtml(view?: 'full'): Promise<string> {
+  return request.get(endpoints.lifeMapHtml(view));
 }
 
 export function annotateLifeDossier(
   payload: t.LifeDossierAnnotateRequest,
 ): Promise<t.LifeDossierAnnotateResponse> {
   return request.post(endpoints.lifeDossierAnnotate(), payload, idempotencyHeaders());
+}
+
+export function annotateLifeMapHouse(
+  payload: t.LifeMapHouseAnnotateRequest,
+): Promise<t.LifeMapHouseAnnotateResponse> {
+  return request.post(endpoints.lifeMapHouseAnnotate(), payload, idempotencyHeaders());
 }
 
 export function revokeUserKey(name: string): Promise<unknown> {

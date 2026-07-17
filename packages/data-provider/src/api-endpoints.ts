@@ -61,7 +61,9 @@ export const lifeShare = (token: string) => `${lifeRoot}/shares/${encodeURICompo
 export const lifeDossierHtml = (revision: boolean) =>
   `${lifeRoot}/dossier/html${revision ? '?revision=1' : ''}`;
 export const lifeDossierAnnotate = () => `${lifeRoot}/dossier/annotate`;
-export const lifeMapHtml = () => `${lifeRoot}/map/html`;
+export const lifeMapHtml = (view?: 'full') =>
+  view === 'full' ? `${lifeRoot}/map/html?view=full` : `${lifeRoot}/map/html`;
+export const lifeMapHouseAnnotate = () => `${lifeRoot}/map/houses/annotate`;
 
 export const balance = () => `${BASE_URL}/api/balance`;
 

@@ -181,3 +181,20 @@ export interface LifeDossierAnnotateResponse {
     confidence?: number;
   };
 }
+
+export type LifeMapHouseAction = 'keep' | 'rewrite' | 'strike';
+
+export interface LifeMapHouseAnnotateRequest {
+  houseKey: string;
+  action: LifeMapHouseAction;
+  text?: string;
+}
+
+export interface LifeMapHouseAnnotateResponse {
+  ok: boolean;
+  house: {
+    status: string;
+    conf?: number;
+    note?: string;
+  };
+}

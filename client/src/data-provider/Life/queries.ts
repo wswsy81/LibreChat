@@ -73,15 +73,20 @@ export const useLifeDossierHtmlQuery = (
   );
 
 export const useLifeMapHtmlQuery = (
+  view?: 'full',
   config?: UseQueryOptions<string>,
 ): QueryObserverResult<string> =>
-  useQuery<string>([QueryKeys.lifeMapHtml], dataService.getLifeMapHtml, {
-    retry: 1,
-    cacheTime: 0,
-    staleTime: 0,
-    refetchOnWindowFocus: false,
-    ...config,
-  });
+  useQuery<string>(
+    [QueryKeys.lifeMapHtml, view ?? 'simple'],
+    () => dataService.getLifeMapHtml(view),
+    {
+      retry: 1,
+      cacheTime: 0,
+      staleTime: 0,
+      refetchOnWindowFocus: false,
+      ...config,
+    },
+  );
 
 export const useLifeShareQuery = (
   token: string,
