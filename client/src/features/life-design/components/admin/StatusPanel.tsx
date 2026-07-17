@@ -6,7 +6,14 @@ type StatusData = {
     ok?: boolean;
     tools?: string[];
     error?: string;
-    background?: { runs: number; failures: number; totalTokens: number; lastAt: string | null };
+    background?: {
+      runs: number;
+      failures: number;
+      totalTokens: number;
+      lastAt: string | null;
+      autoExpired?: number;
+      packDegrades?: number;
+    };
   };
   mongo: boolean;
   users: number;
@@ -86,6 +93,8 @@ export default function StatusPanel() {
           <p className="mt-1 font-mono text-life-sm tabular-nums text-text-primary">
             共 {engine.background.runs} 轮 · 失败 {engine.background.failures} · 累计{' '}
             {Math.round(engine.background.totalTokens / 1000)}k tokens
+            {engine.background.autoExpired ? ` · 事件自动过期 ${engine.background.autoExpired}` : ''}
+            {engine.background.packDegrades ? ` · 上下文降级 ${engine.background.packDegrades}` : ''}
             {engine.background.lastAt
               ? ` · 最近 ${new Date(engine.background.lastAt).toLocaleString('zh-CN')}`
               : ''}
