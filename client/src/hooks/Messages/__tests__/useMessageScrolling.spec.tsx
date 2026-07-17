@@ -281,10 +281,35 @@ describe('useMessageScrolling resize reconciliation', () => {
     expect(mockScrollToBottom).not.toHaveBeenCalled();
   });
 
-  it('does not follow the next resize after user interaction inside message content', () => {
-    renderScrolling();
+  it('keeps following after a tap/click inside content (tapping a card is not scroll intent)', () => {
+    renderScrolling({
+      contextOverrides: { isSubmitting: false },
+      messagesTree: [message],
+    });
+    mockScrollToBottom.mockClear();
 
     fireEvent.pointerDown(screen.getByTestId('content'));
+
+    act(() => {
+      MockResizeObserver.last()?.trigger();
+    });
+
+    expect(mockScrollToBottom).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not follow the next resize after real scroll intent (wheel/touchmove)', () => {
+    renderScrolling();
+
+    fireEvent.wheel(screen.getByTestId('content'));
+
+    act(() => {
+      MockResizeObserver.last()?.trigger();
+    });
+
+    expect(mockScrollToBottom).not.toHaveBeenCalled();
+
+    mockScrollToBottom.mockClear();
+    fireEvent.touchMove(screen.getByTestId('content'));
 
     act(() => {
       MockResizeObserver.last()?.trigger();

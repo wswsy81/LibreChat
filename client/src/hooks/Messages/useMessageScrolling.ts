@@ -162,10 +162,13 @@ export default function useMessageScrolling(messagesTree?: TMessage[] | null) {
       followInitialLayoutRef.current = false;
     };
 
-    contentEl.addEventListener('pointerdown', suppressNextResizeFollow, true);
+    // 只有真滚动意图(滚轮/拖动/键盘)才取消跟随;轻点卡片按钮不算离开底部。
+    contentEl.addEventListener('wheel', suppressNextResizeFollow, true);
+    contentEl.addEventListener('touchmove', suppressNextResizeFollow, true);
     contentEl.addEventListener('keydown', suppressNextResizeFollow, true);
     return () => {
-      contentEl.removeEventListener('pointerdown', suppressNextResizeFollow, true);
+      contentEl.removeEventListener('wheel', suppressNextResizeFollow, true);
+      contentEl.removeEventListener('touchmove', suppressNextResizeFollow, true);
       contentEl.removeEventListener('keydown', suppressNextResizeFollow, true);
     };
   }, []);
