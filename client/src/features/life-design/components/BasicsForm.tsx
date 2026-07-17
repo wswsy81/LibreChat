@@ -129,6 +129,10 @@ export default function BasicsForm() {
       showToast({ message: localize('com_life_basics_nothing'), status: 'info' });
       return;
     }
+    if (birthChanged && !birth.gender) {
+      showToast({ message: localize('com_life_birth_gender_required'), status: 'error' });
+      return;
+    }
     if (Object.keys(patch).length) {
       saveBasics.mutate(patch, {
         onSuccess: () =>
@@ -278,7 +282,9 @@ export default function BasicsForm() {
               onChange={(event) => setBirth((prev) => ({ ...prev, gender: event.target.value }))}
               className={inputClass}
             >
-              <option value="">{localize('com_life_birth_unset')}</option>
+              <option value="" disabled>
+                {localize('com_life_birth_gender_pick')}
+              </option>
               <option value="male">{localize('com_life_birth_male')}</option>
               <option value="female">{localize('com_life_birth_female')}</option>
             </select>
