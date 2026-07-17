@@ -21,15 +21,12 @@ jest.mock('@librechat/client', () => ({
   useToastContext: () => ({ showToast: mockShowToast }),
 }));
 
-let mockBootstrapData: { lastConversationId?: string | null } | undefined;
-
 jest.mock('~/data-provider', () => ({
   useLifeMapHtmlQuery: (view?: 'full') =>
     view === 'full'
       ? { ...mockFullState, refetch: mockFullRefetch }
       : { ...mockSimpleState, refetch: jest.fn() },
   useLifeMapHouseAnnotateMutation: () => ({ mutate: mockMutate }),
-  useLifeBootstrapQuery: () => ({ data: mockBootstrapData }),
 }));
 
 jest.mock('~/hooks', () => ({
@@ -56,7 +53,6 @@ describe('ArchiveMap(N1 全图)', () => {
     capturedOnFrameMessage = undefined;
     mockFullState = { data: '<html>full-map</html>', isLoading: false, isError: false };
     mockSimpleState = { data: undefined, isLoading: false, isError: false };
-    mockBootstrapData = { lastConversationId: 'conv-1' };
   });
 
   it('渲染全图 HTML', () => {
@@ -100,25 +96,13 @@ describe('ArchiveMap(N1 全图)', () => {
     );
   });
 
-  it('birth 动作=回原会话并替用户说一句补生日,模型才会弹生辰选择器', () => {
+  it('birth 动作=直接去「关于我」填表单;非法领地键不发请求', () => {
     render(<ArchiveMap />);
     capturedOnFrameMessage?.({
       type: 'life-map-action',
       payload: { action: 'birth', houseId: 'h5' },
     });
-    expect(mockNavigate).toHaveBeenCalledWith(
-      `/c/conv-1?q=${encodeURIComponent('我想补一下我的生日信息。')}&submit=true`,
-    );
-  });
-
-  it('birth 无历史会话时回 /resume 兜底;非法领地键不发请求', () => {
-    mockBootstrapData = { lastConversationId: null };
-    render(<ArchiveMap />);
-    capturedOnFrameMessage?.({
-      type: 'life-map-action',
-      payload: { action: 'birth', houseId: 'h5' },
-    });
-    expect(mockNavigate).toHaveBeenCalledWith('/resume');
+    expect(mockNavigate).toHaveBeenCalledWith('/about');
     capturedOnFrameMessage?.({
       type: 'life-map-action',
       payload: { action: 'keep', houseId: 'h13' },
