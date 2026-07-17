@@ -2247,5 +2247,6 @@
   "com_life_birth_male": "男",
   "com_life_birth_female": "女",
   "com_life_birth_city": "出生城市",
-  "com_life_birth_saved": "出生信息已存好,地图上有 {{0}} 块领地透出了微光"
+  "com_life_birth_saved": "出生信息已存好,地图上有 {{0}} 块领地透出了微光",
+  "com_life_birth_hour_unknown": "时辰不确定"
 }

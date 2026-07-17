@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, useToastContext } from '@librechat/client';
 import type { LifeBasics, LifeBirthInfo } from 'librechat-data-provider';
 import { useLifeArchiveQuery, useLifeBasicsMutation, useLifeBirthMutation } from '~/data-provider';
@@ -26,6 +26,30 @@ function numberOrUndefined(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function range(from: number, to: number): number[] {
+  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+}
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = range(CURRENT_YEAR - 100, CURRENT_YEAR - 5).reverse();
+
+const CITY_OPTIONS = [
+  '北京',
+  '上海',
+  '广州',
+  '深圳',
+  '成都',
+  '武汉',
+  '西安',
+  '杭州',
+  '南京',
+  '厦门',
+  '福州',
+  '泉州',
+  '莆田',
+  '仙游',
+];
+
 export default function BasicsForm() {
   const localize = useLocalize();
   const { showToast } = useToastContext();
@@ -33,7 +57,7 @@ export default function BasicsForm() {
   const saveBasics = useLifeBasicsMutation();
   const saveBirth = useLifeBirthMutation();
 
-  const stored: LifeBasics = archive.data?.profile?.basics ?? {};
+  const stored: LifeBasics = useMemo(() => archive.data?.profile?.basics ?? {}, [archive.data]);
   const [text, setText] = useState<Record<TextField, string>>({
     nickname: '',
     occupation: '',
@@ -172,27 +196,81 @@ export default function BasicsForm() {
               <option value="lunar">{localize('com_life_birth_lunar')}</option>
             </select>
           </label>
-          {(
-            [
-              ['year', 'com_life_birth_year', 4],
-              ['month', 'com_life_birth_month', 2],
-              ['day', 'com_life_birth_day', 2],
-              ['hour', 'com_life_birth_hour', 2],
-              ['minute', 'com_life_birth_minute', 2],
-            ] as const
-          ).map(([field, key, size]) => (
-            <label key={field} className="grid gap-1.5">
-              <span className={labelClass}>{localize(key)}</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={size}
-                value={birth[field]}
-                onChange={(event) => setBirth((prev) => ({ ...prev, [field]: event.target.value }))}
-                className={`${inputClass} w-[4.5em] text-center tabular-nums`}
-              />
-            </label>
-          ))}
+          <label className="grid gap-1.5">
+            <span className={labelClass}>{localize('com_life_birth_year')}</span>
+            <select
+              value={birth.year}
+              onChange={(event) => setBirth((prev) => ({ ...prev, year: event.target.value }))}
+              className={inputClass}
+            >
+              <option value="">{localize('com_life_birth_unset')}</option>
+              {YEARS.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5">
+            <span className={labelClass}>{localize('com_life_birth_month')}</span>
+            <select
+              value={birth.month}
+              onChange={(event) => setBirth((prev) => ({ ...prev, month: event.target.value }))}
+              className={inputClass}
+            >
+              <option value="">{localize('com_life_birth_unset')}</option>
+              {range(1, 12).map((month) => (
+                <option key={month} value={month}>
+                  {month}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5">
+            <span className={labelClass}>{localize('com_life_birth_day')}</span>
+            <select
+              value={birth.day}
+              onChange={(event) => setBirth((prev) => ({ ...prev, day: event.target.value }))}
+              className={inputClass}
+            >
+              <option value="">{localize('com_life_birth_unset')}</option>
+              {range(1, 31).map((day) => (
+                <option key={day} value={day}>
+                  {day}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5">
+            <span className={labelClass}>{localize('com_life_birth_hour')}</span>
+            <select
+              value={birth.hour}
+              onChange={(event) => setBirth((prev) => ({ ...prev, hour: event.target.value }))}
+              className={inputClass}
+            >
+              <option value="">{localize('com_life_birth_hour_unknown')}</option>
+              {range(0, 23).map((hour) => (
+                <option key={hour} value={hour}>
+                  {String(hour)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5">
+            <span className={labelClass}>{localize('com_life_birth_minute')}</span>
+            <select
+              value={birth.minute}
+              onChange={(event) => setBirth((prev) => ({ ...prev, minute: event.target.value }))}
+              className={inputClass}
+            >
+              <option value="">{localize('com_life_birth_unset')}</option>
+              {range(0, 59).map((minute) => (
+                <option key={minute} value={minute}>
+                  {String(minute).padStart(2, '0')}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="grid gap-1.5">
             <span className={labelClass}>{localize('com_life_birth_gender')}</span>
             <select
@@ -210,10 +288,17 @@ export default function BasicsForm() {
             <input
               type="text"
               maxLength={60}
+              list="life-birth-cities"
+              autoComplete="off"
               value={birth.city}
               onChange={(event) => setBirth((prev) => ({ ...prev, city: event.target.value }))}
               className={inputClass}
             />
+            <datalist id="life-birth-cities">
+              {CITY_OPTIONS.map((city) => (
+                <option key={city} value={city} />
+              ))}
+            </datalist>
           </label>
         </div>
       </fieldset>

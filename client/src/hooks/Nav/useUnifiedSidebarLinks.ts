@@ -1,5 +1,12 @@
 import { useCallback, useMemo } from 'react';
-import { Archive, Home, LayoutDashboard, MessageCircleMore, NotebookPen } from 'lucide-react';
+import {
+  Archive,
+  Home,
+  LayoutDashboard,
+  MessageCircleMore,
+  NotebookPen,
+  UserRound,
+} from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSetRecoilState } from 'recoil';
 import type { NavLink } from '~/common';
@@ -61,6 +68,14 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
         Component: LifeSidebarPanel,
         isActive: location.pathname === '/archive' || location.pathname.startsWith('/archive/'),
         onClick: () => go('/archive'),
+      },
+      {
+        title: 'com_life_nav_about' as const,
+        icon: UserRound,
+        id: 'life-about',
+        Component: LifeSidebarPanel,
+        isActive: location.pathname === '/about',
+        onClick: () => go('/about'),
       },
       // 运营台:仅管理员可见,排在最后
       ...(isAdmin
