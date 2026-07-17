@@ -110,6 +110,12 @@ export default function FirstArchiveSetup({
   return (
     <section className="mx-auto w-full max-w-3xl" aria-labelledby="life-setup-title">
       <div className="mb-8">
+        {!diagnostic && (
+          <p className="mb-3 flex items-baseline justify-between gap-4 border-b border-life-ink/20 pb-3 font-life-mono text-life-meta tracking-[0.16em] text-life-cinnabar dark:border-white/20 dark:text-[#D98A76]">
+            <span>{localize('com_life_setup_chapter_kicker')}</span>
+            <span className="text-life-muted dark:text-gray-500">CHAPTER 01</span>
+          </p>
+        )}
         <p className="mb-3 text-life-sm font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
           {localize(diagnostic ? 'com_life_recheck_eyebrow' : 'com_life_setup_eyebrow')}
         </p>
