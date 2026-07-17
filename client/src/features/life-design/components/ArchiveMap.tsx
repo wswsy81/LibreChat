@@ -2,12 +2,17 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToastContext } from '@librechat/client';
 import type { LifeMapHouseAction } from 'librechat-data-provider';
-import { useLifeMapHtmlQuery, useLifeMapHouseAnnotateMutation } from '~/data-provider';
+import {
+  useLifeMapHtmlQuery,
+  useLifeBootstrapQuery,
+  useLifeMapHouseAnnotateMutation,
+} from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import LifeFrame from './LifeFrame';
 
 const HOUSE_ACTIONS: ReadonlySet<string> = new Set(['keep', 'rewrite', 'strike']);
 const HOUSE_KEY = /^h([1-9]|1[0-2])$/;
+const BIRTH_PROMPT = '我想补一下我的生日信息。';
 
 const isHouseAction = (value: string): value is LifeMapHouseAction => HOUSE_ACTIONS.has(value);
 
@@ -18,6 +23,8 @@ export default function ArchiveMap() {
   const full = useLifeMapHtmlQuery('full');
   const simple = useLifeMapHtmlQuery(undefined, { enabled: full.isError });
   const annotate = useLifeMapHouseAnnotateMutation();
+  const bootstrap = useLifeBootstrapQuery();
+  const lastConversationId = bootstrap.data?.lastConversationId ?? null;
 
   const handleFrameMessage = useCallback(
     (data: unknown) => {
@@ -31,7 +38,12 @@ export default function ArchiveMap() {
       const houseKey = String(message.payload?.houseId ?? '');
 
       if (action === 'birth') {
-        navigate('/resume');
+        if (lastConversationId) {
+          const params = new URLSearchParams({ q: BIRTH_PROMPT, submit: 'true' });
+          navigate(`/c/${encodeURIComponent(lastConversationId)}?${params.toString()}`);
+        } else {
+          navigate('/resume');
+        }
         return;
       }
       if (action === 'dossier') {
@@ -54,7 +66,7 @@ export default function ArchiveMap() {
         },
       );
     },
-    [annotate, full, localize, navigate, showToast],
+    [annotate, full, lastConversationId, localize, navigate, showToast],
   );
 
   const html = full.data ?? simple.data;
