@@ -78,9 +78,42 @@ export interface LifeTimelineEntry {
   source?: string;
 }
 
+export interface LifeBirthInfo {
+  year: number;
+  month: number;
+  day: number;
+  hour?: number;
+  minute?: number;
+  calendar?: 'solar' | 'lunar';
+  gender?: 'male' | 'female';
+  city?: string;
+}
+
+export interface LifeBasics {
+  nickname?: string;
+  occupation?: string;
+  city?: string;
+  education?: string;
+  marital?: string;
+  birth?: LifeBirthInfo;
+}
+
+export type LifeBasicsRequest = Omit<LifeBasics, 'birth'>;
+
+export interface LifeBasicsResponse {
+  ok: boolean;
+  basics: LifeBasics;
+}
+
+export interface LifeBirthResponse {
+  ok: boolean;
+  litHouses: number;
+}
+
 export interface LifeProfileView {
   alias?: string | null;
   archetype?: string | null;
+  basics?: LifeBasics;
   dashboards?: LifeDashboards;
   problemFrame?: {
     surface?: string;

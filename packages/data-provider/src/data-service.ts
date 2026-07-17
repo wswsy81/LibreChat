@@ -100,6 +100,14 @@ export function annotateLifeMapHouse(
   return request.post(endpoints.lifeMapHouseAnnotate(), payload, idempotencyHeaders());
 }
 
+export function saveLifeBasics(payload: t.LifeBasicsRequest): Promise<t.LifeBasicsResponse> {
+  return request.post(endpoints.lifeBasics(), payload, idempotencyHeaders());
+}
+
+export function saveLifeBirth(payload: t.LifeBirthInfo): Promise<t.LifeBirthResponse> {
+  return request.post(endpoints.lifeBirth(), payload, idempotencyHeaders());
+}
+
 export function revokeUserKey(name: string): Promise<unknown> {
   return request.delete(endpoints.revokeUserKey(name));
 }

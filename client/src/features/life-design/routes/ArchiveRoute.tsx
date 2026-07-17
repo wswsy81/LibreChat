@@ -6,6 +6,7 @@ import { useLocalize } from '~/hooks';
 import DashboardBars from '../components/DashboardBars';
 import ArchiveDossier from '../components/ArchiveDossier';
 import ArchiveMap from '../components/ArchiveMap';
+import BasicsForm from '../components/BasicsForm';
 import { LifeError, LifeLoading } from '../components/PageState';
 import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
 
@@ -170,6 +171,18 @@ export default function ArchiveRoute() {
           </nav>
 
           <article className="min-w-0 lg:col-start-1 lg:row-start-1">
+            <section
+              id="archive-basics"
+              aria-label={localize('com_life_archive_basics_title')}
+              className="border-b border-life-rule pb-8 dark:border-white/10"
+            >
+              <p className="font-life-mono text-life-meta tracking-[0.18em] text-life-moss dark:text-emerald-400">
+                {localize('com_life_archive_basics_title')}
+              </p>
+              <div className="mt-5">
+                <BasicsForm />
+              </div>
+            </section>
             <ArchiveSection
               id="archive-now"
               eyebrow={localize('com_life_archive_role_meta')}

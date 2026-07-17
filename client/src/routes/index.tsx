@@ -13,6 +13,7 @@ import AgentMarketplace from '~/components/Agents/Marketplace';
 import { OAuthSuccess, OAuthError } from '~/components/OAuth';
 import { AuthContextProvider } from '~/hooks/AuthContext';
 import {
+  AboutRoute,
   AdminRoute,
   ArchiveRoute,
   EntryResolver,
@@ -194,6 +195,14 @@ export const router = createBrowserRouter(
               element: (
                 <ShellGate>
                   <AdminRoute />
+                </ShellGate>
+              ),
+            },
+            {
+              path: 'about',
+              element: (
+                <ShellGate>
+                  <AboutRoute />
                 </ShellGate>
               ),
             },

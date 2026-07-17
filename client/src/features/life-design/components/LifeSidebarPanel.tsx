@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Archive, Home, MessageCircleMore, NotebookPen, Plus } from 'lucide-react';
+import { Archive, Home, MessageCircleMore, NotebookPen, Plus, UserRound } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useRecoilState } from 'recoil';
 import { useConversationsInfiniteQuery } from '~/data-provider';
@@ -12,6 +12,7 @@ const links = [
   { href: '/resume', label: 'com_life_nav_resume', icon: MessageCircleMore },
   { href: '/inbox', label: 'com_life_nav_inbox', icon: NotebookPen },
   { href: '/archive', label: 'com_life_nav_archive', icon: Archive },
+  { href: '/about', label: 'com_life_nav_about', icon: UserRound },
 ] as const;
 
 export default function LifeSidebarPanel() {

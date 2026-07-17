@@ -414,6 +414,60 @@ router.get('/map/html', async (req, res) => {
   }
 });
 
+router.post('/basics', async (req, res) => {
+  const key = idempotencyKeyOf(req, res);
+  if (!key) {
+    return;
+  }
+  const allowed = ['nickname', 'occupation', 'city', 'education', 'marital'];
+  const body = {};
+  for (const field of allowed) {
+    if (req.body?.[field] !== undefined) body[field] = String(req.body[field]);
+  }
+  try {
+    const result = await runLifeOperation({
+      userId: userId(req),
+      operation: 'basics-save',
+      idempotencyKey: key,
+      executor: () =>
+        engine.json('/internal/basics', { userId: userId(req), method: 'POST', body }),
+    });
+    return res.json(result);
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+router.post('/birth', async (req, res) => {
+  const key = idempotencyKeyOf(req, res);
+  if (!key) {
+    return;
+  }
+  const numeric = (value) =>
+    value === undefined || value === null || value === '' ? undefined : Number(value);
+  const body = {
+    year: numeric(req.body?.year),
+    month: numeric(req.body?.month),
+    day: numeric(req.body?.day),
+    hour: numeric(req.body?.hour),
+    minute: numeric(req.body?.minute),
+    calendar: req.body?.calendar ? String(req.body.calendar) : undefined,
+    gender: req.body?.gender ? String(req.body.gender) : undefined,
+    city: req.body?.city ? String(req.body.city) : undefined,
+  };
+  try {
+    const result = await runLifeOperation({
+      userId: userId(req),
+      operation: 'birth-save',
+      idempotencyKey: key,
+      executor: () => engine.json('/internal/birth', { userId: userId(req), method: 'POST', body }),
+    });
+    return res.json(result);
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
 router.post('/map/houses/annotate', async (req, res) => {
   const houseKey = String(req.body?.houseKey || '');
   const action = String(req.body?.action || '');

@@ -4,6 +4,10 @@ import type { UseMutationResult } from '@tanstack/react-query';
 import type {
   LifeMapHouseAnnotateRequest,
   LifeMapHouseAnnotateResponse,
+  LifeBasicsRequest,
+  LifeBasicsResponse,
+  LifeBirthInfo,
+  LifeBirthResponse,
   LifeDossierAnnotateRequest,
   LifeDossierAnnotateResponse,
   LifeInboxCreateResponse,
@@ -87,6 +91,33 @@ export const useLifeDossierAnnotateMutation = (): UseMutationResult<
       },
     },
   );
+};
+
+export const useLifeBasicsMutation = (): UseMutationResult<
+  LifeBasicsResponse,
+  Error,
+  LifeBasicsRequest
+> => {
+  const queryClient = useQueryClient();
+  return useMutation((payload: LifeBasicsRequest) => dataService.saveLifeBasics(payload), {
+    onSuccess: () => {
+      queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+    },
+  });
+};
+
+export const useLifeBirthMutation = (): UseMutationResult<
+  LifeBirthResponse,
+  Error,
+  LifeBirthInfo
+> => {
+  const queryClient = useQueryClient();
+  return useMutation((payload: LifeBirthInfo) => dataService.saveLifeBirth(payload), {
+    onSuccess: () => {
+      queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+      queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
+    },
+  });
 };
 
 export const useLifeMapHouseAnnotateMutation = (): UseMutationResult<
