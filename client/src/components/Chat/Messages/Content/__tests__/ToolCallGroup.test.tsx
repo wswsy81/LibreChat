@@ -65,6 +65,7 @@ jest.mock('../Parts', () => ({
   AttachmentGroup: ({ attachments }: { attachments?: TAttachment[] }) => (
     <div data-testid="attachment-group" data-count={attachments?.length ?? 0} />
   ),
+  EmptyText: () => <div data-testid="thinking-cursor" />,
 }));
 
 const makePart = (
@@ -308,5 +309,63 @@ describe('ToolCallGroup image hoisting', () => {
 
     expect(screen.getByRole('button', { name: 'Used 2 tools' })).toBeInTheDocument();
     expect(screen.getByTestId('stacked-icons')).toBeInTheDocument();
+  });
+});
+
+// 2026-07-17 自测抓到:静默 MCP 工具(load_profile/update_profile…)执行期间整条
+// 消息彻底空白,用户分不清"在处理"还是"卡死了"。全 MCP 组不渲染折叠壳,必须自己
+// 在没有可见 UI 资源时补一个通用打字光标——不暴露工具身份,但给出"还在动"的信号。
+describe('ToolCallGroup silent MCP tool loading indicator', () => {
+  const silentMcpPart = (id: string, name: string) => makePart(id, 'ok', `${name}_mcp_life`);
+
+  const baseProps = {
+    parts: [{ part: silentMcpPart('t1', 'load_profile'), idx: 0 }],
+    lastContentIdx: 0,
+    renderPart: () => null, // 静默工具本身不渲染任何可见内容
+  } satisfies Partial<React.ComponentProps<typeof ToolCallGroup>>;
+
+  it('shows a generic thinking cursor while the last group is a silent MCP call with no visible resource', () => {
+    renderGroup({
+      ...baseProps,
+      isSubmitting: true,
+      isLast: true,
+    } as React.ComponentProps<typeof ToolCallGroup>);
+
+    expect(screen.getByTestId('thinking-cursor')).toBeInTheDocument();
+    // 不暴露工具名/服务名——折叠壳整个不出现
+    expect(screen.queryByRole('button', { name: /Used/ })).not.toBeInTheDocument();
+  });
+
+  it('does not show the thinking cursor once the group is no longer the streaming tail', () => {
+    renderGroup({
+      ...baseProps,
+      isSubmitting: true,
+      isLast: false,
+    } as React.ComponentProps<typeof ToolCallGroup>);
+
+    expect(screen.queryByTestId('thinking-cursor')).not.toBeInTheDocument();
+  });
+
+  it('does not show the thinking cursor once submission has finished', () => {
+    renderGroup({
+      ...baseProps,
+      isSubmitting: false,
+      isLast: true,
+    } as React.ComponentProps<typeof ToolCallGroup>);
+
+    expect(screen.queryByTestId('thinking-cursor')).not.toBeInTheDocument();
+  });
+
+  it('does not show the thinking cursor when the group already has a visible UI resource', () => {
+    renderGroup({
+      ...baseProps,
+      isSubmitting: true,
+      isLast: true,
+      groupAttachments: [
+        { type: Tools.ui_resources, [Tools.ui_resources]: [] } as unknown as TAttachment,
+      ],
+    } as React.ComponentProps<typeof ToolCallGroup>);
+
+    expect(screen.queryByTestId('thinking-cursor')).not.toBeInTheDocument();
   });
 });

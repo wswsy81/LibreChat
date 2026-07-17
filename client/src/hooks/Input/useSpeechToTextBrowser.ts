@@ -151,11 +151,22 @@ const useSpeechToTextBrowser = (
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isBrowserSTTEnabled, toggleListening]);
 
+  /** 提交后必须清空:resetTranscript() 之前只在内部自动发送计时器分支里调用——
+   *  用户手动点发送(未开自动发送,或抢在计时器前点)时,react-speech-recognition
+   *  的累积 transcript 从不清空,下次识别(尤其 iOS 连续模式重启)会把旧句子
+   *  重新回填进已清空的输入框,看起来像"发过的话又跑回来了"(2026-07-17 自测抓到)。 */
+  const resetAfterSubmit = useCallback(() => {
+    resetTranscript();
+    lastTranscript.current = null;
+    lastInterim.current = null;
+  }, [resetTranscript]);
+
   return {
     isListening,
     isLoading: false,
     startRecording: toggleListening,
     stopRecording: toggleListening,
+    resetAfterSubmit,
   };
 };
 

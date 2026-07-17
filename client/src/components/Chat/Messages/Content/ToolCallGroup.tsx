@@ -15,7 +15,7 @@ import { ASK_USER_QUESTION } from '~/utils/approval';
 import { cn, getToolDisplayLabel } from '~/utils';
 import { StackedToolIcons } from './ToolOutput';
 import { useMCPIconMap } from '~/hooks/MCP';
-import { AttachmentGroup } from './Parts';
+import { AttachmentGroup, EmptyText } from './Parts';
 import store from '~/store';
 
 interface ToolMeta {
@@ -265,10 +265,17 @@ export default function ToolCallGroup({
 
   /** 人生设计室:纯 MCP(mingli)组不渲染"Used N tools — mingli"折叠壳——
    *  暴露内部服务名与工具数,破坏方法隐形(产品哲学九条第3条)。直接渲染内容:
-   *  有交互 UI 资源的(话题卡/生辰选择器/存档面板)照常出现,静默工具本来就是 null。 */
+   *  有交互 UI 资源的(话题卡/生辰选择器/存档面板)照常出现,静默工具本来就是 null。
+   *  但静默工具(load_profile/update_profile/paipan…)执行期间整条消息就彻底空白,
+   *  用户分不清"AI 在处理"还是"卡死了"(2026-07-17 自测抓到)——此组没有任何可见
+   *  UI 资源、且仍在这轮流式响应的最后一组时,补一个通用打字光标,不暴露工具身份。 */
   const allMcpTools =
     count > 0 && toolNames.every((name) => name.includes(Constants.mcp_delimiter));
   if (allMcpTools) {
+    const hasVisibleResource = (groupAttachments ?? []).some(
+      (attachment) => attachment.type === Tools.ui_resources,
+    );
+    const showThinking = isLast && isSubmitting && !hasVisibleResource;
     return (
       <div ref={rootRef}>
         {parts.map(({ part, idx }) =>
@@ -277,6 +284,7 @@ export default function ToolCallGroup({
         {groupAttachments && groupAttachments.length > 0 && (
           <AttachmentGroup attachments={groupAttachments} />
         )}
+        {showThinking && <EmptyText />}
       </div>
     );
   }

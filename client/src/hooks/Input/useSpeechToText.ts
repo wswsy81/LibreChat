@@ -10,6 +10,9 @@ const useSpeechToText = (
   isListening?: boolean;
   stopRecording: () => void | (() => Promise<void>);
   startRecording: () => void | (() => Promise<void>);
+  /** 消息提交后调用:清空浏览器 STT 引擎的累积 transcript,防止旧语音文本回填。
+   *  外部 STT 是单次录音单次转写,没有累积状态,这里是 no-op。 */
+  resetAfterSubmit: () => void;
 } => {
   const { speechToTextEndpoint } = useGetAudioSettings();
   const externalSpeechToText = speechToTextEndpoint === 'external';
@@ -19,6 +22,7 @@ const useSpeechToText = (
     isLoading: speechIsLoadingBrowser,
     startRecording: startSpeechRecordingBrowser,
     stopRecording: stopSpeechRecordingBrowser,
+    resetAfterSubmit,
   } = useSpeechToTextBrowser(setText, onTranscriptionComplete);
 
   const {
@@ -43,6 +47,7 @@ const useSpeechToText = (
     isListening,
     stopRecording,
     startRecording,
+    resetAfterSubmit,
   };
 };
 
