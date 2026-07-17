@@ -7,9 +7,13 @@ import { useLifeArchiveQuery, useLifeInboxMutation } from '~/data-provider';
 import { useAuthContext, useLocalize } from '~/hooks';
 import DashboardBars from './DashboardBars';
 import FirstArchiveSetup from './FirstArchiveSetup';
+import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
 
 const dateText = (value?: string | null) =>
-  value ? new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(new Date(value)) : '';
+  formatLifeDate(value, { month: '2-digit', day: '2-digit' }, '');
+
+const timelineDateText = (value?: string | null) =>
+  formatLifeTimelineWhen(value, { month: '2-digit', day: '2-digit' });
 
 export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapResponse }) {
   const localize = useLocalize();
@@ -204,7 +208,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                   className="flex items-baseline gap-5 border-b border-life-rule py-3.5 dark:border-white/10"
                 >
                   <span className="w-14 flex-none font-life-mono text-life-meta text-life-muted dark:text-gray-500">
-                    {dateText(entry.when)}
+                    {timelineDateText(entry.when)}
                   </span>
                   <span className="flex-1 text-life-sm leading-7 text-life-ink dark:text-gray-200">
                     {entry.what}

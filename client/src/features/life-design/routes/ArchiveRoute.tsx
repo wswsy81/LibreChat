@@ -7,20 +7,23 @@ import DashboardBars from '../components/DashboardBars';
 import ArchiveDossier from '../components/ArchiveDossier';
 import ArchiveMap from '../components/ArchiveMap';
 import { LifeError, LifeLoading } from '../components/PageState';
+import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
 
-const dateText = (value?: string | null) =>
-  value ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium' }).format(new Date(value)) : '—';
+const dateText = (value?: string | null) => formatLifeDate(value, { dateStyle: 'medium' });
 
 const compactDateText = (value?: string | null) =>
-  value
-    ? new Intl.DateTimeFormat('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      })
-        .format(new Date(value))
-        .replaceAll('/', ' / ')
-    : '—';
+  formatLifeDate(value, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).replaceAll('/', ' / ');
+
+const timelineDateText = (value?: string | null) =>
+  formatLifeTimelineWhen(value, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).replaceAll('/', ' / ');
 
 const versionText = (value?: string | null) => {
   if (!value) return '—';
@@ -356,7 +359,7 @@ export default function ArchiveRoute() {
                             className="grid gap-2 border-b border-life-rule py-3.5 dark:border-white/10 sm:grid-cols-[92px_minmax(0,1fr)_112px] sm:gap-4"
                           >
                             <span className="font-life-mono text-life-meta tabular-nums text-life-muted dark:text-gray-500">
-                              {compactDateText(entry.when)}
+                              {timelineDateText(entry.when)}
                             </span>
                             <span className="font-life-sans text-life-sm leading-7 text-life-ink dark:text-gray-200">
                               {entry.what}
