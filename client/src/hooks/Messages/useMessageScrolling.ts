@@ -3,6 +3,7 @@ import { Constants } from 'librechat-data-provider';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { TMessage } from 'librechat-data-provider';
 import { useMessagesConversation, useMessagesSubmission } from '~/Providers';
+import { useGetStartupConfig } from '~/data-provider';
 import useScrollToRef from '~/hooks/useScrollToRef';
 import { reconcileMessageContentLayout } from './messageLayout';
 import store from '~/store';
@@ -13,11 +14,15 @@ const resizeFollowThreshold = 120;
 
 export default function useMessageScrolling(messagesTree?: TMessage[] | null) {
   const autoScroll = useRecoilValue(store.autoScroll);
+  const { data: startupConfig } = useGetStartupConfig();
+  const shouldScrollOnOpen = startupConfig?.lifeUnifiedShell === true || autoScroll;
 
   const scrollableRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isNearBottomRef = useRef(true);
+  const followInitialLayoutRef = useRef(false);
+  const initialScrollConversationRef = useRef<string | null>(null);
   const suppressNextResizeFollowRef = useRef(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const { conversation, conversationId } = useMessagesConversation();
@@ -64,6 +69,9 @@ export default function useMessageScrolling(messagesTree?: TMessage[] | null) {
 
   const debouncedHandleScroll = useCallback(() => {
     isNearBottomRef.current = getIsNearBottom();
+    if (!isNearBottomRef.current) {
+      followInitialLayoutRef.current = false;
+    }
     if (messagesEndRef.current && scrollableRef.current) {
       const observer = new IntersectionObserver(
         ([entry]) => {
@@ -120,7 +128,12 @@ export default function useMessageScrolling(messagesTree?: TMessage[] | null) {
         return;
       }
 
-      if (shouldFollowResize && isSubmitting && abortScroll !== true && isNearBottomRef.current) {
+      const shouldFollowStreaming = isSubmitting && abortScroll !== true;
+      if (
+        shouldFollowResize &&
+        (shouldFollowStreaming || followInitialLayoutRef.current) &&
+        isNearBottomRef.current
+      ) {
         scrollToBottom?.();
       }
     },
@@ -146,6 +159,7 @@ export default function useMessageScrolling(messagesTree?: TMessage[] | null) {
 
     const suppressNextResizeFollow = () => {
       suppressNextResizeFollowRef.current = true;
+      followInitialLayoutRef.current = false;
     };
 
     contentEl.addEventListener('pointerdown', suppressNextResizeFollow, true);
@@ -181,10 +195,21 @@ export default function useMessageScrolling(messagesTree?: TMessage[] | null) {
       return;
     }
 
-    if (scrollToBottom && autoScroll && conversationId !== Constants.NEW_CONVO) {
-      scrollToBottom();
+    if (
+      !messagesTree ||
+      messagesTree.length === 0 ||
+      !conversationId ||
+      conversationId === Constants.NEW_CONVO ||
+      !shouldScrollOnOpen ||
+      initialScrollConversationRef.current === conversationId
+    ) {
+      return;
     }
-  }, [autoScroll, conversationId, scrollToBottom]);
+
+    initialScrollConversationRef.current = conversationId;
+    followInitialLayoutRef.current = true;
+    scrollToBottom?.();
+  }, [conversationId, messagesTree, scrollToBottom, shouldScrollOnOpen]);
 
   return {
     conversation,

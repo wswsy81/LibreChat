@@ -17,6 +17,7 @@ mockScrollToBottom.cancel = jest.fn();
 mockScrollToBottom.flush = jest.fn();
 const mockHandleSmoothToRef = jest.fn();
 let mockScrollCallback: (() => void) | undefined;
+let mockLifeUnifiedShell = true;
 
 jest.mock('~/hooks/useScrollToRef', () => ({
   __esModule: true,
@@ -31,6 +32,10 @@ jest.mock('~/hooks/useScrollToRef', () => ({
 
 jest.mock('../messageLayout', () => ({
   reconcileMessageContentLayout: jest.fn(),
+}));
+
+jest.mock('~/data-provider', () => ({
+  useGetStartupConfig: () => ({ data: { lifeUnifiedShell: mockLifeUnifiedShell } }),
 }));
 
 import useMessageScrolling from '../useMessageScrolling';
@@ -175,6 +180,7 @@ describe('useMessageScrolling resize reconciliation', () => {
     mockHandleSmoothToRef.mockClear();
     mockReconcileMessageContentLayout.mockClear();
     mockScrollCallback = undefined;
+    mockLifeUnifiedShell = true;
     (global as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
       MockResizeObserver;
     (
@@ -201,6 +207,40 @@ describe('useMessageScrolling resize reconciliation', () => {
     });
 
     expect(mockScrollToBottom).toHaveBeenCalledTimes(1);
+  });
+
+  it('scrolls to the latest message when an existing conversation is first hydrated', () => {
+    renderScrolling({
+      contextOverrides: { isSubmitting: false },
+      messagesTree: [message],
+    });
+
+    expect(mockScrollToBottom).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps following asynchronous layout growth after initial hydration', () => {
+    renderScrolling({
+      contextOverrides: { isSubmitting: false },
+      messagesTree: [message],
+    });
+    mockScrollToBottom.mockClear();
+
+    act(() => {
+      MockResizeObserver.last()?.trigger();
+    });
+
+    expect(mockScrollToBottom).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves the upstream auto-scroll preference in explicit generic LibreChat mode', () => {
+    mockLifeUnifiedShell = false;
+
+    renderScrolling({
+      contextOverrides: { isSubmitting: false },
+      messagesTree: [message],
+    });
+
+    expect(mockScrollToBottom).not.toHaveBeenCalled();
   });
 
   it('reconciles message layout after an explicit scroll to bottom', () => {

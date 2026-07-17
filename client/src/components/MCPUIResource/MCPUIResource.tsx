@@ -1,7 +1,12 @@
 import React from 'react';
 import { UIResourceRenderer } from '@mcp-ui/client';
-import { useOptionalMessagesConversation, useOptionalMessagesOperations } from '~/Providers';
+import {
+  useMessageContext,
+  useOptionalMessagesConversation,
+  useOptionalMessagesOperations,
+} from '~/Providers';
 import { useConversationUIResources } from '~/hooks/Messages/useConversationUIResources';
+import { shouldRenderUIResource } from './lifecycle';
 import { handleUIAction } from '~/utils';
 import { useLocalize } from '~/hooks';
 
@@ -16,6 +21,7 @@ interface MCPUIResourceProps {
 /** Renders an MCP UI resource based on its resource ID. Works in chat, share, and search views. */
 export function MCPUIResource(props: MCPUIResourceProps) {
   const { resourceId } = props.node.properties;
+  const { isLatestMessage } = useMessageContext();
   const localize = useLocalize();
   const { ask } = useOptionalMessagesOperations();
   const { conversationId } = useOptionalMessagesConversation();
@@ -32,6 +38,10 @@ export function MCPUIResource(props: MCPUIResourceProps) {
         })}
       </span>
     );
+  }
+
+  if (!shouldRenderUIResource(uiResource, isLatestMessage)) {
+    return null;
   }
 
   try {

@@ -39,6 +39,7 @@ const useSpeechToTextBrowser = (
 
   const lastTranscript = useRef<string | null>(null);
   const lastInterim = useRef<string | null>(null);
+  const acceptingTranscripts = useRef(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>();
   const [autoSendText] = useRecoilState(store.autoSendText);
   const [languageSTT] = useRecoilState<string>(store.languageSTT);
@@ -54,6 +55,9 @@ const useSpeechToTextBrowser = (
   const isListening = listening;
 
   useEffect(() => {
+    if (!acceptingTranscripts.current) {
+      return;
+    }
     if (interimTranscript == null || interimTranscript === '') {
       return;
     }
@@ -67,6 +71,9 @@ const useSpeechToTextBrowser = (
   }, [setText, interimTranscript]);
 
   useEffect(() => {
+    if (!acceptingTranscripts.current) {
+      return;
+    }
     if (finalTranscript == null || finalTranscript === '') {
       return;
     }
@@ -124,6 +131,7 @@ const useSpeechToTextBrowser = (
       return;
     }
 
+    acceptingTranscripts.current = true;
     SpeechRecognition.startListening({
       language: languageSTT,
       continuous: true,
@@ -169,6 +177,11 @@ const useSpeechToTextBrowser = (
    *  的累积 transcript 从不清空,下次识别(尤其 iOS 连续模式重启)会把旧句子
    *  重新回填进已清空的输入框,看起来像"发过的话又跑回来了"(2026-07-17 自测抓到)。 */
   const resetAfterSubmit = useCallback(() => {
+    acceptingTranscripts.current = false;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
     resetTranscript();
     lastTranscript.current = null;
     lastInterim.current = null;

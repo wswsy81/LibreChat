@@ -3,7 +3,8 @@ import { Tools } from 'librechat-data-provider';
 import { UIResourceRenderer } from '@mcp-ui/client';
 import type { UIActionResult } from '@mcp-ui/client';
 import type { TAttachment, UIResource } from 'librechat-data-provider';
-import { useOptionalMessagesOperations } from '~/Providers';
+import { shouldRenderUIResource } from '~/components/MCPUIResource/lifecycle';
+import { useMessageContext, useOptionalMessagesOperations } from '~/Providers';
 import UIResourceCarousel from './UIResourceCarousel';
 import { handleUIAction } from '~/utils';
 
@@ -23,6 +24,7 @@ export default function McpUIResources({
   /** 正文里 \ui{id} 标记已内联渲染的资源；这里跳过它们，同一张卡一条消息只出现一次。 */
   inlineResourceIds?: Set<string>;
 }) {
+  const { isLatestMessage } = useMessageContext();
   const { ask } = useOptionalMessagesOperations();
   const navigate = useNavigate();
 
@@ -50,7 +52,9 @@ export default function McpUIResources({
           (!toolCallId || attachment.toolCallId === toolCallId),
       )
       .flatMap((attachment) => attachment[Tools.ui_resources] as UIResource[]) ?? []
-  ).filter((resource) => !(resource.resourceId && inlineResourceIds?.has(resource.resourceId)));
+  )
+    .filter((resource) => !(resource.resourceId && inlineResourceIds?.has(resource.resourceId)))
+    .filter((resource) => shouldRenderUIResource(resource, isLatestMessage));
 
   if (uiResources.length === 0) {
     return null;

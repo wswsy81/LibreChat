@@ -54,7 +54,7 @@ describe('MCPUIResource', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     currentTestMessages = [];
-    mockUseMessageContext.mockReturnValue({ messageId: 'msg123' } as any);
+    mockUseMessageContext.mockReturnValue({ messageId: 'msg123', isLatestMessage: true } as any);
     mockUseMessagesConversation.mockReturnValue({
       conversation: { conversationId: 'conv123' },
       conversationId: 'conv123',
@@ -171,6 +171,70 @@ describe('MCPUIResource', () => {
       const renderer = screen.getByTestId('ui-resource-renderer');
       expect(renderer).toBeInTheDocument();
       expect(renderer).toHaveAttribute('data-resource-uri', 'ui://test/resource-id');
+    });
+
+    it('hides a one-shot topic picker after a later message has answered it', () => {
+      mockUseMessageContext.mockReturnValue({
+        messageId: 'msg123',
+        isLatestMessage: false,
+      } as any);
+      currentTestMessages = [
+        {
+          messageId: 'msg123',
+          attachments: [
+            {
+              type: 'ui_resources',
+              ui_resources: [
+                {
+                  resourceId: 'topics-1',
+                  uri: 'ui://future-lines/topics',
+                  mimeType: 'text/html',
+                  text: '<p>Topics</p>',
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const { container } = renderWithRecoil(
+        <MCPUIResource node={{ properties: { resourceId: 'topics-1' } }} />,
+      );
+
+      expect(container.firstChild).toBeNull();
+      expect(screen.queryByTestId('ui-resource-renderer')).not.toBeInTheDocument();
+    });
+
+    it('keeps persistent report resources visible in message history', () => {
+      mockUseMessageContext.mockReturnValue({
+        messageId: 'msg123',
+        isLatestMessage: false,
+      } as any);
+      currentTestMessages = [
+        {
+          messageId: 'msg123',
+          attachments: [
+            {
+              type: 'ui_resources',
+              ui_resources: [
+                {
+                  resourceId: 'report-1',
+                  uri: 'ui://future-lines/report',
+                  mimeType: 'text/html',
+                  text: '<p>Report</p>',
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      renderWithRecoil(<MCPUIResource node={{ properties: { resourceId: 'report-1' } }} />);
+
+      expect(screen.getByTestId('ui-resource-renderer')).toHaveAttribute(
+        'data-resource-uri',
+        'ui://future-lines/report',
+      );
     });
   });
 

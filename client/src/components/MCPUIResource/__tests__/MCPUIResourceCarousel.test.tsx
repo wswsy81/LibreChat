@@ -37,7 +37,7 @@ describe('MCPUIResourceCarousel', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     currentTestMessages = [];
-    mockUseMessageContext.mockReturnValue({ messageId: 'msg123' } as any);
+    mockUseMessageContext.mockReturnValue({ messageId: 'msg123', isLatestMessage: true } as any);
     mockUseMessagesConversation.mockReturnValue({
       conversation: { conversationId: 'conv123' },
       conversationId: 'conv123',
@@ -99,6 +99,50 @@ describe('MCPUIResourceCarousel', () => {
       expect(screen.getByTestId('resource-1')).toHaveAttribute(
         'data-resource-uri',
         'ui://test/resource-id1',
+      );
+    });
+
+    it('removes answered topic pickers but keeps persistent resources in a mixed carousel', () => {
+      mockUseMessageContext.mockReturnValue({
+        messageId: 'msg123',
+        isLatestMessage: false,
+      } as any);
+      currentTestMessages = [
+        {
+          messageId: 'msg123',
+          attachments: [
+            {
+              type: 'ui_resources',
+              ui_resources: [
+                {
+                  resourceId: 'topics-1',
+                  uri: 'ui://future-lines/topics',
+                  mimeType: 'text/html',
+                  text: '<p>Topics</p>',
+                },
+                {
+                  resourceId: 'report-1',
+                  uri: 'ui://future-lines/report',
+                  mimeType: 'text/html',
+                  text: '<p>Report</p>',
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      renderWithRecoil(
+        <MCPUIResourceCarousel node={{ properties: { resourceIds: ['topics-1', 'report-1'] } }} />,
+      );
+
+      expect(screen.getByTestId('ui-resource-carousel')).toHaveAttribute(
+        'data-resource-count',
+        '1',
+      );
+      expect(screen.getByTestId('resource-0')).toHaveAttribute(
+        'data-resource-uri',
+        'ui://future-lines/report',
       );
     });
   });

@@ -64,6 +64,12 @@ export default memo(function AudioRecorder({
 
   const setText = useCallback(
     (text: string) => {
+      // iOS may deliver its final recognition event in the same render batch
+      // that flips submission on. The hook cleanup effect runs afterwards, so
+      // reject the write at the form boundary as well.
+      if (isSubmittingRef.current) {
+        return;
+      }
       let newText = text;
       if (isExternalSTT(speechToTextEndpoint)) {
         /** For external STT, the text comes as a complete transcription, so append to existing */
