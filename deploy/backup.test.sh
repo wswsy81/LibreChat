@@ -11,6 +11,10 @@ assert_source_contains() {
   grep -Fq -- "$needle" "$SCRIPT" || fail "backup.sh missing contract: $needle"
 }
 
+file_mode() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
+}
+
 SCRIPT=$(cd "$(dirname "$0")" && pwd)/backup.sh
 bash -n "$SCRIPT"
 
@@ -125,11 +129,11 @@ for file in \
   postgres-restore-list.txt \
   VERIFIED; do
   [[ -s "$backup/$file" ]] || fail "missing or empty backup artifact: $file"
-  [[ $(stat -f '%Lp' "$backup/$file" 2>/dev/null || stat -c '%a' "$backup/$file") == 600 ]] ||
+  [[ $(file_mode "$backup/$file") == 600 ]] ||
     fail "artifact is not 0600: $file"
 done
 
-[[ $(stat -f '%Lp' "$backup" 2>/dev/null || stat -c '%a' "$backup") == 700 ]] ||
+[[ $(file_mode "$backup") == 700 ]] ||
   fail "backup directory is not 0700"
 
 (cd "$backup" && sha256sum -c SHA256SUMS >/dev/null)
