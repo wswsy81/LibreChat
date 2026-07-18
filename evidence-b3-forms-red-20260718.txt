@@ -12,4 +12,10 @@ API route before fixes:
 - 9/10 passed.
 - POST /api/life/onboarding with {dashboards:{health:5}} returned 422 before idempotency handling.
 
+Production cross-layer reproduction after the first B3 deploy:
+- Normal /about UI sent {occupation:null,city:null} and showed "已存进你的档案".
+- The persisted profile contained occupation:"null" and city:"null" instead of removing the fields.
+- Root cause: api/server/routes/life.js applied String(value) to every provided field, converting JSON null into the literal text "null" before forwarding to future-engine.
+- The new API-boundary regression failed 10/11 and captured the exact forwarded body {occupation:"null",city:"null"}.
+
 These failures reproduce the audit findings without production writes.

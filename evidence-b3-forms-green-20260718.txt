@@ -16,3 +16,10 @@ Full gate:
 Production-data preflight (read only):
 - 8 profiles, 3 stored birthdays, 0 invalid calendar dates.
 - The stricter write validation therefore does not require a historical data migration.
+
+Production cross-layer follow-up:
+- API-boundary regression now passes 11/11 and preserves explicit null values to future-engine.
+- Commit 69e212d deployed as B3-FORMS-HOTFIX-202607181842 using the existing batch backup.
+- Normal /about UI cleared the two seeded fields and showed "已存进你的档案".
+- Server-side profile inspection then showed basics keys=[], occupationPresent=false, cityPresent=false, birthPresent=false.
+- The test account has 3 completed basics-save receipts and no birth-save operation; API, public health, 19 engine tools, and background failures=0 all passed.
