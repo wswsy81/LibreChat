@@ -76,11 +76,15 @@ services:
       - ./librechat.yaml:/app/librechat.yaml
       - ./client/dist:/app/client/dist:ro
       - ./packages/api/dist:/app/packages/api/dist:ro
+      - ./packages/data-schemas/dist:/app/packages/data-schemas/dist:ro
       - ./packages/data-provider/dist:/app/packages/data-provider/dist:ro
       - ./api/server/index.js:/app/api/server/index.js:ro
+      - ./api/server/controllers/UserController.js:/app/api/server/controllers/UserController.js:ro
       - ./api/server/routes/config.js:/app/api/server/routes/config.js:ro
       - ./api/server/routes/index.js:/app/api/server/routes/index.js:ro
       - ./api/server/routes/life.js:/app/api/server/routes/life.js:ro
+      - ./api/server/middleware/requireJwtAuth.js:/app/api/server/middleware/requireJwtAuth.js:ro
+      - ./api/server/middleware/accountDeletionFence.js:/app/api/server/middleware/accountDeletionFence.js:ro
       - ./api/server/middleware/limiters/index.js:/app/api/server/middleware/limiters/index.js:ro
       - ./api/server/middleware/limiters/lifeShareLimiter.js:/app/api/server/middleware/limiters/lifeShareLimiter.js:ro
       - ./api/server/services/lifeOperations.js:/app/api/server/services/lifeOperations.js:ro
