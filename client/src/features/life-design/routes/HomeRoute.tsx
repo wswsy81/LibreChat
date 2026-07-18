@@ -1,7 +1,7 @@
 import { ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@librechat/client';
-import { useLifeBootstrapQuery } from '~/data-provider';
+import { useGetStartupConfig, useLifeBootstrapQuery } from '~/data-provider';
 import { useAuthContext, useLocalize } from '~/hooks';
 import { ProductShell } from '~/routes/Root';
 import FirstArchiveSetup from '../components/FirstArchiveSetup';
@@ -15,8 +15,17 @@ const SAMPLE_BARS = [
   { label: 'com_life_love', value: 7, low: false },
 ] as const;
 
+function getSampleBarClass(filled: boolean, low: boolean) {
+  if (!filled) {
+    return 'bg-life-rule dark:bg-white/10';
+  }
+  return low ? 'bg-life-cinnabar' : 'bg-life-moss';
+}
+
 function PublicHome() {
   const localize = useLocalize();
+  const { data: startupConfig } = useGetStartupConfig();
+  const registrationEnabled = startupConfig?.registrationEnabled === true;
   return (
     <main className="min-h-screen overflow-hidden bg-life-paper text-life-ink dark:bg-[#171512] dark:text-[#f6f0e6]">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-12">
@@ -25,7 +34,9 @@ function PublicHome() {
             <p className="font-life-mono text-life-meta tracking-[0.26em] text-life-cinnabar">
               {localize('com_life_brand_eyebrow')}
             </p>
-            <p className="mt-1 font-life-serif text-life-lead font-black">{localize('com_life_brand')}</p>
+            <p className="mt-1 font-life-serif text-life-lead font-black">
+              {localize('com_life_brand')}
+            </p>
           </div>
           <Link
             to="/login?redirect_to=%2Fhome"
@@ -47,15 +58,24 @@ function PublicHome() {
               {localize('com_life_public_description')}
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <Button
-                asChild
-                className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
-              >
-                <Link to="/register">
-                  {localize('com_life_start_first')}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
+              {registrationEnabled ? (
+                <Button
+                  asChild
+                  className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
+                >
+                  <Link to="/register">
+                    {localize('com_life_start_first')}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              ) : (
+                <p
+                  className="max-w-[30em] border-l-2 border-life-brass py-2 pl-4 font-life-kai text-life-body leading-8 text-life-brass"
+                  role="status"
+                >
+                  {localize('com_life_invite_only_notice')}
+                </p>
+              )}
               <Button
                 asChild
                 variant="outline"
@@ -91,13 +111,7 @@ function PublicHome() {
                       {Array.from({ length: 10 }, (_, index) => (
                         <i
                           key={index}
-                          className={`flex-1 ${
-                            index < bar.value
-                              ? bar.low
-                                ? 'bg-life-cinnabar'
-                                : 'bg-life-moss'
-                              : 'bg-life-rule dark:bg-white/10'
-                          }`}
+                          className={`flex-1 ${getSampleBarClass(index < bar.value, bar.low)}`}
                         />
                       ))}
                     </span>
@@ -112,20 +126,20 @@ function PublicHome() {
                 ))}
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
-                {(['com_life_line_current', 'com_life_line_gone', 'com_life_line_wild'] as const).map(
-                  (key, index) => (
-                    <span
-                      key={key}
-                      className={`border px-3 py-1 font-life-mono text-life-meta ${
-                        index === 2
-                          ? 'border-life-cinnabar/50 text-life-cinnabar'
-                          : 'border-life-ink/25 text-life-muted dark:border-white/20 dark:text-gray-400'
-                      }`}
-                    >
-                      {String(index + 1).padStart(2, '0')} {localize(key)}
-                    </span>
-                  ),
-                )}
+                {(
+                  ['com_life_line_current', 'com_life_line_gone', 'com_life_line_wild'] as const
+                ).map((key, index) => (
+                  <span
+                    key={key}
+                    className={`border px-3 py-1 font-life-mono text-life-meta ${
+                      index === 2
+                        ? 'border-life-cinnabar/50 text-life-cinnabar'
+                        : 'border-life-ink/25 text-life-muted dark:border-white/20 dark:text-gray-400'
+                    }`}
+                  >
+                    {String(index + 1).padStart(2, '0')} {localize(key)}
+                  </span>
+                ))}
               </div>
             </div>
             <p className="mt-4 font-life-kai text-life-body leading-7 text-life-brass">

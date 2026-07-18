@@ -74,9 +74,7 @@ const setup = ({
   },
   useGetStartupConfigReturnValue = mockStartupConfig,
 } = {}) => {
-  let registerMutationOptions: Parameters<
-    typeof mockDataProvider.useRegisterUserMutation
-  >[0];
+  let registerMutationOptions: Parameters<typeof mockDataProvider.useRegisterUserMutation>[0];
   const mockUseRegisterUserMutation = jest
     .spyOn(mockDataProvider, 'useRegisterUserMutation')
     .mockImplementation((options) => {
@@ -103,8 +101,11 @@ const setup = ({
     .mockReturnValue(useLoginUserMutationReturnValue);
   const mockUseOutletContext = jest.spyOn(reactRouter, 'useOutletContext').mockReturnValue({
     startupConfig: useGetStartupConfigReturnValue.data,
+    startupConfigError: null,
+    isFetching: false,
+    setHeaderText: jest.fn(),
   });
-  const mockUseGetBannerQuery = jest
+  const _mockUseGetBannerQuery = jest
     .spyOn(miscDataProvider, 'useGetBannerQuery')
     //@ts-ignore - we don't need all parameters of the QueryObserverSuccessResult
     .mockReturnValue(useGetBannerQueryReturnValue);
@@ -137,6 +138,9 @@ jest.mock('react-router-dom', () => ({
   ...jest.requireActual('react-router-dom'),
   useOutletContext: () => ({
     startupConfig: mockStartupConfig,
+    startupConfigError: null,
+    isFetching: false,
+    setHeaderText: jest.fn(),
   }),
 }));
 
@@ -177,6 +181,37 @@ test('renders registration form', () => {
     'href',
     'mock-server/oauth/saml',
   );
+});
+
+test('does not offer a registration form when public registration is closed without an invite', () => {
+  window.history.replaceState({}, '', '/register');
+  const { queryByRole, getByText } = setup({
+    useGetStartupConfigReturnValue: {
+      ...mockStartupConfig,
+      data: {
+        ...mockStartupConfig.data,
+        registrationEnabled: false,
+      },
+    },
+  });
+
+  expect(queryByRole('form', { name: /Registration form/i })).not.toBeInTheDocument();
+  expect(getByText(/这里目前只接待受邀用户/)).toBeInTheDocument();
+});
+
+test('keeps the registration form available for an invite link', () => {
+  window.history.replaceState({}, '', '/register?token=invite-token');
+  const { getByRole } = setup({
+    useGetStartupConfigReturnValue: {
+      ...mockStartupConfig,
+      data: {
+        ...mockStartupConfig.data,
+        registrationEnabled: false,
+      },
+    },
+  });
+
+  expect(getByRole('form', { name: /Registration form/i })).toBeVisible();
 });
 
 test('logs in immediately after registration when email verification is disabled', () => {

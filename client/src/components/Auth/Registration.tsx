@@ -1,5 +1,5 @@
 import { useForm } from 'react-hook-form';
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Turnstile } from '@marsidev/react-turnstile';
 import { ThemeContext, SecretInput, Spinner, Button, isDark } from '@librechat/client';
 import { useNavigate, useOutletContext, useLocation } from 'react-router-dom';
@@ -16,7 +16,8 @@ const Registration: React.FC = () => {
   const navigate = useNavigate();
   const localize = useLocalize();
   const { theme } = useContext(ThemeContext);
-  const { startupConfig, startupConfigError, isFetching } = useOutletContext<TLoginLayoutContext>();
+  const { startupConfig, startupConfigError, isFetching, setHeaderText } =
+    useOutletContext<TLoginLayoutContext>();
 
   const {
     watch,
@@ -34,7 +35,12 @@ const Registration: React.FC = () => {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const token = queryParams.get('token');
+  const isInviteOnly = startupConfig?.registrationEnabled === false && !token;
   const validTheme = isDark(theme) ? 'dark' : 'light';
+
+  useEffect(() => {
+    setHeaderText(isInviteOnly ? 'com_auth_invite_only_title' : 'com_auth_create_account');
+  }, [isInviteOnly, setHeaderText]);
 
   // only require captcha if we have a siteKey
   const requireCaptcha = Boolean(startupConfig?.turnstile?.siteKey);
@@ -171,7 +177,20 @@ const Registration: React.FC = () => {
             localize('com_auth_email_verification_redirecting', { 0: countdown.toString() })}
         </div>
       )}
-      {!startupConfigError && !isFetching && (
+      {!startupConfigError && !isFetching && isInviteOnly && (
+        <div className="mt-6 border-l-2 border-life-brass py-2 pl-4 text-left" role="status">
+          <p className="font-life-kai text-life-body leading-8 text-life-brass">
+            {localize('com_auth_invite_only_description')}
+          </p>
+          <a
+            href={loginPage()}
+            className="mt-5 inline-flex min-h-11 items-center border border-life-ink/20 px-5 font-life-sans text-life-sm font-medium text-life-cinnabar transition-colors hover:border-life-cinnabar"
+          >
+            {localize('com_auth_login')}
+          </a>
+        </div>
+      )}
+      {!startupConfigError && !isFetching && !isInviteOnly && (
         <>
           <form
             className="mt-6"

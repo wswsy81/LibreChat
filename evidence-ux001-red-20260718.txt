@@ -1,0 +1,22 @@
+UX-001 red-state evidence
+Date: 2026-07-18 Asia/Shanghai
+
+Command:
+  cd client
+  npx jest src/components/Auth/__tests__/Registration.spec.tsx \
+    src/features/life-design/routes/__tests__/HomeRoute.spec.tsx --runInBand
+
+Relevant failures before the fix:
+  - public home with registrationEnabled=false still rendered href=/register
+  - /register without token still rendered aria-label="Registration form"
+  - invite-only notice was absent
+
+Static root cause:
+  - api/server/routes/config.js exposes startupConfig.registrationEnabled
+  - api/server/middleware/validateRegistration.js rejects public registration when false
+    but explicitly allows req.invite
+  - HomeRoute.tsx ignored startupConfig and hard-coded /register
+  - Registration.tsx rendered the form without checking registrationEnabled or token
+
+The same run also reproduced the pre-existing UX-002 assertion mismatch for two-character
+names. That finding is not part of UX-001 and was not changed in this batch.

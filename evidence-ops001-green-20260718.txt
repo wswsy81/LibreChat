@@ -1,0 +1,28 @@
+OPS-001 local green-state evidence
+Date: 2026-07-18 Asia/Shanghai
+
+Commands:
+  bash -n deploy/backup.sh deploy/backup.test.sh deploy/install-backup-cron.sh
+  bash deploy/backup.test.sh
+  docker compose -f docker-compose.prod.yml --env-file <local env> config --quiet
+
+Results:
+  shell syntax: PASS
+  backup contract: PASS
+  compose config: exit 0
+
+The isolated contract test executes the backup script with fake Mongo/Postgres
+containers and asserts:
+  - authenticated Mongo dump and dry-run restore
+  - Umami custom-format dump and pg_restore list
+  - future-engine data/runtime
+  - LibreChat uploads/images and runtime config including .env
+  - atomic verified directory, no successful .partial residue
+  - directory 0700 and every artifact 0600
+  - SHA256SUMS verifies
+  - VERIFIED marker exists only after all checks pass
+
+Production execution, cron installation, and independent offsite configuration are
+recorded separately in the audit tracker after deployment. Until a GPG recipient and
+independent rsync target are configured, the script warns and OPS-001 remains open for
+that residual fault-domain item.

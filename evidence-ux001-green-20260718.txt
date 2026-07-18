@@ -1,0 +1,25 @@
+UX-001 green-state evidence
+Date: 2026-07-18 Asia/Shanghai
+
+Targeted commands and results:
+  client Jest, registration policy tests: 4/4 passed
+  client npm run typecheck: passed
+  changed-file ESLint: passed with zero warnings/errors
+  production frontend build: passed, 9143 modules transformed
+
+Full client gate:
+  279/284 suites passed
+  3190/3205 tests passed
+  all new UX-001 tests passed inside the full run
+
+The 5 failing suites / 15 tests belong to pre-existing tracked baselines:
+  - settings theme registry / sidebar expectations (PRODUCT-001 / OBS-002)
+  - ContentParts integration missing a Router around existing MCP-UI navigation (OBS-002)
+  - two-character registration validation text mismatch (UX-002)
+  - hidden Skills upload dialog expectations (UX-003 / OBS-002 family)
+
+Behavior after the fix:
+  - registrationEnabled=true keeps the public /register action
+  - registrationEnabled=false replaces it with a clear invitation-only notice
+  - /register without token does not render a form that must return 403
+  - /register?token=... retains the existing invitation registration flow

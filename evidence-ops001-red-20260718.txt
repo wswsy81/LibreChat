@@ -1,0 +1,33 @@
+OPS-001 red-state evidence
+Date: 2026-07-18 Asia/Shanghai
+
+Static contract
+---------------
+Command:
+  bash deploy/backup.test.sh
+
+Result before the fix:
+  FAIL: backup.sh missing contract: umask 077
+
+Production read-only reproduction
+---------------------------------
+Scope: yiweilife production host, output discarded to /dev/null, no data changed.
+
+Unauthenticated command shape used by the scheduled script:
+  docker exec chat-mongodb mongodump --db=LibreChat --archive >/dev/null
+
+Result:
+  exit=1
+  Unauthorized: Command listCollections requires authentication
+
+Authenticated control using the existing LibreChat application account:
+  mongodump --username librechat --authenticationDatabase LibreChat --db LibreChat --archive >/dev/null
+
+Result:
+  exit=0
+
+The cron entry still called the unauthenticated script at 04:00. The last successful
+scheduled backup was 2026-07-18 04:00, before SEC-001 enabled Mongo authentication.
+Existing scheduled artifacts were 0644 root:root. The script only produced Mongo and
+future-engine data archives; it omitted Umami Postgres, uploads/images, runtime config,
+recovery secrets, checksums, restore verification, and an independent failure domain.
