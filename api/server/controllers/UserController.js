@@ -24,6 +24,8 @@ const { verifyEmail, resendVerificationEmail } = require('~/server/services/Auth
 const { getMCPManager, getFlowStateManager, getMCPServersRegistry } = require('~/config');
 const { invalidateCachedTools } = require('~/server/services/Config/getCachedTools');
 const { processDeleteRequest } = require('~/server/services/Files/process');
+const { deleteLifeAccount, deleteLifeOperationState } = require('~/server/services/lifeOperations');
+const accountDeletionFence = require('~/server/middleware/accountDeletionFence');
 const { getAppConfig } = require('~/server/services/Config');
 const { getLogStores } = require('~/cache');
 const db = require('~/models');
@@ -329,7 +331,7 @@ const deleteUserController = async (req, res) => {
   try {
     const existingUser = await db.getUserById(
       user.id,
-      '+totpSecret +backupCodes _id twoFactorEnabled',
+      '+totpSecret +backupCodes _id twoFactorEnabled accountDeletionStartedAt',
     );
     if (existingUser && existingUser.twoFactorEnabled) {
       const { token, backupCode } = req.body;
@@ -343,49 +345,77 @@ const deleteUserController = async (req, res) => {
       }
     }
 
-    await db.deleteMessages({ user: user.id });
-    await db.deleteAllUserSessions({ userId: user.id });
-    await db.deleteTransactions({ user: user.id });
-    await db.deleteUserKey({ userId: user.id, all: true });
-    await db.deleteBalances({ user: user._id });
-    await db.deletePresets(user.id);
+    await accountDeletionFence.beginAccountDeletion(user.id);
+    await db.updateUser(user.id, {
+      accountDeletionStartedAt: existingUser?.accountDeletionStartedAt ?? new Date(),
+    });
+
+    const engineDeletion = await deleteLifeAccount(user.id, async () => {
+      const mcpManager = getMCPManager();
+      if (mcpManager) {
+        if (typeof mcpManager.purgeUserConnections !== 'function') {
+          throw new Error('MCP manager does not support strict account deletion purge');
+        }
+        const purge = await mcpManager.purgeUserConnections(user.id);
+        if (purge.remainingConnections !== 0 || purge.remainingPending !== 0) {
+          throw new Error('MCP account deletion purge did not reach zero');
+        }
+      }
+
+      await db.deleteMessages({ user: user.id });
+      await db.deleteTransactions({ user: user.id });
+      await db.deleteUserKey({ userId: user.id, all: true });
+      await db.deleteBalances({ user: user._id });
+      await db.deletePresets(user.id);
+      try {
+        const convoDeletion = await db.deleteConvos(user.id);
+        // HITL: prune the deleted conversations' durable checkpoints — a paused run's
+        // checkpoint would otherwise persist until the Mongo TTL. Never throws.
+        const appConfig =
+          req.config ??
+          (await getAppConfig({
+            role: req.user?.role,
+            userId: req.user?.id,
+            tenantId: req.user?.tenantId,
+          }));
+        await deleteAgentCheckpoints(
+          convoDeletion?.conversationIds,
+          appConfig?.endpoints?.agents?.checkpointer,
+        );
+      } catch (error) {
+        if (!String(error?.message || '').includes('Conversation not found or already deleted')) {
+          throw error;
+        }
+        logger.debug('[deleteUserController] User has no remaining conversations');
+      }
+      await deleteUserPluginAuth(user.id, null, true);
+      await deleteAllSharedLinksWithCleanup(user.id);
+      await deleteUserFiles(req);
+      await db.deleteFiles(null, user.id);
+      await db.deleteToolCalls(user.id);
+      await db.deleteUserAgents(user.id);
+      await db.deleteAllAgentApiKeys(user._id);
+      await db.deleteAssistants({ user: user.id });
+      await db.deleteConversationTags({ user: user.id });
+      await db.deleteAllUserMemories(user.id);
+      await db.deleteUserPrompts(user.id);
+      await db.deleteUserSkills(user.id);
+      await deleteUserMcpServers(user.id);
+      await db.deleteActions({ user: user.id });
+      await db.deleteAllUserSessions({ userId: user.id });
+      await db.deleteTokens({ userId: user.id });
+      await db.removeUserFromAllGroups(user.id);
+      await db.deleteAclEntries({ principalId: user._id });
+      await db.deleteUserById(user.id);
+    });
     try {
-      const convoDeletion = await db.deleteConvos(user.id);
-      // HITL: prune the deleted conversations' durable checkpoints — a paused run's
-      // checkpoint would otherwise persist until the Mongo TTL. Never throws.
-      const appConfig =
-        req.config ??
-        (await getAppConfig({
-          role: req.user?.role,
-          userId: req.user?.id,
-          tenantId: req.user?.tenantId,
-        }));
-      await deleteAgentCheckpoints(
-        convoDeletion?.conversationIds,
-        appConfig?.endpoints?.agents?.checkpointer,
-      );
+      await deleteLifeOperationState(user.id);
     } catch (error) {
-      logger.error('[deleteUserController] Error deleting user convos, likely no convos', error);
+      logger.error('[deleteUserController] Error deleting completed life operation state', error);
     }
-    await deleteUserPluginAuth(user.id, null, true);
-    await db.deleteUserById(user.id);
-    await deleteAllSharedLinksWithCleanup(user.id);
-    await deleteUserFiles(req);
-    await db.deleteFiles(null, user.id);
-    await db.deleteToolCalls(user.id);
-    await db.deleteUserAgents(user.id);
-    await db.deleteAllAgentApiKeys(user._id);
-    await db.deleteAssistants({ user: user.id });
-    await db.deleteConversationTags({ user: user.id });
-    await db.deleteAllUserMemories(user.id);
-    await db.deleteUserPrompts(user.id);
-    await db.deleteUserSkills(user.id);
-    await deleteUserMcpServers(user.id);
-    await db.deleteActions({ user: user.id });
-    await db.deleteTokens({ userId: user.id });
-    await db.removeUserFromAllGroups(user.id);
-    await db.deleteAclEntries({ principalId: user._id });
-    logger.info(`User deleted account. Email: ${user.email} ID: ${user.id}`);
+    logger.info(
+      `User deleted account. Email: ${user.email} ID: ${user.id} Engine deletion: ${engineDeletion.deletionId}`,
+    );
     res.status(200).send({ message: 'User deleted' });
   } catch (err) {
     logger.error('[deleteUserController]', err);

@@ -123,6 +123,10 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: Date,
       expires: 604800, // 7 days in seconds
     },
+    accountDeletionStartedAt: {
+      type: Date,
+      default: null,
+    },
     termsAccepted: {
       type: Boolean,
       default: false,

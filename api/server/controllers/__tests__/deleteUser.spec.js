@@ -19,9 +19,11 @@ const mockDeleteToolCalls = jest.fn();
 const mockDeleteUserAgents = jest.fn();
 const mockDeleteUserPrompts = jest.fn();
 const mockDeleteUserSkills = jest.fn();
+const mockDeleteLifeAccount = jest.fn();
+const mockDeleteLifeOperationState = jest.fn();
 
 jest.mock('@librechat/data-schemas', () => ({
-  logger: { error: jest.fn(), info: jest.fn() },
+  logger: { debug: jest.fn(), error: jest.fn(), info: jest.fn() },
   webSearchKeys: [],
 }));
 
@@ -39,6 +41,7 @@ jest.mock('@librechat/api', () => ({
   extractWebSearchEnvVars: jest.fn(),
   needsRefresh: jest.fn(),
   getNewS3URL: jest.fn(),
+  deleteAgentCheckpoints: jest.fn().mockResolvedValue(undefined),
   deleteAllSharedLinksWithCleanup: (...args) => mockDeleteAllSharedLinksWithCleanup(...args),
 }));
 
@@ -105,6 +108,11 @@ jest.mock('~/server/services/Config', () => ({
   getAppConfig: jest.fn(),
 }));
 
+jest.mock('~/server/services/lifeOperations', () => ({
+  deleteLifeAccount: (...args) => mockDeleteLifeAccount(...args),
+  deleteLifeOperationState: (...args) => mockDeleteLifeOperationState(...args),
+}));
+
 jest.mock('~/cache', () => ({
   getLogStores: jest.fn(),
 }));
@@ -120,6 +128,15 @@ function createRes() {
 }
 
 function stubDeletionMocks() {
+  const receipt = {
+    deletionId: 'del_test',
+    status: 'completed',
+  };
+  mockDeleteLifeAccount.mockImplementation(async (_userId, deleteLibreChatData) => {
+    await deleteLibreChatData(receipt);
+    return receipt;
+  });
+  mockDeleteLifeOperationState.mockResolvedValue({ operations: 1, locks: 0 });
   mockDeleteMessages.mockResolvedValue();
   mockDeleteAllUserSessions.mockResolvedValue();
   mockDeleteUserKey.mockResolvedValue();
@@ -157,7 +174,34 @@ describe('deleteUserController - 2FA enforcement', () => {
     expect(mockDeleteUserAgents).toHaveBeenCalledWith('user1');
     expect(mockDeleteUserPrompts).toHaveBeenCalledWith('user1');
     expect(mockDeleteUserSkills).toHaveBeenCalledWith('user1');
+    expect(mockDeleteLifeAccount).toHaveBeenCalledWith('user1', expect.any(Function));
+    expect(mockDeleteLifeOperationState).toHaveBeenCalledWith('user1');
+    expect(mockUpdateUser).toHaveBeenCalledWith('user1', {
+      accountDeletionStartedAt: expect.any(Date),
+    });
+    expect(mockDeleteLifeAccount.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteMessages.mock.invocationCallOrder[0],
+    );
+    expect(mockDeleteUserById.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteLifeOperationState.mock.invocationCallOrder[0],
+    );
+    expect(mockUpdateUser.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteUserById.mock.invocationCallOrder[0],
+    );
     expect(mockVerifyOTPOrBackupCode).not.toHaveBeenCalled();
+  });
+
+  it('does not delete LibreChat data when future-engine deletion fails', async () => {
+    const req = { user: { id: 'user1', _id: 'user1', email: 'a@b.com' }, body: {} };
+    const res = createRes();
+    mockGetUserById.mockResolvedValue({ _id: 'user1', twoFactorEnabled: false });
+    mockDeleteLifeAccount.mockRejectedValueOnce(new Error('engine unavailable'));
+
+    await deleteUserController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(mockDeleteMessages).not.toHaveBeenCalled();
+    expect(mockDeleteUserById).not.toHaveBeenCalled();
   });
 
   it('proceeds with deletion when user has no 2FA record', async () => {

@@ -54,9 +54,23 @@ export abstract class UserConnectionManager {
   protected userLastActivity: Map<string, number> = new Map();
   /** In-flight connection promises keyed by `userId:serverName` — coalesces concurrent attempts */
   protected pendingConnections: Map<string, PendingConnection> = new Map();
+  /** Permanent process-local fence after account deletion begins. */
+  protected blockedUserConnections: Set<string> = new Set();
+
+  private assertUserConnectionsAllowed(userId: string): void {
+    if (this.blockedUserConnections.has(userId)) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        `[MCP][User: ${userId}] Connections are blocked because account deletion is in progress`,
+      );
+    }
+  }
 
   /** Updates the last activity timestamp for a user */
   protected updateUserLastActivity(userId: string): void {
+    if (this.blockedUserConnections.has(userId)) {
+      return;
+    }
     const now = Date.now();
     this.userLastActivity.set(userId, now);
     logger.debug(
@@ -71,6 +85,7 @@ export abstract class UserConnectionManager {
     if (!userId) {
       throw new McpError(ErrorCode.InvalidRequest, `[MCP] User object missing id property`);
     }
+    this.assertUserConnectionsAllowed(userId);
 
     const config =
       opts.serverConfig ??
@@ -103,6 +118,7 @@ export abstract class UserConnectionManager {
           });
           requestScopedConnections.connections.delete(requestConnectionKey);
         } else if (await existing.isConnected()) {
+          this.assertUserConnectionsAllowed(userId);
           logger.debug(`[MCP][User: ${userId}][${serverName}] Reusing request-scoped connection`);
           this.updateUserLastActivity(userId);
           return existing;
@@ -118,7 +134,9 @@ export abstract class UserConnectionManager {
         logger.debug(
           `[MCP][User: ${userId}][${serverName}] Joining in-flight request-scoped connection attempt`,
         );
-        return pending;
+        const connection = await pending;
+        this.assertUserConnectionsAllowed(userId);
+        return connection;
       }
 
       const pendingOAuth = this.createPendingOAuthState(opts.oauthStart);
@@ -161,7 +179,9 @@ export abstract class UserConnectionManager {
       if (pending) {
         logger.debug(`[MCP][User: ${userId}][${serverName}] Joining in-flight connection attempt`);
         await this.addPendingOAuthStart(pending.oauth, opts, userId);
-        return pending.promise;
+        const connection = await pending.promise;
+        this.assertUserConnectionsAllowed(userId);
+        return connection;
       }
     }
 
@@ -183,7 +203,9 @@ export abstract class UserConnectionManager {
     }
 
     try {
-      return await connectionPromise;
+      const connection = await connectionPromise;
+      this.assertUserConnectionsAllowed(userId);
+      return connection;
     } finally {
       if (
         !forceNewConnection &&
@@ -381,6 +403,7 @@ export abstract class UserConnectionManager {
     userId: string,
     clearCooldown: boolean,
   ): Promise<MCPConnection> {
+    this.assertUserConnectionsAllowed(userId);
     if (await this.appConnections!.has(serverName)) {
       throw new McpError(
         ErrorCode.InvalidRequest,
@@ -420,6 +443,7 @@ export abstract class UserConnectionManager {
         await this.disconnectUserConnection(userId, serverName);
         connection = undefined;
       } else if (await connection.isConnected()) {
+        this.assertUserConnectionsAllowed(userId);
         logger.debug(`[MCP][User: ${userId}][${serverName}] Reusing active connection`);
         this.updateUserLastActivity(userId);
         return connection;
@@ -515,6 +539,16 @@ export abstract class UserConnectionManager {
 
       if (!(await connection?.isConnected())) {
         throw new Error('Failed to establish connection after initialization attempt.');
+      }
+      if (this.blockedUserConnections.has(userId)) {
+        await connection.disconnect().catch((error) => {
+          logger.error(
+            `[MCP][User: ${userId}][${serverName}] Error disconnecting connection blocked by account deletion`,
+            error,
+          );
+        });
+        connection = undefined;
+        this.assertUserConnectionsAllowed(userId);
       }
 
       if (!ephemeralConnection) {
@@ -756,6 +790,55 @@ export abstract class UserConnectionManager {
      * idle check repeatedly for the same userId.
      */
     this.userLastActivity.delete(userId);
+  }
+
+  /**
+   * Permanently fences a deleted user, removes every callable cached connection,
+   * and waits for in-flight connection attempts to observe the fence.
+   */
+  public async purgeUserConnections(userId: string): Promise<{
+    connections: number;
+    pending: number;
+    disconnectFailures: number;
+    remainingConnections: number;
+    remainingPending: number;
+  }> {
+    this.blockedUserConnections.add(userId);
+    const userMap = this.userConnections.get(userId);
+    const connections = userMap ? Array.from(userMap.values()) : [];
+    this.userConnections.delete(userId);
+    this.userLastActivity.delete(userId);
+
+    const pending: Promise<MCPConnection>[] = [];
+    for (const [key, entry] of this.pendingConnections.entries()) {
+      if (key.startsWith(`${userId}:`)) {
+        pending.push(entry.promise);
+        this.pendingConnections.delete(key);
+      }
+    }
+
+    const disconnectResults = await Promise.allSettled(
+      connections.map((connection) => connection.disconnect()),
+    );
+    await Promise.allSettled(pending);
+
+    this.userConnections.delete(userId);
+    for (const key of this.pendingConnections.keys()) {
+      if (key.startsWith(`${userId}:`)) {
+        this.pendingConnections.delete(key);
+      }
+    }
+    this.userLastActivity.delete(userId);
+
+    return {
+      connections: connections.length,
+      pending: pending.length,
+      disconnectFailures: disconnectResults.filter((result) => result.status === 'rejected').length,
+      remainingConnections: this.userConnections.get(userId)?.size ?? 0,
+      remainingPending: Array.from(this.pendingConnections.keys()).filter((key) =>
+        key.startsWith(`${userId}:`),
+      ).length,
+    };
   }
 
   /** Check for and disconnect idle connections */

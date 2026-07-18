@@ -1,10 +1,18 @@
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
+const mockDeleteLifeAccountData = jest.fn();
+
+jest.mock('@librechat/api', () => ({
+  deleteLifeAccountData: (...args) => mockDeleteLifeAccountData(...args),
+}));
+
 const {
   runLifeOperation,
   LifeOperationPendingError,
   LifeOperation,
   LifeLock,
+  deleteLifeAccount,
+  deleteLifeOperationState,
 } = require('./lifeOperations');
 
 let mongod;
@@ -22,6 +30,11 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  jest.clearAllMocks();
+  mockDeleteLifeAccountData.mockResolvedValue({
+    deletionId: 'del_test',
+    status: 'completed',
+  });
   await LifeOperation.deleteMany({});
   await LifeLock.deleteMany({});
 });
@@ -252,4 +265,72 @@ describe('runLifeOperation', () => {
     ).rejects.toThrow(LifeOperationPendingError);
     expect(executor).not.toHaveBeenCalled();
   }, 15000);
+
+  it('prepares a stable account deletion task before calling future-engine and can retry it', async () => {
+    mockDeleteLifeAccountData
+      .mockRejectedValueOnce(new Error('engine unavailable'))
+      .mockResolvedValueOnce({ deletionId: 'del_test', status: 'completed' });
+
+    await expect(deleteLifeAccount('u1')).rejects.toThrow('engine unavailable');
+    const prepared = await LifeOperation.findOne({
+      user: 'u1',
+      operation: 'account-delete',
+    }).lean();
+    expect(prepared).toMatchObject({ status: 'prepared', idempotencyKey: 'account-delete-v1' });
+
+    const result = await deleteLifeAccount('u1');
+    expect(result).toMatchObject({ deletionId: 'del_test', status: 'completed', replayed: false });
+    expect(mockDeleteLifeAccountData).toHaveBeenCalledTimes(2);
+    expect(mockDeleteLifeAccountData.mock.calls[0][0].operationId).toBe(
+      mockDeleteLifeAccountData.mock.calls[1][0].operationId,
+    );
+    expect(mockDeleteLifeAccountData.mock.calls[0][0].requestHash).toBe(
+      mockDeleteLifeAccountData.mock.calls[1][0].requestHash,
+    );
+  });
+
+  it('keeps the account deletion operation prepared when LibreChat cleanup fails and retries all cleanup', async () => {
+    const cleanup = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('local cleanup failed'))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(deleteLifeAccount('u1', cleanup)).rejects.toThrow('local cleanup failed');
+    expect(
+      await LifeOperation.findOne({ user: 'u1', operation: 'account-delete' }).lean(),
+    ).toMatchObject({ status: 'prepared' });
+
+    const result = await deleteLifeAccount('u1', cleanup);
+    expect(result).toMatchObject({ deletionId: 'del_test', status: 'completed' });
+    expect(cleanup).toHaveBeenCalledTimes(2);
+    expect(mockDeleteLifeAccountData).toHaveBeenCalledTimes(2);
+    expect(mockDeleteLifeAccountData.mock.calls[0][0].operationId).toBe(
+      mockDeleteLifeAccountData.mock.calls[1][0].operationId,
+    );
+  });
+
+  it('removes account deletion receipts and stale per-user life locks before deleting the user row', async () => {
+    await deleteLifeAccount('u1');
+    await LifeLock.create({
+      key: 'life:basics-save:u1',
+      ownerRequestId: 'stale',
+      fence: 1,
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    const deleted = await deleteLifeOperationState('u1');
+
+    expect(deleted).toEqual({ operations: 1, locks: 1 });
+    expect(await LifeOperation.countDocuments({ user: 'u1' })).toBe(0);
+    expect(await LifeLock.countDocuments({ key: /u1$/ })).toBe(0);
+
+    await deleteLifeAccount('u1');
+    expect(mockDeleteLifeAccountData).toHaveBeenCalledTimes(2);
+    expect(mockDeleteLifeAccountData.mock.calls[0][0].requestHash).toBe(
+      mockDeleteLifeAccountData.mock.calls[1][0].requestHash,
+    );
+    expect(mockDeleteLifeAccountData.mock.calls[0][0].operationId).not.toBe(
+      mockDeleteLifeAccountData.mock.calls[1][0].operationId,
+    );
+  });
 });

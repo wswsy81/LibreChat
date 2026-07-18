@@ -1,4 +1,8 @@
-import { createLifeEngineClient } from './client';
+import {
+  createLifeEngineClient,
+  deleteLifeAccountData,
+  LifeAccountDeletionReceiptError,
+} from './client';
 
 describe('LifeEngineClient trusted identity', () => {
   afterEach(() => {
@@ -59,5 +63,84 @@ describe('LifeEngineClient trusted identity', () => {
       'X-Life-Operation': 'basics-save',
       'X-Life-Request-Hash': 'a'.repeat(64),
     });
+  });
+
+  it('deletes account data through the signed engine endpoint with stable operation identity', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          schemaVersion: 1,
+          deletionId: 'del_123',
+          status: 'completed',
+          planned: {
+            profile: { files: 3 },
+            reports: { reports: 1, reportFiles: 1, shares: 1 },
+            analysisRows: 1,
+          },
+          remaining: {
+            profile: { files: 0 },
+            reports: { reports: 0, reportFiles: 0, shares: 0 },
+            analysisRows: 0,
+          },
+          completedAt: '2026-07-18T00:00:00.000Z',
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await deleteLifeAccountData({
+      userId: 'life-user-123',
+      operationId: '77777777-7777-4777-8777-777777777777',
+      requestHash: 'b'.repeat(64),
+      baseUrl: 'http://future-engine:8899',
+      token: 'internal-token',
+      identitySecret: 'sec001-test-secret-'.repeat(4),
+    });
+
+    const [url, request] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://future-engine:8899/internal/account');
+    expect(request?.method).toBe('DELETE');
+    expect(request?.body).toBe(JSON.stringify({ schemaVersion: 1 }));
+    expect(request?.headers).toMatchObject({
+      Authorization: 'Bearer internal-token',
+      'X-Life-Operation-Id': '77777777-7777-4777-8777-777777777777',
+      'X-Life-Operation': 'account-delete',
+      'X-Life-Request-Hash': 'b'.repeat(64),
+    });
+  });
+
+  it.each([
+    { status: 'prepared' },
+    {
+      schemaVersion: 1,
+      deletionId: 'del_123',
+      status: 'completed',
+      planned: {
+        profile: { files: 1 },
+        reports: { reports: 0, reportFiles: 0, shares: 0 },
+        analysisRows: 0,
+      },
+      remaining: {
+        profile: { files: 1 },
+        reports: { reports: 0, reportFiles: 0, shares: 0 },
+        analysisRows: 0,
+      },
+      completedAt: '2026-07-18T00:00:00.000Z',
+    },
+  ])('rejects malformed or non-empty account deletion receipts', async (payload) => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+
+    await expect(
+      deleteLifeAccountData({
+        userId: 'life-user-123',
+        operationId: '77777777-7777-4777-8777-777777777777',
+        requestHash: 'b'.repeat(64),
+        baseUrl: 'http://future-engine:8899',
+        token: 'internal-token',
+        identitySecret: 'sec001-test-secret-'.repeat(4),
+      }),
+    ).rejects.toBeInstanceOf(LifeAccountDeletionReceiptError);
   });
 });

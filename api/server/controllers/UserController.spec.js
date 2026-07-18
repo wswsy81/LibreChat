@@ -73,6 +73,22 @@ jest.mock('@librechat/api', () => ({
   ...jest.requireActual('@librechat/api'),
   needsRefresh: jest.fn(),
   getNewS3URL: jest.fn(),
+  deleteLifeAccountData: jest.fn().mockResolvedValue({
+    schemaVersion: 1,
+    deletionId: 'del_test',
+    status: 'completed',
+    planned: {
+      profile: { files: 0 },
+      reports: { reports: 0, reportFiles: 0, shares: 0 },
+      analysisRows: 0,
+    },
+    remaining: {
+      profile: { files: 0 },
+      reports: { reports: 0, reportFiles: 0, shares: 0 },
+      analysisRows: 0,
+    },
+    completedAt: '2026-07-18T00:00:00.000Z',
+  }),
 }));
 
 jest.mock('~/server/services/Files/process', () => ({
@@ -81,6 +97,12 @@ jest.mock('~/server/services/Files/process', () => ({
 
 jest.mock('~/server/services/Config', () => ({
   getAppConfig: jest.fn().mockResolvedValue({}),
+  getMCPManager: jest.fn(),
+  getFlowStateManager: jest.fn(),
+  getMCPServersRegistry: jest.fn(),
+}));
+
+jest.mock('~/config', () => ({
   getMCPManager: jest.fn(),
   getFlowStateManager: jest.fn(),
   getMCPServersRegistry: jest.fn(),
@@ -119,6 +141,7 @@ const {
 const { Group } = require('~/db/models');
 const { deleteConvos, acceptTerms } = require('~/models');
 const { verifyEmail, resendVerificationEmail } = require('~/server/services/AuthService');
+const { deleteLifeAccountData } = require('@librechat/api');
 
 describe('verifyEmailController', () => {
   const mockRes = {
@@ -374,7 +397,7 @@ describe('deleteUserController', () => {
 
   it('should still succeed when deleteConvos throws', async () => {
     const userId = new mongoose.Types.ObjectId();
-    deleteConvos.mockRejectedValueOnce(new Error('no convos'));
+    deleteConvos.mockRejectedValueOnce(new Error('Conversation not found or already deleted.'));
 
     const req = { user: { id: userId.toString(), _id: userId, email: 'convos@test.com' } };
     await deleteUserController(req, mockRes);
@@ -393,6 +416,35 @@ describe('deleteUserController', () => {
 
     expect(mockRes.status).toHaveBeenCalledWith(500);
     expect(mockRes.json).toHaveBeenCalledWith({ message: 'Something went wrong.' });
+  });
+
+  it('keeps the user row and deletion fence when local cleanup fails after engine deletion', async () => {
+    const userId = new mongoose.Types.ObjectId();
+    const { deleteTransactions, deleteUserById, getUserById } = require('~/models');
+    deleteTransactions.mockRejectedValueOnce(new Error('db down after engine deletion'));
+
+    const req = { user: { id: userId.toString(), _id: userId, email: 'retry@test.com' } };
+    await deleteUserController(req, mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(500);
+    expect(deleteUserById).not.toHaveBeenCalled();
+    expect(getUserById).toHaveBeenCalledWith(
+      userId.toString(),
+      expect.stringContaining('accountDeletionStartedAt'),
+    );
+  });
+
+  it('must stop before deleting LibreChat data when future-engine deletion fails', async () => {
+    const userId = new mongoose.Types.ObjectId();
+    const { deleteMessages, deleteUserById } = require('~/models');
+    deleteLifeAccountData.mockRejectedValueOnce(new Error('engine unavailable'));
+
+    const req = { user: { id: userId.toString(), _id: userId, email: 'engine@test.com' } };
+    await deleteUserController(req, mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(500);
+    expect(deleteMessages).not.toHaveBeenCalled();
+    expect(deleteUserById).not.toHaveBeenCalled();
   });
 
   it('should use string user.id (not ObjectId user._id) for memberIds removal', async () => {

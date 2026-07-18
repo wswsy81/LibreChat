@@ -2007,4 +2007,75 @@ describe('MCPManager', () => {
       ).rejects.toThrow('requires a flowManager');
     });
   });
+
+  describe('account deletion connection purge', () => {
+    it('removes failed disconnects from the callable map and permanently blocks reconnects', async () => {
+      const manager = await MCPManager.createInstance(newMCPServersConfig());
+      const disconnect = jest.fn().mockRejectedValue(new Error('transport close failed'));
+      const internals = manager as unknown as {
+        userConnections: Map<string, Map<string, MCPConnection>>;
+      };
+      internals.userConnections.set(
+        userId,
+        new Map([[serverName, { disconnect } as unknown as MCPConnection]]),
+      );
+
+      const result = await manager.purgeUserConnections(userId);
+
+      expect(result).toMatchObject({
+        connections: 1,
+        disconnectFailures: 1,
+        remainingConnections: 0,
+        remainingPending: 0,
+      });
+      expect(manager.getUserConnections(userId)).toBeUndefined();
+      await expect(
+        manager.getUserConnection({ serverName, user: { id: userId } as IUser }),
+      ).rejects.toThrow('account deletion is in progress');
+    });
+
+    it('waits for an in-flight connection and rejects its late insertion after purge begins', async () => {
+      const staticConfig: t.ParsedServerConfig = {
+        type: 'streamable-http',
+        url: 'https://api.example.com/mcp',
+        source: 'yaml',
+        requiresOAuth: false,
+      };
+      mockAppConnections({ has: jest.fn().mockResolvedValue(false) });
+      (mockRegistryInstance.getServerConfig as jest.Mock).mockResolvedValue(staticConfig);
+
+      let resolveFactory: () => void = () => {};
+      const factoryCalled = new Promise<void>((resolve) => {
+        resolveFactory = resolve;
+      });
+      let resolveConnection: (connection: MCPConnection) => void = () => {};
+      const pendingConnection = new Promise<MCPConnection>((resolve) => {
+        resolveConnection = resolve;
+      });
+      const lateConnection = {
+        isConnected: jest.fn().mockResolvedValue(true),
+        disconnect: jest.fn().mockResolvedValue(undefined),
+      } as unknown as MCPConnection;
+      (MCPConnectionFactory.create as jest.Mock).mockImplementation(() => {
+        resolveFactory();
+        return pendingConnection;
+      });
+
+      const manager = await MCPManager.createInstance(newMCPServersConfig());
+      const connectionAttempt = manager.getUserConnection({
+        serverName,
+        user: { id: userId } as IUser,
+      });
+      connectionAttempt.catch(() => {});
+      await factoryCalled;
+
+      const purge = manager.purgeUserConnections(userId);
+      resolveConnection(lateConnection);
+
+      await purge;
+      await expect(connectionAttempt).rejects.toThrow('account deletion is in progress');
+      expect(lateConnection.disconnect).toHaveBeenCalledTimes(1);
+      expect(manager.getUserConnections(userId)).toBeUndefined();
+    });
+  });
 });

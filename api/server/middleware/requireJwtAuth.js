@@ -12,6 +12,7 @@ const {
   maybeRefreshCloudFrontAuthCookiesMiddleware,
   recordRumProxyRequest,
 } = require('@librechat/api');
+const accountDeletionFence = require('./accountDeletionFence');
 
 const hasPassportStrategy = (strategy) =>
   typeof passport._strategy === 'function' && passport._strategy(strategy) != null;
@@ -187,7 +188,7 @@ const requireJwtAuth = (req, res, next) => {
         if (tenantErr) {
           return next(tenantErr);
         }
-        refreshCloudFrontCookies(req, res, next);
+        accountDeletionFence(req, res, () => refreshCloudFrontCookies(req, res, next));
       });
     })(req, res, next);
   };

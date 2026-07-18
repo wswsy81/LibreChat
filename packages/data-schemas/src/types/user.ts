@@ -47,6 +47,7 @@ export interface IUser extends Document {
     refreshToken: string;
   }>;
   expiresAt?: Date;
+  accountDeletionStartedAt?: Date | null;
   termsAccepted?: boolean;
   termsAcceptedAt?: Date | null;
   personalization?: {

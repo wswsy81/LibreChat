@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { createHash, randomUUID } = require('crypto');
+const { deleteLifeAccountData } = require('@librechat/api');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LEASE_MS = 15 * 1000;
@@ -274,6 +275,39 @@ async function runLifeOperation({
   }
 }
 
+async function deleteLifeAccount(userId, deleteLibreChatData = async () => {}) {
+  return runLifeOperation({
+    userId,
+    operation: 'account-delete',
+    idempotencyKey: 'account-delete-v1',
+    requestPayload: { schemaVersion: 1 },
+    executor: async ({ operationId, requestHash }) => {
+      const engineDeletion = await deleteLifeAccountData({
+        userId,
+        operationId,
+        requestHash,
+      });
+      await deleteLibreChatData(engineDeletion);
+      return engineDeletion;
+    },
+  });
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function deleteLifeOperationState(userId) {
+  const [operations, locks] = await Promise.all([
+    LifeOperation.deleteMany({ user: userId }),
+    LifeLock.deleteMany({ key: { $regex: `^life:.*:${escapeRegex(userId)}$` } }),
+  ]);
+  return {
+    operations: operations.deletedCount || 0,
+    locks: locks.deletedCount || 0,
+  };
+}
+
 module.exports = {
   runLifeOperation,
   LifeOperationPendingError,
@@ -281,4 +315,6 @@ module.exports = {
   LifeOperation,
   LifeLock,
   hashLifeOperationPayload,
+  deleteLifeAccount,
+  deleteLifeOperationState,
 };
