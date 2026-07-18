@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, useToastContext } from '@librechat/client';
-import type { LifeBasics, LifeBirthInfo } from 'librechat-data-provider';
+import type { LifeBasics, LifeBasicsRequest, LifeBirthInfo } from 'librechat-data-provider';
 import { useLifeArchiveQuery, useLifeBasicsMutation, useLifeBirthMutation } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 
@@ -28,6 +28,14 @@ function numberOrUndefined(value: string): number | undefined {
 
 function range(from: number, to: number): number[] {
   return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+}
+
+function isValidBirthDate(year: number, month: number, day: number, calendar: string): boolean {
+  if (calendar === 'lunar') return day <= 30;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -104,10 +112,12 @@ export default function BasicsForm() {
   const busy = saveBasics.isLoading || saveBirth.isLoading;
 
   const submit = () => {
-    const patch: Partial<Record<TextField, string>> = {};
+    const patch: LifeBasicsRequest = {};
     for (const field of TEXT_FIELDS) {
       const value = text[field].trim();
-      if (value && value !== (stored[field] ?? '')) patch[field] = value;
+      const previous = stored[field] ?? '';
+      if (value === previous) continue;
+      patch[field] = value || null;
     }
 
     const year = numberOrUndefined(birth.year);
@@ -127,6 +137,13 @@ export default function BasicsForm() {
 
     if (!Object.keys(patch).length && !birthChanged) {
       showToast({ message: localize('com_life_basics_nothing'), status: 'info' });
+      return;
+    }
+    if (
+      birthChanged &&
+      !isValidBirthDate(year as number, month as number, day as number, birth.calendar)
+    ) {
+      showToast({ message: localize('com_life_birth_invalid_date'), status: 'error' });
       return;
     }
     if (birthChanged && !birth.gender) {

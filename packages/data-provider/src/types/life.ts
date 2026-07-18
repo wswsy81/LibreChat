@@ -31,7 +31,7 @@ export interface LifeBootstrapResponse {
 
 export interface LifeOnboardingRequest {
   archiveName: string;
-  dashboards: Required<LifeDashboards>;
+  dashboards: LifeDashboards;
 }
 
 export interface LifeOnboardingResponse {
@@ -45,13 +45,13 @@ export interface LifeOnboardingResponse {
 }
 
 export interface LifeDiagnosticRequest {
-  dashboards: Required<LifeDashboards>;
+  dashboards: LifeDashboards;
 }
 
 export interface LifeDiagnosticResponse {
   ok: boolean;
   profileVersion: string;
-  dashboards: Required<LifeDashboards>;
+  dashboards: LifeDashboards;
 }
 
 export interface LifeResumeResponse {
@@ -98,7 +98,9 @@ export interface LifeBasics {
   birth?: LifeBirthInfo;
 }
 
-export type LifeBasicsRequest = Omit<LifeBasics, 'birth'>;
+export type LifeBasicsRequest = {
+  [Field in keyof Omit<LifeBasics, 'birth'>]?: string | null;
+};
 
 export interface LifeBasicsResponse {
   ok: boolean;

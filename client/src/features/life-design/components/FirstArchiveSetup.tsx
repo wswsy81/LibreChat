@@ -44,19 +44,37 @@ export default function FirstArchiveSetup({
     love: initialDashboards.love ?? 5,
   });
   const [touched, setTouched] = useState<Set<keyof LifeDashboards>>(
-    diagnostic ? new Set(fields.map((field) => field.key)) : new Set(),
+    diagnostic
+      ? new Set(
+          fields
+            .filter((field) => typeof initialDashboards[field.key] === 'number')
+            .map((field) => field.key),
+        )
+      : new Set(),
   );
 
   const pending = onboarding.isLoading || diagnostics.isLoading;
   const error = readError(onboarding.error || diagnostics.error);
   const isNameValid =
-    diagnostic || (archiveName.trim().length >= 3 && archiveName.trim().length <= 40);
-  // 只要拨动过至少一条血条就放行(不逼用户四条全拨——太死会卡住人),诊断模式默认已全拨。
+    diagnostic || (archiveName.trim().length >= 2 && archiveName.trim().length <= 40);
+  // 只要明确回答过至少一条血条就放行；已有值算已回答，展示用默认值不算证据。
   const isComplete = touched.size >= 1 && isNameValid;
-  const lowest = useMemo(
-    () => fields.reduce((best, field) => (values[field.key] < values[best.key] ? field : best)),
-    [values],
+  const answeredDashboards = useMemo<LifeDashboards>(
+    () =>
+      Object.fromEntries(
+        fields
+          .filter((field) => touched.has(field.key))
+          .map((field) => [field.key, values[field.key]]),
+      ),
+    [touched, values],
   );
+  const lowest = useMemo(() => {
+    const answered = fields.filter((field) => touched.has(field.key));
+    return answered.reduce(
+      (best, field) => (values[field.key] < values[best.key] ? field : best),
+      answered[0] ?? fields[0],
+    );
+  }, [touched, values]);
 
   useEffect(() => {
     track(diagnostic ? 'recheck_view' : 'onboarding_view');
@@ -86,11 +104,11 @@ export default function FirstArchiveSetup({
       lowest_bar: lowest.key,
     });
     if (diagnostic) {
-      diagnostics.mutate({ dashboards: values }, { onSuccess: () => onSaved?.() });
+      diagnostics.mutate({ dashboards: answeredDashboards }, { onSuccess: () => onSaved?.() });
       return;
     }
     onboarding.mutate(
-      { archiveName: archiveName.trim(), dashboards: values },
+      { archiveName: archiveName.trim(), dashboards: answeredDashboards },
       {
         onSuccess: (result) => {
           if (result.operationId) {
@@ -113,7 +131,9 @@ export default function FirstArchiveSetup({
         {!diagnostic && (
           <p className="mb-3 flex items-baseline justify-between gap-4 border-b border-life-ink/20 pb-3 font-life-mono text-life-meta tracking-[0.16em] text-life-cinnabar dark:border-white/20 dark:text-[#D98A76]">
             <span>{localize('com_life_setup_chapter_kicker')}</span>
-            <span className="text-life-muted dark:text-gray-500">CHAPTER 01</span>
+            <span className="text-life-muted dark:text-gray-500">
+              {localize('com_life_setup_chapter_number')}
+            </span>
           </p>
         )}
         <p className="mb-3 text-life-sm font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
@@ -140,6 +160,7 @@ export default function FirstArchiveSetup({
               value={archiveName}
               maxLength={40}
               onChange={(event) => setArchiveName(event.target.value)}
+              aria-invalid={!isNameValid}
               className="h-12 w-full rounded-2xl border border-border-light bg-surface-secondary px-4 text-text-primary outline-none transition focus:border-life-moss focus:ring-2 focus:ring-life-moss/15"
               aria-describedby="archive-name-help"
             />

@@ -1,0 +1,15 @@
+B3 UX-002 / DATA-006 / DATA-007 / DATA-008 red reproduction
+Date: 2026-07-18 Asia/Shanghai
+
+Client behavioral regression suite before fixes:
+- 0/4 passed.
+- Two-character name: after moving health slider, enter-studio button remained disabled.
+- One-slider onboarding: expected {health:4}, received {health:4,work:5,play:5,love:5}.
+- Clearing occupation/city: basics mutation was never called.
+- 2021-02-31 solar date: birth mutation was called instead of being rejected.
+
+API route before fixes:
+- 9/10 passed.
+- POST /api/life/onboarding with {dashboards:{health:5}} returned 422 before idempotency handling.
+
+These failures reproduce the audit findings without production writes.

@@ -2058,7 +2058,8 @@
   "com_life_recovery_meta": "{{0}}",
   "com_life_workview_meta": "{{0}}",
   "com_life_archive_name": "存档名",
-  "com_life_archive_name_help": "3–40 个字，之后随时可以在对话里更新。",
+  "com_life_setup_chapter_number": "CHAPTER 01",
+  "com_life_archive_name_help": "2–40 个字，之后随时可以在对话里更新。",
   "com_life_archive_status": "存档状态",
   "com_life_archive_unavailable": "人生存档暂时读不到",
   "com_life_archive_unavailable_help": "我们没有把你当成第一次来，也不会覆盖旧存档。你可以重试，或先继续聊。",
@@ -2253,5 +2254,6 @@
   "com_life_birth_saved": "出生信息已存好,地图上有 {{0}} 块领地透出了微光",
   "com_life_birth_hour_unknown": "时辰不确定",
   "com_life_birth_gender_pick": "请选一下",
-  "com_life_birth_gender_required": "生日和性别要一起存:少了性别,有一部分内容会算错方向"
+  "com_life_birth_gender_required": "生日和性别要一起存:少了性别,有一部分内容会算错方向",
+  "com_life_birth_invalid_date": "这个日期在所选历法里不存在,请重新选择"
 }

@@ -1,0 +1,18 @@
+B3 UX-002 / DATA-006 / DATA-007 / DATA-008 local verification
+Date: 2026-07-18 Asia/Shanghai
+
+Targeted:
+- Client forms + registration: 2 suites, 11/11 tests passed.
+- API life route + registration validator: 2 suites, 40/40 tests passed.
+- Client typecheck: passed.
+- Changed-file ESLint and Prettier: passed.
+
+Full gate:
+- Client: 282/285 suites, 3199/3210 tests passed.
+- Remaining 3 suites / 11 tests are existing theme/settings/MCP-UI integration baselines already tracked outside this batch.
+- This batch removed the two stale two-character-name failures from the previous baseline.
+- Production frontend build: passed, 9143 modules transformed.
+
+Production-data preflight (read only):
+- 8 profiles, 3 stored birthdays, 0 invalid calendar dates.
+- The stricter write validation therefore does not require a historical data migration.

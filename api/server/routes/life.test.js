@@ -133,24 +133,33 @@ test('authenticated bootstrap merges archive state with the latest valid convers
   );
 });
 
-test('onboarding validates all four bars and returns a one-time auto-submit route', async () => {
+test('onboarding accepts only explicitly answered bars and returns a one-time auto-submit route', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
-  const invalid = await request(app)
-    .post('/api/life/onboarding')
-    .send({
-      archiveName: '张东',
-      dashboards: { health: 5, work: 5, play: 5 },
-    });
-  expect(invalid.status).toBe(422);
-
   const missingKey = await request(app)
     .post('/api/life/onboarding')
     .send({
       archiveName: '张东',
-      dashboards: { health: 6, work: 3, play: 7, love: 5 },
+      dashboards: { health: 5 },
     });
   expect(missingKey.status).toBe(400);
   expect(missingKey.body.error.code).toBe('MISSING_IDEMPOTENCY_KEY');
+
+  mockEngine.json.mockResolvedValue({ ok: true, profileVersion: 'v1', applied: 2 });
+  const partial = await request(app)
+    .post('/api/life/onboarding')
+    .set('Idempotency-Key', 'onboarding-partial-1')
+    .send({
+      archiveName: '张东',
+      dashboards: { health: 5 },
+    });
+  expect(partial.status).toBe(200);
+  const partialPrompt = new URL(partial.body.route, 'https://yiweilife.test').searchParams.get('q');
+  expect(partialPrompt).toContain('健康 5');
+  expect(partialPrompt).not.toContain('工作');
+  expect(mockEngine.json).toHaveBeenCalledWith(
+    '/internal/onboarding',
+    expect.objectContaining({ body: { archiveName: '张东', dashboards: { health: 5 } } }),
+  );
 
   mockEngine.json.mockResolvedValue({ ok: true, profileVersion: 'v1', applied: 5 });
   const valid = await request(app)

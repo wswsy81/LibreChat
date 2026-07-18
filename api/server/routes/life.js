@@ -113,13 +113,32 @@ function engineError(res, error) {
   });
 }
 
+const LIFE_DASHBOARD_KEYS = ['health', 'work', 'play', 'love'];
+
+function answeredDashboardKeys(dashboards) {
+  if (!dashboards || typeof dashboards !== 'object' || Array.isArray(dashboards)) {
+    return [];
+  }
+  const keys = Object.keys(dashboards);
+  if (
+    !keys.length ||
+    keys.some((key) => !LIFE_DASHBOARD_KEYS.includes(key)) ||
+    keys.some(
+      (key) => !Number.isInteger(dashboards[key]) || dashboards[key] < 0 || dashboards[key] > 10,
+    )
+  ) {
+    return [];
+  }
+  return LIFE_DASHBOARD_KEYS.filter((key) => Object.hasOwn(dashboards, key));
+}
+
 // 生辰后移 S2(2026-07-16 M4-A1):建档层零生辰,邀请只发生在 S2 卡壳后、由阶段卡唯一话术触发。
 function onboardingPrompt(dashboards) {
   const names = { health: '健康', work: '工作', play: '玩', love: '爱' };
-  const entries = Object.keys(names).map((key) => ({
+  const entries = answeredDashboardKeys(dashboards).map((key) => ({
     key,
     name: names[key],
-    value: Number(dashboards[key]),
+    value: dashboards[key],
   }));
   const lowest = entries.reduce(
     (best, item) => (item.value < best.value ? item : best),
@@ -250,13 +269,10 @@ router.use(requireJwtAuth);
 
 router.post('/onboarding', async (req, res) => {
   const dashboards = req.body?.dashboards || {};
-  const valid = ['health', 'work', 'play', 'love'].every(
-    (key) => Number.isInteger(dashboards[key]) && dashboards[key] >= 0 && dashboards[key] <= 10,
-  );
-  if (!valid) {
+  if (!answeredDashboardKeys(dashboards).length) {
     return res
       .status(422)
-      .json({ error: { code: 'INVALID_DASHBOARDS', message: '四条血条都需要 0–10 的整数' } });
+      .json({ error: { code: 'INVALID_DASHBOARDS', message: '至少回答一条 0–10 的人生血条' } });
   }
   const key = idempotencyKeyOf(req, res);
   if (!key) {
@@ -292,13 +308,10 @@ router.post('/onboarding', async (req, res) => {
 
 router.post('/diagnostics/blood-bars', async (req, res) => {
   const dashboards = req.body?.dashboards || {};
-  const valid = ['health', 'work', 'play', 'love'].every(
-    (key) => Number.isInteger(dashboards[key]) && dashboards[key] >= 0 && dashboards[key] <= 10,
-  );
-  if (!valid) {
+  if (!answeredDashboardKeys(dashboards).length) {
     return res
       .status(422)
-      .json({ error: { code: 'INVALID_DASHBOARDS', message: '四条血条都需要 0–10 的整数' } });
+      .json({ error: { code: 'INVALID_DASHBOARDS', message: '至少回答一条 0–10 的人生血条' } });
   }
   const key = idempotencyKeyOf(req, res);
   if (!key) {

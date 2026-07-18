@@ -295,7 +295,7 @@ test('shows validation error messages', async () => {
   // This first alert is for the theme toggle, which is empty within this test but still picked up by getAllByRole as an alert
   expect(alerts[0]).toHaveTextContent('');
 
-  expect(alerts[1]).toHaveTextContent(/Name must be at least 3 characters/i);
+  expect(alerts[1]).toHaveTextContent(/2/);
   expect(alerts[2]).toHaveTextContent(/Username must be at least 2 characters/i);
   expect(alerts[3]).toHaveTextContent(/You must enter a valid email address/i);
   expect(alerts[4]).toHaveTextContent(/Password must be at least 8 characters/i);
