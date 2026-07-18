@@ -23,11 +23,61 @@
          外链渲染阻塞导致手机端白屏数秒——勿改回外链 CDN -->
 
     <!-- 产品分析:自建 Umami(analytics.yiweilife.com)。自动跟踪页面/路由;
-         自定义事件用 window.umami.track()(见 utils/track.ts)。只记行为不记内容。 -->
+         自定义事件用 window.umami.track()(见 utils/track.ts)。只记行为不记内容。
+         before-send 是隐私边界:分享 token、报告/会话 ID、query/hash 永不离开浏览器。 -->
+    <script id="life-analytics-sanitizer">
+      (function () {
+        function sanitizeAnalyticsUrl(raw) {
+          if (typeof raw !== 'string' || !raw) {
+            return raw;
+          }
+          try {
+            var base =
+              window.location && window.location.origin
+                ? window.location.origin
+                : 'https://yiweilife.com';
+            var value = new URL(raw, base);
+            var pathname = value.pathname;
+            if (/^\/s\/archive\/[^/]+(?:\/.*)?$/.test(pathname)) {
+              pathname = '/s/archive/:token';
+            } else if (/^\/archive\/reports\/[^/]+(?:\/.*)?$/.test(pathname)) {
+              pathname = '/archive/reports/:reportId';
+            } else if (/^\/share\/[^/]+(?:\/.*)?$/.test(pathname)) {
+              pathname = '/share/:shareId';
+            } else if (/^\/c\/[^/]+(?:\/.*)?$/.test(pathname)) {
+              pathname = '/c/:conversationId';
+            }
+            value.pathname = pathname;
+            value.search = '';
+            value.hash = '';
+            return value.origin + value.pathname;
+          } catch (error) {
+            return '';
+          }
+        }
+
+        window.lifeAnalyticsBeforeSend = function (_type, payload) {
+          if (!payload || typeof payload !== 'object') {
+            return payload;
+          }
+          var sanitized = Object.assign({}, payload);
+          if (typeof sanitized.url === 'string') {
+            sanitized.url = sanitizeAnalyticsUrl(sanitized.url);
+          }
+          if (typeof sanitized.referrer === 'string') {
+            sanitized.referrer = sanitizeAnalyticsUrl(sanitized.referrer);
+          }
+          return sanitized;
+        };
+      })();
+    </script>
     <script
       defer
       src="https://analytics.yiweilife.com/script.js"
       data-website-id="be747120-ddec-4bc5-ae2d-00eeee255ee0"
+      data-before-send="lifeAnalyticsBeforeSend"
+      data-exclude-search="true"
+      data-exclude-hash="true"
     ></script>
 
     <meta

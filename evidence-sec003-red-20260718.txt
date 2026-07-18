@@ -1,0 +1,16 @@
+SEC-003 red state
+Date: 2026-07-18
+Command: cd client && npx jest src/utils/track.spec.ts --runInBand
+
+Added regression:
+  Umami 自动与手动事件都先抹掉分享、报告和会话标识
+
+Observed before fix:
+  Expected client/index.html to contain:
+    data-before-send="lifeAnalyticsBeforeSend"
+  Actual:
+    no before-send hook was configured
+
+Targeted result: 1 failed, 0 passed
+
+The production Umami tracker therefore used its default payload URL/referrer values.

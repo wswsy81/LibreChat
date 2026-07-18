@@ -1,0 +1,32 @@
+SEC-003 green state
+Date: 2026-07-18
+
+Targeted command:
+  cd client && npx jest src/utils/track.spec.ts --runInBand
+Targeted result:
+  1 passed, 0 failed
+
+Type command:
+  cd client && npm run typecheck
+Type result:
+  passed
+
+Format command:
+  cd client && npx prettier --check index.html src/utils/track.spec.ts
+Format result:
+  passed
+
+Build command:
+  npm run frontend:ci
+Build result:
+  data-provider build passed
+  client-package build passed
+  client CI build passed
+
+Verified transformations:
+  /s/archive/<token>           -> /s/archive/:token
+  /archive/reports/<id>        -> /archive/reports/:reportId
+  /share/<id>                  -> /share/:shareId
+  /c/<conversationId>          -> /c/:conversationId
+  query and hash               -> removed
+  malformed URL                -> empty string
