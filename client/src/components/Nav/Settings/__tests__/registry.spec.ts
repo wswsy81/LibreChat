@@ -6,8 +6,8 @@ import { TABS } from '../types';
 const validTabSections = new Map(TABS.map((t) => [t.id, new Set(t.sections.map((s) => s.id))]));
 
 describe('settings registry', () => {
-  it('includes the theme selector in general appearance settings', () => {
-    expect(registry.some((entry) => entry.id === 'theme')).toBe(true);
+  it('does not expose the generic theme selector in the life-design product shell', () => {
+    expect(registry.some((entry) => entry.id === 'theme')).toBe(false);
   });
 
   it('has unique ids', () => {

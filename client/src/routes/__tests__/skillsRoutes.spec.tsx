@@ -48,9 +48,11 @@ jest.mock('../Root', () => ({
 }));
 
 import { router } from '../index';
+import { LegacyRouteGate } from '~/features/life-design';
 
 type RouteNode = {
   path?: string;
+  element?: React.ReactElement;
   children?: RouteNode[];
 };
 
@@ -61,10 +63,38 @@ function flattenPaths(routes: RouteNode[]): string[] {
   ]);
 }
 
+function isPathGuarded(routes: RouteNode[], target: string, guarded = false): boolean {
+  for (const route of routes) {
+    const nextGuarded = guarded || route.element?.type === LegacyRouteGate;
+    if (route.path === target) return nextGuarded;
+    if (route.children && isPathGuarded(route.children, target, nextGuarded)) return true;
+  }
+  return false;
+}
+
 describe('skills routes', () => {
   it('registers the explicit /skills/new route', () => {
     const paths = flattenPaths((router as unknown as { routes: RouteNode[] }).routes);
 
     expect(paths).toContain('skills/new');
+  });
+
+  it.each([
+    'search',
+    'prompts/new',
+    'skills/new',
+    'projects',
+    'projects/:projectId',
+    'agents',
+    'dashboard',
+  ])('keeps legacy route %s behind LegacyRouteGate', (path) => {
+    const routes = (router as unknown as { routes: RouteNode[] }).routes;
+    expect(isPathGuarded(routes, path)).toBe(true);
+  });
+
+  it('wraps the generic share route directly with LegacyRouteGate', () => {
+    const routes = (router as unknown as { routes: RouteNode[] }).routes;
+    const share = routes.find((route) => route.path === 'share/:shareId');
+    expect(share?.element?.type).toBe(LegacyRouteGate);
   });
 });

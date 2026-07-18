@@ -1,4 +1,5 @@
 import { SettingsTabValues } from 'librechat-data-provider';
+import { TABS } from './types';
 import type { SettingEntry } from './types';
 import {
   TextToSpeechSwitch,
@@ -42,7 +43,7 @@ import store from '~/store';
 
 const { GENERAL, CHAT, SPEECH, DATA, ACCOUNT, ABOUT } = SettingsTabValues;
 
-export const registry: SettingEntry[] = [
+const fullRegistry: SettingEntry[] = [
   // General · Appearance
   // 人生设计室:锁定亮色,不注册主题开关(见 DESIGN.md;与手机端无关)。
   // 注意:请勿"restore theme selector"——暗色是有意关闭的产品决策,不是遗漏。
@@ -522,3 +523,12 @@ export const registry: SettingEntry[] = [
     Component: About,
   },
 ];
+
+const visibleSections = new Map(
+  TABS.map((tab) => [tab.id, new Set(tab.sections.map((s) => s.id))]),
+);
+
+/** Product shell only exposes settings whose tab and section are part of the life-design IA. */
+export const registry = fullRegistry.filter((entry) =>
+  visibleSections.get(entry.tab)?.has(entry.section),
+);

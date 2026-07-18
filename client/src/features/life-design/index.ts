@@ -8,5 +8,6 @@ export { default as SharedReportRoute } from './routes/SharedReportRoute';
 export { default as AdminRoute } from './routes/AdminRoute';
 export { default as AboutRoute } from './routes/AboutRoute';
 export { default as LifeSidebarPanel } from './components/LifeSidebarPanel';
+export { default as LegacyRouteGate } from './components/LegacyRouteGate';
 export { default as ShellGate } from './components/ShellGate';
 export { default as useUnifiedShell } from './hooks/useUnifiedShell';

@@ -19,6 +19,7 @@ import {
   EntryResolver,
   HomeRoute,
   InboxRoute,
+  LegacyRouteGate,
   ReportRoute,
   ResumeRoute,
   SharedReportRoute,
@@ -84,7 +85,11 @@ export const router = createBrowserRouter(
     },
     {
       path: 'share/:shareId',
-      element: <ShareRoute />,
+      element: (
+        <LegacyRouteGate>
+          <ShareRoute />
+        </LegacyRouteGate>
+      ),
       errorElement: <RouteErrorBoundary />,
     },
     {
@@ -161,7 +166,10 @@ export const router = createBrowserRouter(
             },
           ],
         },
-        dashboardRoutes,
+        {
+          element: <LegacyRouteGate />,
+          children: [dashboardRoutes],
+        },
         {
           path: '/',
           element: <Root />,
@@ -219,60 +227,65 @@ export const router = createBrowserRouter(
               element: <ChatRoute />,
             },
             {
-              path: 'search',
-              element: <Search />,
-            },
-            {
-              path: 'prompts',
-              element: <Navigate to="/prompts/new" replace={true} />,
-            },
-            {
-              path: 'prompts/new',
-              lazy: loadInlinePromptsView,
-            },
-            {
-              path: 'prompts/:promptId',
-              lazy: loadInlinePromptsView,
-            },
-            {
-              path: 'skills',
-              lazy: loadSkillsView,
-            },
-            {
-              path: 'skills/new',
-              lazy: loadSkillsView,
-            },
-            {
-              path: 'skills/:skillId',
-              lazy: loadSkillsView,
-            },
-            {
-              path: 'skills/:skillId/edit',
-              lazy: loadSkillsView,
-            },
-            {
-              path: 'projects',
-              lazy: loadProjectsView,
-            },
-            {
-              path: 'projects/:projectId',
-              lazy: loadProjectWorkspace,
-            },
-            {
-              path: 'agents',
-              element: (
-                <MarketplaceProvider>
-                  <AgentMarketplace />
-                </MarketplaceProvider>
-              ),
-            },
-            {
-              path: 'agents/:category',
-              element: (
-                <MarketplaceProvider>
-                  <AgentMarketplace />
-                </MarketplaceProvider>
-              ),
+              element: <LegacyRouteGate />,
+              children: [
+                {
+                  path: 'search',
+                  element: <Search />,
+                },
+                {
+                  path: 'prompts',
+                  element: <Navigate to="/prompts/new" replace={true} />,
+                },
+                {
+                  path: 'prompts/new',
+                  lazy: loadInlinePromptsView,
+                },
+                {
+                  path: 'prompts/:promptId',
+                  lazy: loadInlinePromptsView,
+                },
+                {
+                  path: 'skills',
+                  lazy: loadSkillsView,
+                },
+                {
+                  path: 'skills/new',
+                  lazy: loadSkillsView,
+                },
+                {
+                  path: 'skills/:skillId',
+                  lazy: loadSkillsView,
+                },
+                {
+                  path: 'skills/:skillId/edit',
+                  lazy: loadSkillsView,
+                },
+                {
+                  path: 'projects',
+                  lazy: loadProjectsView,
+                },
+                {
+                  path: 'projects/:projectId',
+                  lazy: loadProjectWorkspace,
+                },
+                {
+                  path: 'agents',
+                  element: (
+                    <MarketplaceProvider>
+                      <AgentMarketplace />
+                    </MarketplaceProvider>
+                  ),
+                },
+                {
+                  path: 'agents/:category',
+                  element: (
+                    <MarketplaceProvider>
+                      <AgentMarketplace />
+                    </MarketplaceProvider>
+                  ),
+                },
+              ],
             },
           ],
         },
