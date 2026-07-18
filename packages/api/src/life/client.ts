@@ -1,6 +1,12 @@
+import {
+  createFutureEngineIdentityAssertion,
+  FUTURE_ENGINE_IDENTITY_HEADER,
+} from '../utils/identityAssertion';
+
 export interface LifeEngineClientOptions {
   baseUrl: string;
   token: string;
+  identitySecret: string;
 }
 
 export interface LifeEngineRequestOptions {
@@ -29,13 +35,18 @@ export class LifeEngineError extends Error {
 export function createLifeEngineClient({
   baseUrl,
   token,
+  identitySecret,
 }: LifeEngineClientOptions): LifeEngineClient {
   const root = baseUrl.replace(/\/+$/, '');
 
   async function request(path: string, options: LifeEngineRequestOptions = {}): Promise<Response> {
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
     if (options.userId) {
-      headers['X-LibreChat-User-Id'] = options.userId;
+      headers[FUTURE_ENGINE_IDENTITY_HEADER] = createFutureEngineIdentityAssertion({
+        principalId: options.userId,
+        secret: identitySecret,
+        scope: 'life-api',
+      });
     }
     if (options.body) {
       headers['Content-Type'] = 'application/json';

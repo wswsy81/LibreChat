@@ -491,6 +491,15 @@ describe('isUserSourced', () => {
 });
 
 describe('requiresUserScopedConnection', () => {
+  it('treats the future-engine signed identity placeholder as user-scoped', () => {
+    expect(
+      requiresUserScopedConnection({
+        requiresOAuth: false,
+        headers: { 'X-LibreChat-Identity': '{{LIBRECHAT_FUTURE_ENGINE_IDENTITY}}' },
+      }),
+    ).toBe(true);
+  });
+
   it('returns true for OAuth servers', () => {
     expect(requiresUserScopedConnection({ requiresOAuth: true })).toBe(true);
   });

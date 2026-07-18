@@ -14,6 +14,7 @@ const router = express.Router();
 const engine = createLifeEngineClient({
   baseUrl: process.env.FUTURE_ENGINE_URL || 'http://future-engine:8899',
   token: process.env.FUTURE_ENGINE_INTERNAL_TOKEN || 'future-lines-local-internal',
+  identitySecret: process.env.FUTURE_ENGINE_IDENTITY_SECRET || '',
 });
 
 const noStore = (_req, res, next) => {

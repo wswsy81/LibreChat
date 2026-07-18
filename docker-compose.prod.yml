@@ -16,8 +16,12 @@ services:
     restart: always
     volumes:
       - ./data-node:/data/db            # 账号/对话/消息,持久化,务必进备份
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    command: ["mongod", "--auth", "--bind_ip_all"]
     networks:
-      - future
+      - trusted-data
     # 不发布端口,只在内网,绝不公网
 
   future-engine:
@@ -30,6 +34,8 @@ services:
       - SHIM_PORT=8899
       - CHAT_URL=https://${DOMAIN}       # 报告链接 APP_BASE 用它,必须是公网 https 域名
       - FUTURE_ENGINE_INTERNAL_TOKEN=${FUTURE_ENGINE_INTERNAL_TOKEN}
+      - FUTURE_ENGINE_IDENTITY_SECRET=${FUTURE_ENGINE_IDENTITY_SECRET}
+      - MONGO_URI=mongodb://librechat:${MONGO_APP_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat
       - POLARIS_URL=http://host.docker.internal:3000/v1   # 宿主 new-api
       - POLARIS_KEY=${POLARIS_KEY}
     extra_hosts:
@@ -37,7 +43,9 @@ services:
     volumes:
       - ../future-engine-shim/data:/app/data   # 画像/报告/邀请码,持久化,务必进备份
     networks:
-      - future
+      trusted-data: {}
+      engine-egress:
+        gw_priority: 1
     # 不发布 8899,只在内网
 
   api:
@@ -61,6 +69,8 @@ services:
       - NO_PROXY=localhost,127.0.0.1,::1,mongodb,chat-mongodb,future-engine
       - FUTURE_ENGINE_URL=http://future-engine:8899
       - FUTURE_ENGINE_INTERNAL_TOKEN=${FUTURE_ENGINE_INTERNAL_TOKEN}
+      - FUTURE_ENGINE_IDENTITY_SECRET=${FUTURE_ENGINE_IDENTITY_SECRET}
+      - MONGO_URI=mongodb://librechat:${MONGO_APP_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat
     volumes:
       # 自定义配置 + 构建产物 + 未来线定制源文件(镜像基线之上覆盖,同 dev override)
       - ./librechat.yaml:/app/librechat.yaml
@@ -82,7 +92,9 @@ services:
       - ./logs:/app/logs
       - ./images:/app/client/public/images
     networks:
-      - future
+      trusted-data: {}
+      edge:
+        gw_priority: 1
     # 不发布 3080,Caddy 内网反代
 
   # 产品分析:Umami(自建,数据留本机)。漏斗/留存/路径/仪表盘全用它原生。
@@ -97,7 +109,7 @@ services:
     volumes:
       - ./umami-db-data:/var/lib/postgresql/data
     networks:
-      - future
+      - analytics-data
 
   umami:
     image: ghcr.io/umami-software/umami:postgresql-latest
@@ -110,7 +122,9 @@ services:
       - DATABASE_TYPE=postgresql
       - APP_SECRET=${UMAMI_APP_SECRET}
     networks:
-      - future
+      analytics-data: {}
+      edge:
+        gw_priority: 1
     # 不发布端口,Caddy 内网反代到 analytics 子域
 
   caddy:
@@ -131,10 +145,18 @@ services:
       - caddy_data:/data          # 证书,别丢(丢了会重新签,有速率限制)
       - caddy_config:/config
     networks:
-      - future
+      - edge
 
 networks:
-  future:
+  edge:
+    driver: bridge
+  trusted-data:
+    internal: true
+    driver: bridge
+  analytics-data:
+    internal: true
+    driver: bridge
+  engine-egress:
     driver: bridge
 
 volumes:

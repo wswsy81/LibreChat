@@ -257,6 +257,35 @@ describe('Environment Variable Extraction (MCP)', () => {
       });
     });
 
+    it('should replace the future-engine identity placeholder with a signed short-lived assertion', () => {
+      process.env.FUTURE_ENGINE_IDENTITY_SECRET = 'sec001-test-secret-'.repeat(4);
+      const user = createTestUser({ id: 'signed-user-123' });
+      const options: MCPOptions = {
+        type: 'streamable-http',
+        url: 'http://future-engine:8899/mcp',
+        headers: {
+          'X-LibreChat-Identity': '{{LIBRECHAT_FUTURE_ENGINE_IDENTITY}}',
+        },
+      };
+
+      const result = processMCPEnv({ options, user });
+      const assertion = 'headers' in result ? result.headers?.['X-LibreChat-Identity'] : undefined;
+      expect(assertion).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+      expect(assertion).not.toContain('signed-user-123');
+
+      const payload = JSON.parse(
+        Buffer.from(assertion!.split('.')[1], 'base64url').toString('utf8'),
+      ) as Record<string, unknown>;
+      expect(payload).toMatchObject({
+        v: 1,
+        sub: 'signed-user-123',
+        aud: 'future-engine',
+        scope: 'mcp',
+      });
+      expect(Number(payload.exp) - Number(payload.iat)).toBeLessThanOrEqual(60);
+      expect(String(payload.jti)).not.toHaveLength(0);
+    });
+
     it('should handle null or undefined input', () => {
       // @ts-ignore - Testing null/undefined handling
       expect(processMCPEnv({ options: null })).toBeNull();

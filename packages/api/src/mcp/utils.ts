@@ -4,7 +4,8 @@ import type { RequestBody } from '~/types';
 
 export const mcpToolPattern: RegExp = new RegExp(`^.+${Constants.mcp_delimiter}.+$`);
 
-const RUNTIME_CONTEXT_PLACEHOLDER_PATTERN = /\{\{LIBRECHAT_(?:USER|OPENID|GRAPH|BODY)_[^}]+\}\}/;
+const RUNTIME_CONTEXT_PLACEHOLDER_PATTERN =
+  /\{\{LIBRECHAT_(?:(?:USER|OPENID|GRAPH|BODY)_[^}]+|FUTURE_ENGINE_IDENTITY)\}\}/;
 const RUNTIME_BODY_PLACEHOLDER_PATTERN = /\{\{LIBRECHAT_BODY_[^}]+\}\}/;
 const RUNTIME_BODY_PLACEHOLDER_CAPTURE_PATTERN = /\{\{LIBRECHAT_BODY_([^}]+)\}\}/g;
 

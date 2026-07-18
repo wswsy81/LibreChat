@@ -3,6 +3,10 @@ import type { MCPOptions } from 'librechat-data-provider';
 import type { IUser } from '@librechat/data-schemas';
 import type { RequestBody } from '~/types';
 import { extractOpenIDTokenInfo, processOpenIDPlaceholders, isOpenIDTokenValid } from './oidc';
+import {
+  createFutureEngineIdentityAssertion,
+  FUTURE_ENGINE_IDENTITY_PLACEHOLDER,
+} from './identityAssertion';
 
 /**
  * List of allowed user fields that can be used in MCP environment variables.
@@ -140,6 +144,19 @@ function processUserPlaceholders(
 ): string {
   if (!user || typeof value !== 'string') {
     return value;
+  }
+
+  if (value.includes(FUTURE_ENGINE_IDENTITY_PLACEHOLDER)) {
+    const principalId = typeof user.id === 'string' ? user.id : '';
+    if (!principalId) {
+      return value;
+    }
+    const assertion = createFutureEngineIdentityAssertion({
+      principalId,
+      secret: process.env.FUTURE_ENGINE_IDENTITY_SECRET || '',
+      scope: 'mcp',
+    });
+    value = value.replace(new RegExp(FUTURE_ENGINE_IDENTITY_PLACEHOLDER, 'g'), assertion);
   }
 
   for (const field of ALLOWED_USER_FIELDS) {
