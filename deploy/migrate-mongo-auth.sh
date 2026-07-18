@@ -11,14 +11,14 @@ ENV_FILE=${ENV_FILE:-.env}
 command -v docker >/dev/null 2>&1 || { echo "docker 不可用" >&2; exit 1; }
 [[ -f "$ENV_FILE" ]] || { echo "找不到 $ENV_FILE" >&2; exit 1; }
 
-set -a
-# shellcheck disable=SC1090
-. "$ENV_FILE"
-set +a
-
 for name in MONGO_ROOT_PASSWORD MONGO_APP_PASSWORD; do
-  value=${!name:-}
-  [[ ${#value} -ge 32 ]] || { echo "$name 未设置或长度不足 32" >&2; exit 1; }
+  value=$(sed -n "s/^${name}=//p" "$ENV_FILE" | tail -1)
+  [[ "$value" =~ ^[A-Fa-f0-9]{64}$ ]] || {
+    echo "$name 未设置或不是 64 位十六进制密钥" >&2
+    exit 1
+  }
+  printf -v "$name" '%s' "$value"
+  export "$name"
 done
 
 auth_enabled=$(docker inspect -f '{{json .Config.Cmd}}' "$CONTAINER" | grep -c -- '--auth' || true)
