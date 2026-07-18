@@ -20,6 +20,11 @@ import {
 } from '~/mcp/oauth';
 import { sanitizeUrlForLogging, isClientRejectionMessage, isOAuthServer } from './utils';
 import { PENDING_STALE_MS, normalizeExpiresAt } from '~/flow/manager';
+import {
+  createFutureEngineIdentityAssertion,
+  FUTURE_ENGINE_IDENTITY_HEADER,
+  FUTURE_ENGINE_IDENTITY_PLACEHOLDER,
+} from '~/utils/identityAssertion';
 import { preProcessGraphTokens } from '~/utils/graph';
 import { withTimeout } from '~/utils/promise';
 import { MCPConnection } from './connection';
@@ -55,6 +60,7 @@ export class MCPConnectionFactory {
   protected readonly allowedDomains?: string[] | null;
   protected readonly allowedAddresses?: string[] | null;
   protected readonly ephemeralConnection: boolean;
+  protected readonly requestHeadersFactory?: () => Record<string, string>;
 
   // OAuth-related properties (only set when useOAuth is true)
   protected readonly userId?: string;
@@ -174,6 +180,7 @@ export class MCPConnectionFactory {
       serverConfig: this.serverConfig,
       userId: this.userId,
       oauthTokens,
+      requestHeadersFactory: this.requestHeadersFactory,
       useSSRFProtection: this.useSSRFProtection,
       allowedAddresses: this.allowedAddresses,
       ephemeralConnection: this.ephemeralConnection,
@@ -248,6 +255,7 @@ export class MCPConnectionFactory {
       serverConfig: this.serverConfig,
       userId: this.userId,
       oauthTokens: null,
+      requestHeadersFactory: this.requestHeadersFactory,
       useSSRFProtection: this.useSSRFProtection,
       allowedAddresses: this.allowedAddresses,
       ephemeralConnection: this.ephemeralConnection,
@@ -289,6 +297,24 @@ export class MCPConnectionFactory {
     basic: t.BasicConnectionOptions,
     options?: t.OAuthConnectionOptions | t.UserConnectionContext,
   ) {
+    const configuredHeaders =
+      'headers' in basic.serverConfig ? basic.serverConfig.headers : undefined;
+    const principalId = options?.user?.id;
+    const refreshesFutureEngineIdentity =
+      basic.dbSourced !== true &&
+      typeof principalId === 'string' &&
+      Object.values(configuredHeaders ?? {}).some(
+        (value) => typeof value === 'string' && value.includes(FUTURE_ENGINE_IDENTITY_PLACEHOLDER),
+      );
+    if (refreshesFutureEngineIdentity) {
+      this.requestHeadersFactory = () => ({
+        [FUTURE_ENGINE_IDENTITY_HEADER]: createFutureEngineIdentityAssertion({
+          principalId,
+          secret: process.env.FUTURE_ENGINE_IDENTITY_SECRET || '',
+          scope: 'mcp',
+        }),
+      });
+    }
     this.serverConfig = basic.skipEnvProcessing
       ? basic.serverConfig
       : processMCPEnv({
@@ -398,6 +424,7 @@ export class MCPConnectionFactory {
       serverConfig: this.serverConfig,
       userId: this.userId,
       oauthTokens,
+      requestHeadersFactory: this.requestHeadersFactory,
       useSSRFProtection: this.useSSRFProtection,
       allowedAddresses: this.allowedAddresses,
       ephemeralConnection: this.ephemeralConnection,

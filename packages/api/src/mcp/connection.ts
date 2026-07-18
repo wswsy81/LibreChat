@@ -551,6 +551,18 @@ function normalizeInitHeaders(init: UndiciRequestInit | undefined): Record<strin
   return init.headers as Record<string, string>;
 }
 
+function mergeRequestHeaders(
+  ...sources: Array<Record<string, string> | null | undefined>
+): Record<string, string> {
+  const merged: Record<string, string> = {};
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source ?? {})) {
+      merged[key.toLowerCase()] = value;
+    }
+  }
+  return merged;
+}
+
 function buildFetchInit(
   init: UndiciRequestInit | undefined,
   dispatcher: Dispatcher,
@@ -568,7 +580,9 @@ function buildFetchInit(
     return { ...init, redirect: 'manual', dispatcher };
   }
   const initHeaders = normalizeInitHeaders(init);
-  const headers = hasRuntimeHeaders ? { ...initHeaders, ...requestHeaders } : initHeaders;
+  const headers = hasRuntimeHeaders
+    ? mergeRequestHeaders(initHeaders, requestHeaders)
+    : initHeaders;
   return {
     ...init,
     redirect: 'manual',
@@ -1114,6 +1128,7 @@ interface MCPConnectionParams {
   serverConfig: t.MCPOptions;
   userId?: string;
   oauthTokens?: MCPOAuthTokens | null;
+  requestHeadersFactory?: () => Record<string, string> | null | undefined;
   useSSRFProtection?: boolean;
   allowedAddresses?: string[] | null;
   ephemeralConnection?: boolean;
@@ -1140,6 +1155,7 @@ export class MCPConnection extends EventEmitter {
   private lastConnectionCheckAt: number = 0;
   private oauthTokens?: MCPOAuthTokens | null;
   private requestHeaders?: Record<string, string> | null;
+  private readonly requestHeadersFactory?: () => Record<string, string> | null | undefined;
   private oauthRequired = false;
   private oauthRecovery = false;
   private readonly useSSRFProtection: boolean;
@@ -1251,7 +1267,11 @@ export class MCPConnection extends EventEmitter {
   }
 
   getRequestHeaders(): Record<string, string> | null | undefined {
-    return this.requestHeaders;
+    const freshHeaders = this.requestHeadersFactory?.();
+    if (!freshHeaders) {
+      return this.requestHeaders;
+    }
+    return mergeRequestHeaders(this.requestHeaders, freshHeaders);
   }
 
   constructor(params: MCPConnectionParams) {
@@ -1262,6 +1282,7 @@ export class MCPConnection extends EventEmitter {
     this.useSSRFProtection = params.useSSRFProtection === true;
     this.allowedAddresses = params.allowedAddresses ?? null;
     this.ephemeralConnection = params.ephemeralConnection === true;
+    this.requestHeadersFactory = params.requestHeadersFactory;
     this.proxyConfig = getMCPProxyConfig(params.serverConfig);
     this.iconPath = params.serverConfig.iconPath;
     this.timeout = params.serverConfig.timeout;
@@ -1657,11 +1678,11 @@ export class MCPConnection extends EventEmitter {
                   this.allowedAddresses,
                 );
                 /** Merge headers: SSE defaults < init headers < user headers (user wins) */
-                const fetchHeaders = Object.assign(
-                  {},
+                const fetchHeaders = mergeRequestHeaders(
                   SSE_REQUEST_HEADERS,
-                  resolvedInit?.headers,
+                  normalizeInitHeaders(resolvedInit),
                   headers,
+                  this.getRequestHeaders(),
                 );
                 return undiciFetch(urlString, {
                   ...resolvedInit,

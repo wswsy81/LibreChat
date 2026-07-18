@@ -1,0 +1,33 @@
+SEC-001 production regression red evidence
+Date: 2026-07-18
+
+Production symptom (read-only log inspection)
+- A normal cached mingli MCP connection began returning `identity assertion expired` after the 60-second assertion window.
+- LibreChat then logged ping failure, Streamable HTTP SSE Unauthorized, OAuth authentication handling for a non-OAuth server, three reconnect attempts, and `Stopping reconnection attempts`.
+- No message content was inspected. User identifiers are intentionally omitted from this evidence file.
+
+Static root cause
+- `processMCPEnv()` replaces `{{LIBRECHAT_FUTURE_ENGINE_IDENTITY}}` while the cached connection is constructed.
+- `MCPManager.callTool()` refreshes request headers only after `getUserConnection()` has already called `connection.isConnected()`.
+- The liveness ping, SDK SSE recovery, and high-level transport rebuild therefore reuse the assertion baked into `MCPConnection.options` at construction time.
+
+Red command
+  cd projects/未来线/librechat/packages/api
+  npx jest src/mcp/__tests__/MCPFutureEngineIdentity.test.ts --runInBand --coverage=false
+
+Red result
+  FAIL src/mcp/__tests__/MCPFutureEngineIdentity.test.ts
+    future-engine MCP identity assertion lifecycle
+      ✕ refreshes the assertion for a ping after the cached connection is older than 60 seconds
+      ✕ refreshes the assertion when rebuilding a transport after 60 seconds
+
+  Expected ping result: true
+  Received ping result: false
+
+  Expected transport rebuild: resolved
+  Received: Streamable HTTP error: Error POSTing to endpoint: {"error":"identity assertion expired"}
+
+  Test Suites: 1 failed, 1 total
+  Tests:       2 failed, 2 total
+
+This is a deterministic real-HTTP reproduction. It does not modify production data.

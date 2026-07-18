@@ -1,0 +1,45 @@
+SEC-001 production regression green evidence
+Date: 2026-07-18
+
+Root-cause fix
+- MCPConnectionFactory detects the trusted future-engine identity placeholder before config expansion and installs a volatile request-header factory for that user.
+- MCPConnection invokes the factory at the actual HTTP fetch boundary, so ping, Streamable HTTP SSE recovery, transport rebuilds, discovery, and tool calls all receive a newly signed 60-second assertion.
+- Runtime headers are merged case-insensitively and the fresh identity value wins over the assertion baked into the original transport config.
+- The future-engine validator, TTL, audience, scope, secret, network layout, and user data were not changed.
+
+Focused regression
+  PASS src/mcp/__tests__/MCPFutureEngineIdentity.test.ts
+    ✓ refreshes the assertion for a ping after the cached connection is older than 60 seconds
+    ✓ refreshes the assertion when rebuilding a transport after 60 seconds
+
+  Test Suites: 1 passed, 1 total
+  Tests:       2 passed, 2 total
+
+Related MCP regression suites
+  Test Suites: 8 passed, 8 total
+  Tests:       359 passed, 359 total
+
+  Covered:
+  - future-engine identity lifecycle
+  - MCP env and user-scoping utilities
+  - MCPConnectionFactory
+  - MCPConnection Agent/SSE lifecycle
+  - MCPManager
+  - MCPConnection error handling
+  - MCP SSRF and redirect/header behavior
+
+Build and static checks
+- @librechat/api build: passed
+- ESLint on all three changed source/test files: passed
+- Prettier on all three changed source/test files: passed
+- git diff --check: passed
+
+Full @librechat/api baseline
+  Test Suites: 254 passed, 1 failed, 1 skipped, 255 of 256 total
+  Tests:       6756 passed, 2 failed, 5 skipped, 6763 total
+
+The only two failures are the pre-existing OBS-002 LibreOffice baseline:
+- fallthrough contract assertion
+- missing src/files/documents/sample.pptx
+
+Neither failing test imports or executes the MCP identity files changed here. The new SEC-001 lifecycle test passed inside the full run.
