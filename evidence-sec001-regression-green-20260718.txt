@@ -43,3 +43,16 @@ The only two failures are the pre-existing OBS-002 LibreOffice baseline:
 - missing src/files/documents/sample.pptx
 
 Neither failing test imports or executes the MCP identity files changed here. The new SEC-001 lifecycle test passed inside the full run.
+
+Production verification
+- Commit: 90f89ef fix(security): refresh MCP identity assertions
+- Batch: B2-SEC001R1-20260718-123109
+- Valid rollback package: /home/ubuntu/backups/yiweilife-sec001r1-before-20260718-123109
+- Backup permissions: directory 700 root:root; every file 600 root:root
+- Restore checks: Mongo dry-run 0 failed; Postgres pg_restore list 156 rows; tar/gzip/SHA passed
+- Deployed dist SHA256: 8f62b82b29a4312ef0977aa2027edfd12ff245cebeded0bf8ec9519f5378c835
+- Normal UI: logged into the retained audit account, read the profile once, kept the same tab/session/cached MCP connection for 65 seconds, then read it again successfully.
+- Browser console: 0 errors; one pre-existing React Router v7 future-flag warning.
+- LibreChat logs after restart: identity expired=0, SSE Unauthorized=0, OAuth auth error=0, reconnect=0, stop reconnect=0, ping failed=0.
+- Container and public health: OK.
+- Reports aggregate hash matched the pre-deploy backup. One audit profile.json and one unrelated background.json changed during the live verification window; no document bodies were inspected.
