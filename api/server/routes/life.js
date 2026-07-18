@@ -1,13 +1,17 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const { createHmac, randomUUID } = require('crypto');
+const { createHmac } = require('crypto');
 const { createLifeEngineClient, LifeEngineError, createInvite } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 const checkAdmin = require('~/server/middleware/roles/admin');
 const { lifeShareLimiter } = require('~/server/middleware/limiters');
 const optionalJwtAuth = require('~/server/middleware/optionalJwtAuth');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
-const { runLifeOperation, LifeOperationPendingError } = require('~/server/services/lifeOperations');
+const {
+  runLifeOperation,
+  LifeOperationPendingError,
+  LifeOperationConflictError,
+} = require('~/server/services/lifeOperations');
 const { createToken } = require('~/models');
 
 const router = express.Router();
@@ -74,6 +78,15 @@ function shareTokenFor({ id, reportId, idempotencyKey }) {
 }
 
 function engineError(res, error) {
+  if (error instanceof LifeOperationConflictError || error?.code === 'LIFE_OPERATION_CONFLICT') {
+    return res.status(409).json({
+      error: {
+        code: 'LIFE_OPERATION_CONFLICT',
+        message: '同一个操作标识不能提交不同内容，请重新发起这次操作',
+        retryable: false,
+      },
+    });
+  }
   if (error instanceof LifeOperationPendingError) {
     return res.status(409).json({
       error: {
@@ -249,23 +262,26 @@ router.post('/onboarding', async (req, res) => {
   if (!key) {
     return;
   }
+  const body = {
+    archiveName: String(req.body?.archiveName || req.user.name || '朋友').slice(0, 40),
+    dashboards,
+  };
   try {
     const outcome = await runLifeOperation({
       userId: userId(req),
       operation: 'onboarding',
       idempotencyKey: key,
+      requestPayload: body,
       replayWindowMs: RESUME_REPLAY_WINDOW_MS,
-      executor: async () => {
+      executor: async ({ operationId, requestHash }) => {
         const result = await engine.json('/internal/onboarding', {
           userId: userId(req),
           method: 'POST',
-          body: {
-            archiveName: String(req.body?.archiveName || req.user.name || '朋友').slice(0, 40),
-            dashboards,
-          },
+          body,
+          operation: { id: operationId, name: 'onboarding', requestHash },
         });
         const prompt = onboardingPrompt(dashboards);
-        return { ...result, prompt, route: chatRoute(prompt), operationId: randomUUID() };
+        return { ...result, prompt, route: chatRoute(prompt), operationId };
       },
     });
     return res.json(outcome);
@@ -293,11 +309,13 @@ router.post('/diagnostics/blood-bars', async (req, res) => {
       userId: userId(req),
       operation: 'blood-bars',
       idempotencyKey: key,
-      executor: () =>
+      requestPayload: { dashboards },
+      executor: ({ operationId, requestHash }) =>
         engine.json('/internal/diagnostics/blood-bars', {
           userId: userId(req),
           method: 'POST',
           body: { dashboards },
+          operation: { id: operationId, name: 'blood-bars', requestHash },
         }),
     });
     return res.json(outcome);
@@ -325,9 +343,10 @@ router.post('/resume', async (req, res) => {
       userId: id,
       operation: 'resume-create',
       idempotencyKey: key,
+      requestPayload: { action: 'resume-create' },
       replayWindowMs: RESUME_REPLAY_WINDOW_MS,
       persistIf: (result) => result.action === 'new',
-      executor: async () => {
+      executor: async ({ operationId }) => {
         const recheck = await latestLifeConversation(id);
         if (recheck?.conversationId) {
           return {
@@ -342,7 +361,7 @@ router.post('/resume', async (req, res) => {
           action: 'new',
           conversationId: null,
           route: chatRoute(prompt),
-          operationId: randomUUID(),
+          operationId,
         };
       },
     });
@@ -430,8 +449,14 @@ router.post('/basics', async (req, res) => {
       userId: userId(req),
       operation: 'basics-save',
       idempotencyKey: key,
-      executor: () =>
-        engine.json('/internal/basics', { userId: userId(req), method: 'POST', body }),
+      requestPayload: body,
+      executor: ({ operationId, requestHash }) =>
+        engine.json('/internal/basics', {
+          userId: userId(req),
+          method: 'POST',
+          body,
+          operation: { id: operationId, name: 'basics-save', requestHash },
+        }),
     });
     return res.json(result);
   } catch (error) {
@@ -461,7 +486,14 @@ router.post('/birth', async (req, res) => {
       userId: userId(req),
       operation: 'birth-save',
       idempotencyKey: key,
-      executor: () => engine.json('/internal/birth', { userId: userId(req), method: 'POST', body }),
+      requestPayload: body,
+      executor: ({ operationId, requestHash }) =>
+        engine.json('/internal/birth', {
+          userId: userId(req),
+          method: 'POST',
+          body,
+          operation: { id: operationId, name: 'birth-save', requestHash },
+        }),
     });
     return res.json(result);
   } catch (error) {
@@ -487,11 +519,13 @@ router.post('/map/houses/annotate', async (req, res) => {
       userId: userId(req),
       operation: 'map-house-annotate',
       idempotencyKey: key,
-      executor: () =>
+      requestPayload: { houseKey, action, text },
+      executor: ({ operationId, requestHash }) =>
         engine.json('/internal/map/houses/annotate', {
           userId: userId(req),
           method: 'POST',
           body: { houseKey, action, text },
+          operation: { id: operationId, name: 'map-house-annotate', requestHash },
         }),
     });
     return res.json(result);
@@ -517,11 +551,13 @@ router.post('/dossier/annotate', async (req, res) => {
       userId: userId(req),
       operation: 'dossier-annotate',
       idempotencyKey: key,
-      executor: () =>
+      requestPayload: { section, entryId, action, text },
+      executor: ({ operationId, requestHash }) =>
         engine.json('/internal/dossier/annotate', {
           userId: userId(req),
           method: 'POST',
           body: { section, entryId, action, text },
+          operation: { id: operationId, name: 'dossier-annotate', requestHash },
         }),
     });
     return res.json(result);

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { randomUUID } = require('crypto');
+const { createHash, randomUUID } = require('crypto');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LEASE_MS = 15 * 1000;
@@ -11,13 +11,19 @@ const operationSchema = new mongoose.Schema(
     user: { type: String, required: true },
     operation: { type: String, required: true },
     idempotencyKey: { type: String, required: true },
-    result: { type: mongoose.Schema.Types.Mixed, required: true },
+    operationId: { type: String },
+    requestHash: { type: String },
+    status: { type: String, enum: ['prepared', 'completed'] },
+    result: { type: mongoose.Schema.Types.Mixed },
+    replayAcrossKeys: { type: Boolean },
+    completedAt: { type: Date },
     expiresAt: { type: Date, required: true },
   },
   { timestamps: true },
 );
 operationSchema.index({ user: 1, operation: 1, idempotencyKey: 1 }, { unique: true });
 operationSchema.index({ user: 1, operation: 1, createdAt: -1 });
+operationSchema.index({ user: 1, operation: 1, requestHash: 1, createdAt: -1 });
 operationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const lockSchema = new mongoose.Schema({
@@ -35,6 +41,14 @@ class LifeOperationPendingError extends Error {
   constructor(operation) {
     super(`life operation pending: ${operation}`);
     this.name = 'LifeOperationPendingError';
+  }
+}
+
+class LifeOperationConflictError extends Error {
+  constructor(operation) {
+    super(`idempotency key payload conflict: ${operation}`);
+    this.name = 'LifeOperationConflictError';
+    this.code = 'LIFE_OPERATION_CONFLICT';
   }
 }
 
@@ -66,43 +80,87 @@ async function releaseLock(key, ownerRequestId) {
   await LifeLock.deleteOne({ key, ownerRequestId });
 }
 
-async function findReplayable({ userId, operation, idempotencyKey, replayWindowMs }) {
-  const byKey = await LifeOperation.findOne({ user: userId, operation, idempotencyKey }).lean();
-  if (byKey) {
-    return byKey.result;
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map((item) => stableJson(item)).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.keys(value)
+      .filter((key) => value[key] !== undefined)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`);
+    return `{${entries.join(',')}}`;
   }
-  if (!replayWindowMs) {
-    return null;
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+function hashLifeOperationPayload(value) {
+  return createHash('sha256').update(stableJson(value)).digest('hex');
+}
+
+function isCompleted(row) {
+  return Boolean(row && (row.status === 'completed' || (!row.status && row.result !== undefined)));
+}
+
+function assertMatchingRequest(row, requestHash, operation) {
+  if (row?.requestHash && row.requestHash !== requestHash) {
+    throw new LifeOperationConflictError(operation);
   }
-  const latest = await LifeOperation.findOne({
+}
+
+async function findByKey({ userId, operation, idempotencyKey }) {
+  return LifeOperation.findOne({ user: userId, operation, idempotencyKey }).lean();
+}
+
+async function findWindowCandidate({ userId, operation, requestHash, replayWindowMs }) {
+  if (!replayWindowMs) return null;
+  return LifeOperation.findOne({
     user: userId,
     operation,
+    requestHash,
     createdAt: { $gte: new Date(Date.now() - replayWindowMs) },
+    $or: [{ status: 'prepared' }, { status: 'completed', replayAcrossKeys: true }],
   })
     .sort({ createdAt: -1 })
     .lean();
-  return latest ? latest.result : null;
+}
+
+async function completedReplay({ userId, operation, idempotencyKey, requestHash, replayWindowMs }) {
+  const byKey = await findByKey({ userId, operation, idempotencyKey });
+  if (byKey) {
+    assertMatchingRequest(byKey, requestHash, operation);
+    if (isCompleted(byKey)) return byKey.result;
+    return null;
+  }
+  const latest = await findWindowCandidate({ userId, operation, requestHash, replayWindowMs });
+  return latest && isCompleted(latest) ? latest.result : null;
 }
 
 /**
  * Runs a life-design write exactly once per user gesture.
  *
- * Idempotency-Key replays the stored result; a per-user lease lock serializes
- * concurrent requests (tabs/devices with different keys); `replayWindowMs`
- * additionally replays the latest completed operation of the same type across
- * keys, so competing tabs converge on one result instead of duplicating it.
- * `persistIf` lets read-only outcomes (e.g. "restored") skip persistence.
+ * Mongo first persists a stable operationId + requestHash before calling the
+ * executor. The executor must pass that identity to future-engine, which stores
+ * its result receipt in the same atomic commit as the profile mutation. If the
+ * engine succeeds but Mongo completion fails, a retry reuses the same operationId
+ * and the engine replays without repeating the side effect.
  */
 async function runLifeOperation({
   userId,
   operation,
   idempotencyKey,
+  requestPayload = null,
   replayWindowMs = 0,
   persistIf,
   executor,
   attempt = 0,
 }) {
-  const replayable = await findReplayable({ userId, operation, idempotencyKey, replayWindowMs });
+  const requestHash = hashLifeOperationPayload(requestPayload);
+  const replayable = await completedReplay({
+    userId,
+    operation,
+    idempotencyKey,
+    requestHash,
+    replayWindowMs,
+  });
   if (replayable) {
     return { ...replayable, replayed: true };
   }
@@ -113,10 +171,11 @@ async function runLifeOperation({
   if (!acquired) {
     for (let i = 0; i < POLL_ATTEMPTS; i += 1) {
       await sleep(POLL_INTERVAL_MS);
-      const settled = await findReplayable({
+      const settled = await completedReplay({
         userId,
         operation,
         idempotencyKey,
+        requestHash,
         replayWindowMs: replayWindowMs || DAY_MS,
       });
       if (settled) {
@@ -128,6 +187,7 @@ async function runLifeOperation({
         userId,
         operation,
         idempotencyKey,
+        requestPayload,
         replayWindowMs,
         persistIf,
         executor,
@@ -138,19 +198,75 @@ async function runLifeOperation({
   }
 
   try {
-    const settled = await findReplayable({ userId, operation, idempotencyKey, replayWindowMs });
+    const settled = await completedReplay({
+      userId,
+      operation,
+      idempotencyKey,
+      requestHash,
+      replayWindowMs,
+    });
     if (settled) {
       return { ...settled, replayed: true };
     }
-    const result = await executor();
-    if (persistIf == null || persistIf(result)) {
-      await LifeOperation.create({
-        user: userId,
+
+    let prepared = await findByKey({ userId, operation, idempotencyKey });
+    if (prepared) {
+      assertMatchingRequest(prepared, requestHash, operation);
+    } else {
+      const candidate = await findWindowCandidate({
+        userId,
         operation,
-        idempotencyKey,
-        result,
-        expiresAt: new Date(Date.now() + DAY_MS),
+        requestHash,
+        replayWindowMs,
       });
+      const operationId = candidate?.operationId || randomUUID();
+      try {
+        const created = await LifeOperation.create({
+          user: userId,
+          operation,
+          idempotencyKey,
+          operationId,
+          requestHash,
+          status: 'prepared',
+          expiresAt: new Date(Date.now() + DAY_MS),
+        });
+        prepared = created.toObject();
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+        prepared = await findByKey({ userId, operation, idempotencyKey });
+        assertMatchingRequest(prepared, requestHash, operation);
+      }
+    }
+
+    if (isCompleted(prepared)) {
+      return { ...prepared.result, replayed: true };
+    }
+    if (!prepared?.operationId) {
+      throw new LifeOperationPendingError(operation);
+    }
+
+    const result = await executor({ operationId: prepared.operationId, requestHash });
+    const replayAcrossKeys = persistIf == null || persistIf(result);
+    const completed = await LifeOperation.findOneAndUpdate(
+      { _id: prepared._id, status: 'prepared', operationId: prepared.operationId, requestHash },
+      {
+        $set: {
+          status: 'completed',
+          result,
+          replayAcrossKeys,
+          completedAt: new Date(),
+          expiresAt: new Date(Date.now() + DAY_MS),
+        },
+      },
+      { new: true },
+    );
+    if (!completed) {
+      const known = await findByKey({ userId, operation, idempotencyKey });
+      assertMatchingRequest(known, requestHash, operation);
+      if (isCompleted(known)) {
+        return { ...known.result, replayed: true };
+      }
+      throw new LifeOperationPendingError(operation);
     }
     return { ...result, replayed: false };
   } finally {
@@ -158,4 +274,11 @@ async function runLifeOperation({
   }
 }
 
-module.exports = { runLifeOperation, LifeOperationPendingError, LifeOperation, LifeLock };
+module.exports = {
+  runLifeOperation,
+  LifeOperationPendingError,
+  LifeOperationConflictError,
+  LifeOperation,
+  LifeLock,
+  hashLifeOperationPayload,
+};

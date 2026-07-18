@@ -84,18 +84,30 @@ describe('runLifeOperation', () => {
     expect(second.snapshot).toBe(2);
   });
 
-  it('skips persistence when persistIf returns false', async () => {
+  it('keeps same-key recovery but excludes persistIf=false results from cross-key replay', async () => {
     const executor = jest.fn().mockResolvedValue({ action: 'restored' });
 
     await runLifeOperation({
       userId: 'u1',
       operation: 'resume-create',
       idempotencyKey: 'k1',
+      requestPayload: { action: 'resume-create' },
+      replayWindowMs: 10 * 60 * 1000,
+      persistIf: (result) => result.action === 'new',
+      executor,
+    });
+    await runLifeOperation({
+      userId: 'u1',
+      operation: 'resume-create',
+      idempotencyKey: 'k2',
+      requestPayload: { action: 'resume-create' },
+      replayWindowMs: 10 * 60 * 1000,
       persistIf: (result) => result.action === 'new',
       executor,
     });
 
-    expect(await LifeOperation.countDocuments({})).toBe(0);
+    expect(executor).toHaveBeenCalledTimes(2);
+    expect(await LifeOperation.countDocuments({ status: 'completed' })).toBe(2);
   });
 
   it('does not persist a failed execution, allowing retry with the same key', async () => {
@@ -110,6 +122,95 @@ describe('runLifeOperation', () => {
 
     expect(retried).toEqual({ ok: true, replayed: false });
     expect(executor).toHaveBeenCalledTimes(2);
+  });
+
+  it('reuses one stable operation id when the engine committed but the Mongo receipt failed', async () => {
+    const committed = new Map();
+    const preparedStates = [];
+    let sideEffects = 0;
+    const executor = jest.fn(async (context = {}) => {
+      preparedStates.push(
+        await LifeOperation.findOne({
+          user: 'u1',
+          operation: 'blood-bars',
+          idempotencyKey: 'k1',
+        }).lean(),
+      );
+      const operationId = context.operationId || `legacy-${executor.mock.calls.length}`;
+      const known = committed.get(operationId);
+      if (known) {
+        if (known.requestHash !== context.requestHash) {
+          const conflict = new Error('operation payload conflict');
+          conflict.code = 'LIFE_OPERATION_CONFLICT';
+          throw conflict;
+        }
+        return known.result;
+      }
+      sideEffects += 1;
+      const result = { snapshot: sideEffects };
+      committed.set(operationId, { requestHash: context.requestHash, result });
+      return result;
+    });
+
+    const originalCreate = LifeOperation.create.bind(LifeOperation);
+    const originalFindOneAndUpdate = LifeOperation.findOneAndUpdate.bind(LifeOperation);
+    let failCompletion = true;
+    const createSpy = jest.spyOn(LifeOperation, 'create').mockImplementation(async (document) => {
+      if (document?.result && failCompletion) {
+        failCompletion = false;
+        throw new Error('Mongo receipt write failed');
+      }
+      return originalCreate(document);
+    });
+    const updateSpy = jest
+      .spyOn(LifeOperation, 'findOneAndUpdate')
+      .mockImplementation(async (filter, update, options) => {
+        if (update?.$set?.status === 'completed' && failCompletion) {
+          failCompletion = false;
+          throw new Error('Mongo receipt write failed');
+        }
+        return originalFindOneAndUpdate(filter, update, options);
+      });
+
+    const request = {
+      userId: 'u1',
+      operation: 'blood-bars',
+      idempotencyKey: 'k1',
+      requestPayload: { dashboards: { health: 5, work: 4, play: 3, love: 2 } },
+      executor,
+    };
+
+    try {
+      await expect(runLifeOperation(request)).rejects.toThrow('Mongo receipt write failed');
+      const retried = await runLifeOperation(request);
+
+      expect(sideEffects).toBe(1);
+      expect(executor).toHaveBeenCalledTimes(2);
+      expect(preparedStates).toHaveLength(2);
+      expect(preparedStates.every((row) => row?.status === 'prepared')).toBe(true);
+      expect(preparedStates[0].operationId).toBe(executor.mock.calls[0][0].operationId);
+      expect(executor.mock.calls[0][0].operationId).toBe(executor.mock.calls[1][0].operationId);
+      expect(retried).toEqual({ snapshot: 1, replayed: false });
+    } finally {
+      createSpy.mockRestore();
+      updateSpy.mockRestore();
+    }
+  });
+
+  it('rejects one idempotency key reused with a different payload', async () => {
+    const executor = jest.fn().mockResolvedValue({ ok: true });
+    const base = {
+      userId: 'u1',
+      operation: 'basics-save',
+      idempotencyKey: 'k1',
+      executor,
+    };
+
+    await runLifeOperation({ ...base, requestPayload: { nickname: '甲' } });
+    await expect(
+      runLifeOperation({ ...base, requestPayload: { nickname: '乙' } }),
+    ).rejects.toMatchObject({ code: 'LIFE_OPERATION_CONFLICT' });
+    expect(executor).toHaveBeenCalledTimes(1);
   });
 
   it('serializes concurrent tabs with different keys onto one result', async () => {

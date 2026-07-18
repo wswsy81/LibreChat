@@ -13,6 +13,11 @@ export interface LifeEngineRequestOptions {
   userId?: string;
   method?: 'GET' | 'POST' | 'DELETE';
   body?: object;
+  operation?: {
+    id: string;
+    name: string;
+    requestHash: string;
+  };
 }
 
 export interface LifeEngineClient {
@@ -50,6 +55,11 @@ export function createLifeEngineClient({
     }
     if (options.body) {
       headers['Content-Type'] = 'application/json';
+    }
+    if (options.operation) {
+      headers['X-Life-Operation-Id'] = options.operation.id;
+      headers['X-Life-Operation'] = options.operation.name;
+      headers['X-Life-Request-Hash'] = options.operation.requestHash;
     }
     return fetch(`${root}${path}`, {
       method: options.method ?? 'GET',

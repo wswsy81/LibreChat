@@ -36,6 +36,7 @@ jest.mock('~/server/middleware/limiters', () => ({
 jest.mock('~/server/services/lifeOperations', () => ({
   runLifeOperation: (...args) => mockRunLifeOperation(...args),
   LifeOperationPendingError: class LifeOperationPendingError extends Error {},
+  LifeOperationConflictError: class LifeOperationConflictError extends Error {},
 }));
 jest.mock('~/server/middleware/optionalJwtAuth', () => (_req, _res, next) => next());
 jest.mock('~/server/middleware/requireJwtAuth', () => (_req, _res, next) => next());
@@ -64,8 +65,11 @@ function buildApp(user) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockFindOne.mockReturnValue(conversationQuery(null));
-  mockRunLifeOperation.mockImplementation(async ({ executor }) => ({
-    ...(await executor()),
+  mockRunLifeOperation.mockImplementation(async ({ executor, operation }) => ({
+    ...(await executor({
+      operationId: `operation-${operation}`,
+      requestHash: 'a'.repeat(64),
+    })),
     replayed: false,
   }));
 });
@@ -181,6 +185,23 @@ test('resume restores an existing conversation and only creates D-mode when none
   expect(decodeURIComponent(created.body.route)).toContain('先读回我的人生存档');
 });
 
+test('same idempotency key with changed payload returns a non-retryable 409', async () => {
+  const error = new Error('payload conflict');
+  error.code = 'LIFE_OPERATION_CONFLICT';
+  mockRunLifeOperation.mockRejectedValueOnce(error);
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' }))
+    .post('/api/life/basics')
+    .set('Idempotency-Key', 'same-key')
+    .send({ nickname: '另一个值' });
+
+  expect(response.status).toBe(409);
+  expect(response.body.error).toMatchObject({
+    code: 'LIFE_OPERATION_CONFLICT',
+    retryable: false,
+  });
+});
+
 test('inbox trims captures, proxies the trusted user, and rejects empty text', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
 
@@ -287,6 +308,11 @@ test('N1: map html passes view=full through; house annotate requires idempotency
     userId: 'user-1',
     method: 'POST',
     body: { houseKey: 'h2', action: 'keep', text: undefined },
+    operation: {
+      id: 'operation-map-house-annotate',
+      name: 'map-house-annotate',
+      requestHash: 'a'.repeat(64),
+    },
   });
 
   const invalid = await request(app)
