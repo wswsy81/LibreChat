@@ -1173,6 +1173,45 @@ class AgentClient extends BaseClient {
     return countFormattedMessageTokens({ role: 'assistant', content }, this.getEncoding());
   }
 
+  seedUsageBudgetBaseline(payload) {
+    const budget = this.options.usageBudget;
+    if (!budget || !Array.isArray(payload)) return;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let costUsd = 0;
+    let allHaveCost = true;
+    for (const message of payload) {
+      const usage = message?.metadata?.usage;
+      if (!usage) continue;
+      inputTokens +=
+        (Number(usage.input) || 0) +
+        (Number(usage.cacheWrite) || 0) +
+        (Number(usage.cacheRead) || 0);
+      outputTokens += Number(usage.output) || 0;
+      if (Number.isFinite(Number(usage.cost))) costUsd += Number(usage.cost);
+      else allHaveCost = false;
+    }
+    if (!allHaveCost && (inputTokens || outputTokens)) {
+      try {
+        costUsd = computeUsageCostUSD(
+          {
+            model: this.model,
+            input_tokens: inputTokens,
+            output_tokens: outputTokens,
+            total_tokens: inputTokens + outputTokens,
+          },
+          { getMultiplier: db.getMultiplier, getCacheMultiplier: db.getCacheMultiplier },
+          this.options.endpointTokenConfig,
+        );
+      } catch (_) {
+        costUsd = 0;
+      }
+    }
+    budget.baselineInputTokens = inputTokens;
+    budget.baselineOutputTokens = outputTokens;
+    budget.baselineCostUsd = costUsd;
+  }
+
   /**
    * @param {object} params
    * @param {string | ChatCompletionMessageParam[]} params.payload
@@ -1352,6 +1391,7 @@ class AgentClient extends BaseClient {
       if (!abortController) {
         abortController = new AbortController();
       }
+      this.seedUsageBudgetBaseline(payload);
 
       /** @type {AppConfig['endpoints']['agents']} */
       const agentsEConfig = appConfig.endpoints?.[EModelEndpoint.agents];
@@ -1715,10 +1755,17 @@ class AgentClient extends BaseClient {
           '[api/server/controllers/agents/client.js #sendCompletion] Unhandled error type',
           err,
         );
-        this.contentParts.push({
-          type: ContentTypes.ERROR,
-          [ContentTypes.ERROR]: `An error occurred while processing the request${err?.message ? `: ${err.message}` : ''}`,
-        });
+        if (err?.code === 'FUTURE_USAGE_BUDGET_EXCEEDED') {
+          this.contentParts.push({
+            type: ContentTypes.TEXT,
+            [ContentTypes.TEXT]: err.userMessage,
+          });
+        } else {
+          this.contentParts.push({
+            type: ContentTypes.ERROR,
+            [ContentTypes.ERROR]: `An error occurred while processing the request${err?.message ? `: ${err.message}` : ''}`,
+          });
+        }
       }
     } finally {
       /** Capture calibration state from the run for persistence on the response message.
@@ -1997,10 +2044,17 @@ class AgentClient extends BaseClient {
           '[api/server/controllers/agents/client.js #resumeCompletion] Unhandled error',
           err,
         );
-        this.contentParts.push({
-          type: ContentTypes.ERROR,
-          [ContentTypes.ERROR]: `An error occurred while resuming the request${err?.message ? `: ${err.message}` : ''}`,
-        });
+        if (err?.code === 'FUTURE_USAGE_BUDGET_EXCEEDED') {
+          this.contentParts.push({
+            type: ContentTypes.TEXT,
+            [ContentTypes.TEXT]: err.userMessage,
+          });
+        } else {
+          this.contentParts.push({
+            type: ContentTypes.ERROR,
+            [ContentTypes.ERROR]: `An error occurred while resuming the request${err?.message ? `: ${err.message}` : ''}`,
+          });
+        }
       }
     } finally {
       const ratio = this.run?.getCalibrationRatio() ?? 0;

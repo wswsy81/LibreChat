@@ -80,6 +80,9 @@ services:
       - ./packages/data-provider/dist:/app/packages/data-provider/dist:ro
       - ./api/server/index.js:/app/api/server/index.js:ro
       - ./api/server/controllers/UserController.js:/app/api/server/controllers/UserController.js:ro
+      - ./api/server/controllers/agents/callbacks.js:/app/api/server/controllers/agents/callbacks.js:ro
+      - ./api/server/controllers/agents/client.js:/app/api/server/controllers/agents/client.js:ro
+      - ./api/server/services/Endpoints/agents/initialize.js:/app/api/server/services/Endpoints/agents/initialize.js:ro
       - ./api/server/routes/config.js:/app/api/server/routes/config.js:ro
       - ./api/server/routes/index.js:/app/api/server/routes/index.js:ro
       - ./api/server/routes/life.js:/app/api/server/routes/life.js:ro

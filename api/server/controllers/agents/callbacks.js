@@ -195,6 +195,89 @@ class ModelEndHandler {
   }
 }
 
+function summarizeUsageBudget(collectedUsage, usageBudget, usageCost) {
+  const rows = Array.isArray(collectedUsage) ? collectedUsage : [];
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let costUsd = 0;
+  let pricedCalls = 0;
+  for (const usage of rows) {
+    if (!usage) continue;
+    inputTokens += Number(usage.input_tokens ?? usage.prompt_tokens) || 0;
+    outputTokens += Number(usage.output_tokens ?? usage.completion_tokens) || 0;
+    try {
+      const endpointTokenConfig = usageCost?.resolveEndpointTokenConfig
+        ? usageCost.resolveEndpointTokenConfig(usage)
+        : usageCost?.endpointTokenConfig;
+      costUsd += computeUsageCostUSD(usage, usageCost.pricing, endpointTokenConfig);
+      pricedCalls += 1;
+    } catch (_) {
+      // Token hard limits remain authoritative when a custom price is unavailable.
+    }
+  }
+  const baselineInputTokens = Number(usageBudget.baselineInputTokens) || 0;
+  const baselineOutputTokens = Number(usageBudget.baselineOutputTokens) || 0;
+  const baselineCostUsd = Number(usageBudget.baselineCostUsd) || 0;
+  const chapterInputTokens = baselineInputTokens + inputTokens;
+  const chapterOutputTokens = baselineOutputTokens + outputTokens;
+  const chapterCostUsd = baselineCostUsd + costUsd;
+  const pricingComplete = pricedCalls === rows.filter(Boolean).length;
+  const hardReasons = [];
+  if (inputTokens >= usageBudget.maxInputTokens) hardReasons.push('input_tokens');
+  if (outputTokens >= usageBudget.maxOutputTokens) hardReasons.push('output_tokens');
+  if (pricingComplete && costUsd >= usageBudget.maxUsd) hardReasons.push('usd');
+  if (chapterInputTokens >= usageBudget.maxChapterInputTokens)
+    hardReasons.push('chapter_input_tokens');
+  if (chapterOutputTokens >= usageBudget.maxChapterOutputTokens)
+    hardReasons.push('chapter_output_tokens');
+  if (pricingComplete && chapterCostUsd >= usageBudget.maxChapterUsd)
+    hardReasons.push('chapter_usd');
+  return {
+    calls: rows.filter(Boolean).length,
+    inputTokens,
+    outputTokens,
+    costUsd,
+    chapterInputTokens,
+    chapterOutputTokens,
+    chapterCostUsd,
+    pricedCalls,
+    softExceeded:
+      pricedCalls > 0 &&
+      (costUsd >= usageBudget.softUsd || chapterCostUsd >= usageBudget.softChapterUsd),
+    hardExceeded: hardReasons.length > 0,
+    hardReasons,
+  };
+}
+
+class BudgetedModelEndHandler extends ModelEndHandler {
+  constructor(collectedUsage, collectedThoughtSignatures, emitUsage, usageBudget, usageCost) {
+    super(collectedUsage, collectedThoughtSignatures, emitUsage);
+    this.usageBudget = usageBudget;
+    this.usageCost = usageCost;
+    this.softLogged = false;
+  }
+
+  async handle(event, data, metadata, graph) {
+    await super.handle(event, data, metadata, graph);
+    const summary = summarizeUsageBudget(this.collectedUsage, this.usageBudget, this.usageCost);
+    if (summary.softExceeded && !this.softLogged) {
+      this.softLogged = true;
+      logger.warn('[FutureUsageBudget] soft limit reached', summary);
+    }
+    if (!summary.hardExceeded) return;
+    const error = new Error(
+      `已触发成本保护线（本回合 ${summary.inputTokens} input / ${summary.outputTokens} output / $${summary.costUsd.toFixed(4)}；本章 $${summary.chapterCostUsd.toFixed(4)}）`,
+    );
+    error.code = 'FUTURE_USAGE_BUDGET_EXCEEDED';
+    const chapterStopped = summary.hardReasons.some((reason) => reason.startsWith('chapter_'));
+    error.userMessage = chapterStopped
+      ? '这一章已经到成本保护线，我先停在这里，已完成的内容和存档都保留。请新开一段对话，从现有存档接着来。'
+      : '这一轮已经到成本保护线，我先停在这里，已完成的内容和存档都保留。你发送「继续」，会从这里接着来。';
+    error.budget = summary;
+    throw error;
+  }
+}
+
 /**
  * @deprecated Agent Chain helper
  * @param {string | undefined} [last_agent_id]
@@ -303,6 +386,7 @@ function getDefaultHandlers({
   usageCost = null,
   contextUsageSink = null,
   usageEmitSink = null,
+  usageBudget = null,
 }) {
   if (!res || !aggregateContent) {
     throw new Error(
@@ -341,12 +425,17 @@ function getDefaultHandlers({
     }
     return emitEvent(res, streamId, { event: UsageEvents.ON_TOKEN_USAGE, data: payload });
   };
+  const modelEndHandler = usageBudget
+    ? new BudgetedModelEndHandler(
+        collectedUsage,
+        collectedThoughtSignatures,
+        emitTokenUsage,
+        usageBudget,
+        usageCost,
+      )
+    : new ModelEndHandler(collectedUsage, collectedThoughtSignatures, emitTokenUsage);
   const handlers = {
-    [GraphEvents.CHAT_MODEL_END]: new ModelEndHandler(
-      collectedUsage,
-      collectedThoughtSignatures,
-      emitTokenUsage,
-    ),
+    [GraphEvents.CHAT_MODEL_END]: modelEndHandler,
     [GraphEvents.TOOL_END]: new ToolEndHandler(toolEndCallback, logger),
     [GraphEvents.ON_RUN_STEP]: {
       /**
@@ -1235,6 +1324,8 @@ function buildSummarizationHandlers({ isStreaming, res }) {
 
 module.exports = {
   ModelEndHandler,
+  BudgetedModelEndHandler,
+  summarizeUsageBudget,
   agentLogHandler,
   agentLogHandlerObj,
   getDefaultHandlers,
