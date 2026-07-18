@@ -455,7 +455,8 @@ router.post('/basics', async (req, res) => {
   const allowed = ['nickname', 'occupation', 'city', 'education', 'marital'];
   const body = {};
   for (const field of allowed) {
-    if (req.body?.[field] !== undefined) body[field] = String(req.body[field]);
+    const value = req.body?.[field];
+    if (value !== undefined) body[field] = value === null ? null : String(value);
   }
   try {
     const result = await runLifeOperation({

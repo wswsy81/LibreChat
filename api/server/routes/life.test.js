@@ -211,6 +211,24 @@ test('same idempotency key with changed payload returns a non-retryable 409', as
   });
 });
 
+test('basics preserves explicit null clears across the API boundary', async () => {
+  mockEngine.json.mockResolvedValue({ ok: true, basics: {} });
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' }))
+    .post('/api/life/basics')
+    .set('Idempotency-Key', 'clear-basics')
+    .send({ occupation: null, city: null });
+
+  expect(response.status).toBe(200);
+  expect(mockEngine.json).toHaveBeenCalledWith(
+    '/internal/basics',
+    expect.objectContaining({ body: { occupation: null, city: null } }),
+  );
+  expect(mockRunLifeOperation).toHaveBeenCalledWith(
+    expect.objectContaining({ requestPayload: { occupation: null, city: null } }),
+  );
+});
+
 test('inbox trims captures, proxies the trusted user, and rejects empty text', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
 
