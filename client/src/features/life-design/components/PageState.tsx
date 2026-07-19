@@ -1,22 +1,7 @@
-import { LoaderCircle } from 'lucide-react';
 import { Button } from '@librechat/client';
 import { useLocalize } from '~/hooks';
 
-export function LifeLoading({ fullScreen = false }: { fullScreen?: boolean }) {
-  const localize = useLocalize();
-  return (
-    <main
-      className={`flex items-center justify-center bg-surface-primary ${fullScreen ? 'min-h-screen' : 'h-full min-h-96'}`}
-      aria-busy="true"
-      aria-label={localize('com_life_loading')}
-    >
-      <div className="flex items-center gap-3 text-life-sm text-text-secondary">
-        <LoaderCircle className="h-5 w-5 animate-spin text-life-cinnabar" />
-        {localize('com_life_loading')}
-      </div>
-    </main>
-  );
-}
+export { default as LifeLoading } from './LifeLoading';
 
 export function LifeError({
   title,

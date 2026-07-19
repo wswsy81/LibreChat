@@ -1,23 +1,23 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { RecoilRoot } from 'recoil';
-import { DndProvider } from 'react-dnd';
 import { RouterProvider } from 'react-router-dom';
 import * as RadixToast from '@radix-ui/react-toast';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 import { QueryClient, QueryClientProvider, QueryCache } from '@tanstack/react-query';
 import { Toast, ThemeProvider, ToastProvider, useInputModality } from '@librechat/client';
-import { ScreenshotProvider, useApiErrorBoundary } from './hooks';
-import WakeLockManager from '~/components/System/WakeLockManager';
-import QueryDevtoolsGate from '~/components/QueryDevtoolsGate';
+import { useApiErrorBoundary } from './hooks/ApiErrorBoundaryContext';
 import LanguageSync from '~/components/System/LanguageSync';
 import { getThemeFromEnv } from './utils/getThemeFromEnv';
 import { initializeFontSize } from '~/store/fontSize';
 import { LiveAnnouncer } from '~/a11y';
 import { router } from './routes';
 
+const LazyQueryDevtoolsGate = lazy(() => import('~/components/QueryDevtoolsGate'));
+
 const App = () => {
   const { setError } = useApiErrorBoundary();
   useInputModality();
+  const showQueryDevtools =
+    import.meta.env.DEV || window.__LIBRECHAT_CONFIG__?.enableQueryDevtools === true;
 
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -63,13 +63,14 @@ const App = () => {
                 4. Fall back to default theme colors if nothing is stored */}
             <RadixToast.Provider>
               <ToastProvider>
-                <DndProvider backend={HTML5Backend}>
-                  <RouterProvider router={router} />
-                  <WakeLockManager />
-                  <QueryDevtoolsGate />
-                  <Toast />
-                  <RadixToast.Viewport className="pointer-events-none fixed inset-0 z-[1000] mx-auto my-2 flex max-w-[560px] flex-col items-stretch justify-start md:pb-5" />
-                </DndProvider>
+                <RouterProvider router={router} />
+                {showQueryDevtools && (
+                  <Suspense fallback={null}>
+                    <LazyQueryDevtoolsGate />
+                  </Suspense>
+                )}
+                <Toast />
+                <RadixToast.Viewport className="pointer-events-none fixed inset-0 z-[1000] mx-auto my-2 flex max-w-[560px] flex-col items-stretch justify-start md:pb-5" />
               </ToastProvider>
             </RadixToast.Provider>
           </ThemeProvider>
@@ -80,7 +81,7 @@ const App = () => {
 };
 
 export default () => (
-  <ScreenshotProvider>
+  <>
     <App />
     <iframe
       src="assets/silence.mp3"
@@ -91,5 +92,5 @@ export default () => (
         display: 'none',
       }}
     />
-  </ScreenshotProvider>
+  </>
 );

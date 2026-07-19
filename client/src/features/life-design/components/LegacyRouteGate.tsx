@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import useUnifiedShell from '../hooks/useUnifiedShell';
-import { LifeLoading } from './PageState';
+import LifeLoading from './LifeLoading';
 
 /** Keeps LibreChat's generic product surfaces available only for the rollback mode. */
 export default function LegacyRouteGate({ children }: { children?: ReactElement }) {

@@ -1,4 +1,6 @@
 import { useEffect, useMemo } from 'react';
+import 'katex/dist/katex.min.css';
+import 'katex/dist/contrib/copy-tex.js';
 import { useRecoilValue } from 'recoil';
 import { Spinner, useToastContext } from '@librechat/client';
 import MinimalMessagesWrapper from '~/components/Chat/Messages/MinimalMessages';

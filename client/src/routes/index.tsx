@@ -1,56 +1,70 @@
-import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
-import {
-  Login,
-  VerifyEmail,
-  Registration,
-  ResetPassword,
-  ApiErrorWatcher,
-  TwoFactorScreen,
-  RequestPasswordReset,
-} from '~/components/Auth';
-import { MarketplaceProvider } from '~/components/Agents/MarketplaceContext';
-import AgentMarketplace from '~/components/Agents/Marketplace';
-import { OAuthSuccess, OAuthError } from '~/components/OAuth';
-import { AuthContextProvider } from '~/hooks/AuthContext';
-import {
-  AboutRoute,
-  AdminRoute,
-  ArchiveRoute,
-  EntryResolver,
-  HomeRoute,
-  InboxRoute,
-  LegacyRouteGate,
-  ReportRoute,
-  ResumeRoute,
-  SharedReportRoute,
-  ShellGate,
-} from '~/features/life-design';
-import WithRum from '~/lib/rum/WithRum';
-import RouteErrorBoundary from './RouteErrorBoundary';
-import StartupLayout from './Layouts/Startup';
-import LoginLayout from './Layouts/Login';
+import { lazy, Suspense } from 'react';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import type { ComponentType } from 'react';
+import LegacyRouteGate from '~/features/life-design/components/LegacyRouteGate';
 import dashboardRoutes from './Dashboard';
-import ShareRoute from './ShareRoute';
-import ChatRoute from './ChatRoute';
-import Search from './Search';
-import Root from './Root';
 
-const AuthLayout = () => (
-  <AuthContextProvider>
-    <WithRum>
-      <Outlet />
-    </WithRum>
-    <ApiErrorWatcher />
-  </AuthContextProvider>
+type DefaultComponentModule = { default: ComponentType };
+
+const loadDefaultComponent = (loader: () => Promise<DefaultComponentModule>) =>
+  loader().then(({ default: Component }) => ({ Component }));
+
+const loadShellComponent = (loader: () => Promise<DefaultComponentModule>) =>
+  Promise.all([loader(), import('~/features/life-design/components/ShellGate')]).then(
+    ([{ default: RouteComponent }, { default: ShellGate }]) => ({
+      Component: () => (
+        <ShellGate>
+          <RouteComponent />
+        </ShellGate>
+      ),
+    }),
+  );
+
+const loadAgentMarketplace = () =>
+  Promise.all([
+    import('~/components/Agents/Marketplace'),
+    import('~/components/Agents/MarketplaceContext'),
+  ]).then(([{ default: AgentMarketplace }, { MarketplaceProvider }]) => ({
+    Component: () => (
+      <MarketplaceProvider>
+        <AgentMarketplace />
+      </MarketplaceProvider>
+    ),
+  }));
+
+const LazyEntryResolver = lazy(() => import('~/features/life-design/routes/EntryResolver'));
+const LazyRouteErrorBoundary = lazy(() => import('./RouteErrorBoundary'));
+const LazyAuthLayout = lazy(() =>
+  import('./Layouts/Auth').then(({ AuthLayout }) => ({ default: AuthLayout })),
+);
+const LazyOptionalAuthLayout = lazy(() =>
+  import('./Layouts/Auth').then(({ OptionalAuthLayout }) => ({ default: OptionalAuthLayout })),
 );
 
-const OptionalAuthLayout = () => (
-  <AuthContextProvider allowAnonymous>
-    <WithRum>
-      <Outlet />
-    </WithRum>
-    <ApiErrorWatcher />
-  </AuthContextProvider>
+const RouteFallback = () => <div className="min-h-screen bg-life-paper" aria-busy="true" />;
+
+const EntryRoute = () => (
+  <Suspense fallback={<RouteFallback />}>
+    <LazyEntryResolver />
+  </Suspense>
+);
+
+const RouteError = () => (
+  <Suspense fallback={<RouteFallback />}>
+    <LazyRouteErrorBoundary />
+  </Suspense>
+);
+
+const AuthRoute = () => (
+  <Suspense fallback={<RouteFallback />}>
+    <LazyAuthLayout />
+  </Suspense>
+);
+
+const OptionalAuthRoute = () => (
+  <Suspense fallback={<RouteFallback />}>
+    <LazyOptionalAuthLayout />
+  </Suspense>
 );
 
 const loadInlinePromptsView = () =>
@@ -80,89 +94,88 @@ export const router = createBrowserRouter(
   [
     {
       path: 's/archive/:shareToken',
-      element: <SharedReportRoute />,
-      errorElement: <RouteErrorBoundary />,
+      lazy: () =>
+        loadDefaultComponent(() => import('~/features/life-design/routes/SharedReportRoute')),
+      errorElement: <RouteError />,
     },
     {
       path: 'share/:shareId',
-      element: (
-        <LegacyRouteGate>
-          <ShareRoute />
-        </LegacyRouteGate>
-      ),
-      errorElement: <RouteErrorBoundary />,
+      element: <LegacyRouteGate />,
+      errorElement: <RouteError />,
+      children: [
+        {
+          index: true,
+          lazy: () => loadDefaultComponent(() => import('./ShareRoute')),
+        },
+      ],
     },
     {
-      element: <OptionalAuthLayout />,
-      errorElement: <RouteErrorBoundary />,
+      element: <OptionalAuthRoute />,
+      errorElement: <RouteError />,
       children: [
         {
           path: '/',
-          element: <EntryResolver />,
+          element: <EntryRoute />,
         },
         {
           path: 'home',
-          element: (
-            <ShellGate>
-              <HomeRoute />
-            </ShellGate>
-          ),
+          lazy: () => loadShellComponent(() => import('~/features/life-design/routes/HomeRoute')),
         },
       ],
     },
     {
       path: 'oauth',
-      errorElement: <RouteErrorBoundary />,
+      errorElement: <RouteError />,
       children: [
         {
           path: 'success',
-          element: <OAuthSuccess />,
+          lazy: () => loadDefaultComponent(() => import('~/components/OAuth/OAuthSuccess')),
         },
         {
           path: 'error',
-          element: <OAuthError />,
+          lazy: () => loadDefaultComponent(() => import('~/components/OAuth/OAuthError')),
         },
       ],
     },
     {
       path: '/',
-      element: <StartupLayout />,
-      errorElement: <RouteErrorBoundary />,
+      lazy: () => loadDefaultComponent(() => import('./Layouts/Startup')),
+      errorElement: <RouteError />,
       children: [
         {
           path: 'register',
-          element: <Registration />,
+          lazy: () => loadDefaultComponent(() => import('~/components/Auth/Registration')),
         },
         {
           path: 'forgot-password',
-          element: <RequestPasswordReset />,
+          lazy: () => loadDefaultComponent(() => import('~/components/Auth/RequestPasswordReset')),
         },
         {
           path: 'reset-password',
-          element: <ResetPassword />,
+          lazy: () => loadDefaultComponent(() => import('~/components/Auth/ResetPassword')),
         },
       ],
     },
     {
       path: 'verify',
-      element: <VerifyEmail />,
-      errorElement: <RouteErrorBoundary />,
+      lazy: () => loadDefaultComponent(() => import('~/components/Auth/VerifyEmail')),
+      errorElement: <RouteError />,
     },
     {
-      element: <AuthLayout />,
-      errorElement: <RouteErrorBoundary />,
+      element: <AuthRoute />,
+      errorElement: <RouteError />,
       children: [
         {
           path: '/',
-          element: <LoginLayout />,
+          lazy: () => loadDefaultComponent(() => import('./Layouts/Login')),
           children: [
             {
               path: 'login',
-              element: <Login />,
+              lazy: () => loadDefaultComponent(() => import('~/components/Auth/Login')),
             },
             {
               path: 'login/2fa',
-              element: <TwoFactorScreen />,
+              lazy: () => loadDefaultComponent(() => import('~/components/Auth/TwoFactorScreen')),
             },
           ],
         },
@@ -172,66 +185,48 @@ export const router = createBrowserRouter(
         },
         {
           path: '/',
-          element: <Root />,
+          lazy: () => loadDefaultComponent(() => import('./Root')),
           children: [
             {
               path: 'resume',
-              element: (
-                <ShellGate>
-                  <ResumeRoute />
-                </ShellGate>
-              ),
+              lazy: () =>
+                loadShellComponent(() => import('~/features/life-design/routes/ResumeRoute')),
             },
             {
               path: 'archive',
-              element: (
-                <ShellGate>
-                  <ArchiveRoute />
-                </ShellGate>
-              ),
+              lazy: () =>
+                loadShellComponent(() => import('~/features/life-design/routes/ArchiveRoute')),
             },
             {
               path: 'inbox',
-              element: (
-                <ShellGate>
-                  <InboxRoute />
-                </ShellGate>
-              ),
+              lazy: () =>
+                loadShellComponent(() => import('~/features/life-design/routes/InboxRoute')),
             },
             {
               path: 'admin',
-              element: (
-                <ShellGate>
-                  <AdminRoute />
-                </ShellGate>
-              ),
+              lazy: () =>
+                loadShellComponent(() => import('~/features/life-design/routes/AdminRoute')),
             },
             {
               path: 'about',
-              element: (
-                <ShellGate>
-                  <AboutRoute />
-                </ShellGate>
-              ),
+              lazy: () =>
+                loadShellComponent(() => import('~/features/life-design/routes/AboutRoute')),
             },
             {
               path: 'archive/reports/:reportId',
-              element: (
-                <ShellGate>
-                  <ReportRoute />
-                </ShellGate>
-              ),
+              lazy: () =>
+                loadShellComponent(() => import('~/features/life-design/routes/ReportRoute')),
             },
             {
               path: 'c/:conversationId?',
-              element: <ChatRoute />,
+              lazy: () => loadDefaultComponent(() => import('./ChatRoute')),
             },
             {
               element: <LegacyRouteGate />,
               children: [
                 {
                   path: 'search',
-                  element: <Search />,
+                  lazy: () => loadDefaultComponent(() => import('./Search')),
                 },
                 {
                   path: 'prompts',
@@ -271,19 +266,11 @@ export const router = createBrowserRouter(
                 },
                 {
                   path: 'agents',
-                  element: (
-                    <MarketplaceProvider>
-                      <AgentMarketplace />
-                    </MarketplaceProvider>
-                  ),
+                  lazy: loadAgentMarketplace,
                 },
                 {
                   path: 'agents/:category',
-                  element: (
-                    <MarketplaceProvider>
-                      <AgentMarketplace />
-                    </MarketplaceProvider>
-                  ),
+                  lazy: loadAgentMarketplace,
                 },
               ],
             },

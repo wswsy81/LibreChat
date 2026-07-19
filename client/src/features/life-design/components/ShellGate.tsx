@@ -1,7 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import useUnifiedShell from '../hooks/useUnifiedShell';
-import { LifeLoading } from './PageState';
+import LifeLoading from './LifeLoading';
 
 /** Redirects life-design pages into LibreChat safe chat mode when the unified shell is off. */
 export default function ShellGate({ children }: { children: ReactElement }) {

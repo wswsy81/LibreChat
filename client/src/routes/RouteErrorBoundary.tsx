@@ -1,6 +1,6 @@
 import { Button } from '@librechat/client';
 import { useRouteError } from 'react-router-dom';
-import { useLocalize } from '~/hooks';
+import useLocalize from '~/hooks/useLocalize';
 import logger from '~/utils/logger';
 
 interface UserAgentData {

@@ -182,18 +182,22 @@ export default defineConfig(({ command }) => ({
     sourcemap: buildSourceMap,
     outDir: './dist',
     minify: 'oxc',
-    // 人生设计室:把只在特定场景才用到的重块踢出首屏 modulepreload
-    // (mermaid 画图 2.7M / sandpack 代码沙箱 / codemirror 编辑器)。
-    // 它们仍在真正需要时按需加载,只是不再每次打开都预拉、拖慢中国跨境首屏。
-    modulePreload: {
-      resolveDependencies: (_filename: string, deps: string[]) =>
-        deps.filter((dep) => !/(mermaid|sandpack|codemirror)/.test(dep)),
-    },
+    // Rolldown 会把 Vite 的 modulepreload helper 放进任意共享块；本项目曾把它
+    // 放进 2.8MB 的 mermaid，导致首页仅为加载语言包就先下载整套画图引擎。
+    // 关闭自动 modulepreload 后，静态依赖仍由原生 ESM 加载，路由重块只在使用时下载。
+    modulePreload: false,
     rolldownOptions: {
-      preserveEntrySignatures: 'strict',
+      preserveEntrySignatures: 'allow-extension',
       output: {
+        strictExecutionOrder: true,
         codeSplitting: {
+          includeDependenciesRecursively: false,
           groups: [
+            {
+              name: 'preload-runtime',
+              test: (id: string) => id.includes('\0vite/preload-helper.js'),
+              priority: 100,
+            },
             {
               name(id: string) {
                 const normalizedId = id.replace(/\\/g, '/');
@@ -366,8 +370,9 @@ export default defineConfig(({ command }) => ({
                     return null;
                   }
 
-                  // Everything else falls into a generic vendor chunk.
-                  return 'vendor';
+                  // Unknown dependencies stay on Rolldown's route-aware graph. A single generic
+                  // vendor bucket made React's startup chunk statically import Mermaid/CodeMirror.
+                  return null;
                 }
                 if (normalizedId.includes('/src/polyfills/')) {
                   return 'polyfills';

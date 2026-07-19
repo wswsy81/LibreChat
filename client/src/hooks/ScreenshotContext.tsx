@@ -1,5 +1,4 @@
 import { createContext, useRef, useContext, RefObject } from 'react';
-import { toCanvas } from 'html-to-image';
 import { ThemeContext, isDark } from '@librechat/client';
 
 type ScreenshotContextType = {
@@ -19,6 +18,7 @@ export const useScreenshot = () => {
 
     const backgroundColor = isDark(theme) ? '#171717' : 'white';
 
+    const { toCanvas } = await import('html-to-image');
     const canvas = await toCanvas(node, {
       backgroundColor,
       imagePlaceholder:

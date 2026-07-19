@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { DndProvider } from 'react-dnd';
 import { useRecoilValue } from 'recoil';
 import { Outlet } from 'react-router-dom';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useMediaQuery } from '@librechat/client';
 import {
   PromptGroupsProvider,
@@ -19,9 +21,11 @@ import {
 } from '~/hooks';
 import KeyboardShortcutsDialog from '~/components/Nav/KeyboardShortcutsDialog';
 import KeyboardDeleteDialog from '~/components/Nav/KeyboardDeleteDialog';
+import WakeLockManager from '~/components/System/WakeLockManager';
 import { useUserTermsQuery, useGetStartupConfig } from '~/data-provider';
 import useKeyboardShortcuts from '~/hooks/useKeyboardShortcuts';
 import useAnalytics from '~/hooks/useAnalytics';
+import { ScreenshotProvider } from '~/hooks/ScreenshotContext';
 import { UnifiedSidebar } from '~/components/UnifiedSidebar';
 import { TermsAndConditionsModal } from '~/components/ui';
 import { useHealthCheck } from '~/data-provider';
@@ -124,8 +128,13 @@ export function ProductShell({ children }: { children: ReactNode }) {
 
 export default function Root() {
   return (
-    <ProductShell>
-      <Outlet />
-    </ProductShell>
+    <ScreenshotProvider>
+      <DndProvider backend={HTML5Backend}>
+        <ProductShell>
+          <Outlet />
+        </ProductShell>
+        <WakeLockManager />
+      </DndProvider>
+    </ScreenshotProvider>
   );
 }

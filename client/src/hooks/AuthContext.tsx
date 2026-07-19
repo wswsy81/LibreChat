@@ -19,6 +19,7 @@ import {
 } from 'librechat-data-provider';
 import type * as t from 'librechat-data-provider';
 import type { ReactNode } from 'react';
+import type { TAuthConfig, TUserContext, TAuthContext, TResError } from '~/common';
 import {
   useGetRole,
   useGetUserQuery,
@@ -26,8 +27,7 @@ import {
   useLogoutUserMutation,
   useRefreshTokenMutation,
 } from '~/data-provider';
-import { TAuthConfig, TUserContext, TAuthContext, TResError } from '~/common';
-import { SESSION_KEY, isSafeRedirect, getPostLoginRedirect } from '~/utils';
+import { SESSION_KEY, isSafeRedirect, getPostLoginRedirect } from '~/utils/redirect';
 import useTimeout from './useTimeout';
 import store from '~/store';
 
