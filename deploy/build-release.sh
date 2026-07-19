@@ -72,7 +72,7 @@ ENGINE_USER=$("${DOCKER[@]}" image inspect --format '{{.Config.User}}' "$ENGINE_
 "${DOCKER[@]}" run --rm --entrypoint sh "$API_IMAGE" -c \
   'test -s /app/librechat.yaml && test -s /app/client/dist/index.html && test -s /app/api/server/index.js'
 "${DOCKER[@]}" run --rm --entrypoint node "$API_IMAGE" -e \
-  "require('module-alias/register'); require('/app/api/server/services/Files/process')"
+  "require('module-alias')({ base: '/app/api' }); require('/app/api/server/services/Files/process'); process.exit(0)"
 "${DOCKER[@]}" run --rm --entrypoint sh "$ENGINE_IMAGE" -c \
   'test -s /app/mcp-server.js && test -s /app/profile.js'
 
