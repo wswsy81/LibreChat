@@ -100,6 +100,9 @@ for (const asset of assets.sort((left, right) => right.gzip - left.gzip).slice(0
 }
 
 const failures = [];
+if (!html.includes('id="loading-label"') || !html.includes('>人生设计室</span>')) {
+  failures.push('production shell has no contentful branded loading state');
+}
 if (modulePreloads.length === 0) {
   failures.push('production entry has no modulepreload hints; high-latency ESM waterfall will regress');
 }

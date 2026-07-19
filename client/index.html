@@ -116,6 +116,12 @@
           height: 100vh;
           background-color: ${backgroundColor};
         }
+        #loading-label {
+          color: #5a544b;
+          font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+          font-size: 14px;
+          letter-spacing: 0.18em;
+        }
       `;
       document.head.appendChild(loadingContainerStyle);
     </script>
@@ -262,7 +268,9 @@
   </head>
   <body>
     <div id="root">
-      <div id="loading-container"></div>
+      <div id="loading-container" role="status" aria-live="polite">
+        <span id="loading-label">人生设计室</span>
+      </div>
     </div>
   </body>
 </html>
