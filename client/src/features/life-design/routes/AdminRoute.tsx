@@ -39,7 +39,10 @@ export default function AdminRoute() {
       <p className="mb-2 text-life-meta font-medium tracking-[0.18em] text-life-cinnabar">
         OPERATIONS
       </p>
-      <h1 id="admin-title" className="text-life-title font-semibold tracking-tight text-text-primary">
+      <h1
+        id="admin-title"
+        className="text-life-title font-semibold tracking-tight text-text-primary"
+      >
         运营台
       </h1>
       <p className="mt-2 text-life-sm text-text-secondary">

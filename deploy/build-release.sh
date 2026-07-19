@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 ENGINE_DIR=$(cd -- "$APP_DIR/../future-engine-shim" && pwd)
+PROJECT_DIR=$(cd -- "$ENGINE_DIR/.." && pwd)
 RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
 RELEASE_ID=${1:-"$(date -u +%Y%m%dT%H%M%SZ)"}
 
@@ -39,10 +40,11 @@ echo "Building immutable LibreChat release image: $API_TAG"
 
 echo "Building immutable future-engine release image: $ENGINE_TAG"
 "${DOCKER[@]}" build \
+  --file "$ENGINE_DIR/Dockerfile" \
   --build-arg "BUILD_COMMIT=$ENGINE_REVISION" \
   --build-arg "BUILD_DATE=$BUILD_DATE" \
   --tag "$ENGINE_TAG" \
-  "$ENGINE_DIR"
+  "$PROJECT_DIR"
 
 API_IMAGE=$("${DOCKER[@]}" image inspect --format '{{.Id}}' "$API_TAG")
 ENGINE_IMAGE=$("${DOCKER[@]}" image inspect --format '{{.Id}}' "$ENGINE_TAG")

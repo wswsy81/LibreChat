@@ -8,11 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RecoilRoot } from 'recoil';
 import type { ReactNode } from 'react';
 
-import {
-  useLoginUserMutation,
-  useLogoutUserMutation,
-  useRefreshTokenMutation,
-} from './mutations';
+import { useLoginUserMutation, useLogoutUserMutation, useRefreshTokenMutation } from './mutations';
 
 jest.mock('librechat-data-provider', () => {
   const actual = jest.requireActual('librechat-data-provider');

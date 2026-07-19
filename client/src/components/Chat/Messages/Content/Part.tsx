@@ -11,6 +11,7 @@ import type { TMessageContentParts, TAttachment } from 'librechat-data-provider'
 import {
   ImageGen,
   ExecuteCode,
+  AttachmentGroup,
   AgentUpdate,
   EmptyText,
   Summary,
@@ -158,11 +159,14 @@ const Part = memo(function Part({
       toolCall.name.includes(Constants.mcp_delimiter)
     ) {
       return (
-        <McpUIResources
-          attachments={attachments}
-          toolCallId={'id' in toolCall ? toolCall.id : undefined}
-          inlineResourceIds={inlineResourceIds}
-        />
+        <>
+          <McpUIResources
+            attachments={attachments}
+            toolCallId={'id' in toolCall ? toolCall.id : undefined}
+            inlineResourceIds={inlineResourceIds}
+          />
+          {!hideAttachments && <AttachmentGroup attachments={attachments} />}
+        </>
       );
     }
 

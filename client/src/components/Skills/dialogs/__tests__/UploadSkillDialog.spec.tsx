@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import type { FileConfigInput } from 'librechat-data-provider';
 import UploadSkillDialog from '../UploadSkillDialog';
@@ -7,6 +8,7 @@ const mockMutate = jest.fn();
 const mockNavigate = jest.fn();
 const mockSetIsOpen = jest.fn();
 const mockShowToast = jest.fn();
+const megabyte = 1024 * 1024;
 let mockFileConfigInput: FileConfigInput | undefined = {
   skills: {
     fileSizeLimit: 1,
@@ -26,7 +28,7 @@ jest.mock(
       OGDialog: ({ open, children }: { open: boolean; children: ReactNode }) =>
         open ? React.createElement('div', null, children) : null,
       OGDialogContent: ({ children }: { children: ReactNode }) =>
-        React.createElement('div', null, children),
+        React.createElement('div', { role: 'dialog' }, children),
       Spinner: () => React.createElement('div', { 'data-testid': 'spinner' }),
       useToastContext: () => ({
         showToast: mockShowToast,
@@ -70,12 +72,21 @@ jest.mock('~/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' '),
 }));
 
-function getFileInput(container: HTMLElement): HTMLInputElement {
-  const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+function getFileInput(): HTMLInputElement {
+  const dialog = screen.getByRole('dialog');
+  const input = within(dialog).queryByLabelText<HTMLInputElement>(
+    'Drag and drop or click to upload',
+  );
   if (input == null) {
     throw new Error('Upload input was not rendered');
   }
   return input;
+}
+
+function makeSkillFile(name: string, size: number): File {
+  const file = new File(['skill'], name, { type: 'application/zip' });
+  Object.defineProperty(file, 'size', { value: size });
+  return file;
 }
 
 describe('UploadSkillDialog', () => {
@@ -106,17 +117,12 @@ describe('UploadSkillDialog', () => {
     expect(screen.getByText('File size must not exceed 1.06 MB')).toBeInTheDocument();
   });
 
-  it('rejects files above the configured skill import limit before upload', () => {
-    const { container } = render(<UploadSkillDialog isOpen={true} setIsOpen={mockSetIsOpen} />);
-    const file = new File([new Uint8Array(1024 * 1024 + 1)], 'too-large.skill', {
-      type: 'application/zip',
-    });
+  it('rejects files above the configured skill import limit before upload', async () => {
+    const user = userEvent.setup();
+    render(<UploadSkillDialog isOpen={true} setIsOpen={mockSetIsOpen} />);
+    const file = makeSkillFile('too-large.zip', megabyte + 1);
 
-    fireEvent.change(getFileInput(container), {
-      target: {
-        files: [file],
-      },
-    });
+    await user.upload(getFileInput(), file);
 
     expect(mockMutate).not.toHaveBeenCalled();
     expect(mockShowToast).toHaveBeenCalledWith({
@@ -125,18 +131,13 @@ describe('UploadSkillDialog', () => {
     });
   });
 
-  it('uploads files exactly at the configured skill import limit', () => {
+  it('uploads files exactly at the configured skill import limit', async () => {
+    const user = userEvent.setup();
     const appendSpy = jest.spyOn(FormData.prototype, 'append');
-    const { container } = render(<UploadSkillDialog isOpen={true} setIsOpen={mockSetIsOpen} />);
-    const file = new File([new Uint8Array(1024 * 1024)], 'exact-limit.skill', {
-      type: 'application/zip',
-    });
+    render(<UploadSkillDialog isOpen={true} setIsOpen={mockSetIsOpen} />);
+    const file = makeSkillFile('exact-limit.skill', megabyte);
 
-    fireEvent.change(getFileInput(container), {
-      target: {
-        files: [file],
-      },
-    });
+    await user.upload(getFileInput(), file);
 
     expect(mockShowToast).not.toHaveBeenCalled();
     expect(appendSpy).toHaveBeenCalledWith('file', file, file.name);
@@ -144,18 +145,13 @@ describe('UploadSkillDialog', () => {
     appendSpy.mockRestore();
   });
 
-  it('uploads files under the configured skill import limit', () => {
+  it('uploads files under the configured skill import limit', async () => {
+    const user = userEvent.setup();
     const appendSpy = jest.spyOn(FormData.prototype, 'append');
-    const { container } = render(<UploadSkillDialog isOpen={true} setIsOpen={mockSetIsOpen} />);
-    const file = new File([new Uint8Array(1024)], 'small.skill', {
-      type: 'application/zip',
-    });
+    render(<UploadSkillDialog isOpen={true} setIsOpen={mockSetIsOpen} />);
+    const file = makeSkillFile('small.skill', 1024);
 
-    fireEvent.change(getFileInput(container), {
-      target: {
-        files: [file],
-      },
-    });
+    await user.upload(getFileInput(), file);
 
     expect(mockShowToast).not.toHaveBeenCalled();
     expect(appendSpy).toHaveBeenCalledWith('file', file, file.name);

@@ -117,6 +117,39 @@ const SECOND_CALL_USAGE = {
 
 const MAX_CONTEXT_TOKENS = 8000;
 
+function mockSummarizationStream() {
+  const chunks = [
+    {
+      id: 'chatcmpl-summary-test',
+      object: 'chat.completion.chunk',
+      created: 0,
+      model: 'gpt-4o-mini',
+      choices: [
+        {
+          index: 0,
+          delta: { role: 'assistant', content: '## Summary\nPrior turns compacted.' },
+          finish_reason: null,
+        },
+      ],
+    },
+    {
+      id: 'chatcmpl-summary-test',
+      object: 'chat.completion.chunk',
+      created: 0,
+      model: 'gpt-4o-mini',
+      choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 40, completion_tokens: 8, total_tokens: 48 },
+    },
+  ];
+  const body = `${chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('')}data: [DONE]\n\n`;
+  return jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }),
+  );
+}
+
 async function runToolLoop({
   res,
   streamId = null,
@@ -424,7 +457,12 @@ describe('usage events through the real agents pipeline', () => {
         instructions: 'You are a helpful assistant.',
         maxContextTokens: 700,
         summarizationEnabled: true,
-        summarizationConfig: { provider: Providers.OPENAI, model: 'gpt-4o-mini' },
+        summarizationConfig: {
+          provider: Providers.OPENAI,
+          model: 'gpt-4o-mini',
+          parameters: { apiKey: 'test-key', maxRetries: 0 },
+          retainRecent: { turns: 0 },
+        },
       },
       returnContent: true,
       customHandlers: handlers,
@@ -432,19 +470,24 @@ describe('usage events through the real agents pipeline', () => {
       indexTokenCountMap,
     });
 
-    run.Graph.overrideModel = new UsageFakeModel(
-      { responses: ['## Summary\nPrior turns compacted.', 'Here is the final answer.'] },
-      [{ input_tokens: 40, output_tokens: 8, total_tokens: 48 }],
-    );
+    run.Graph.overrideModel = new UsageFakeModel({ responses: ['Here is the final answer.'] }, [
+      { input_tokens: 40, output_tokens: 8, total_tokens: 48 },
+    ]);
 
-    await run.processStream(
-      { messages: history },
-      {
-        configurable: { thread_id: 'summ-e2e-thread', user_id: 'user-1' },
-        streamMode: 'values',
-        version: 'v2',
-      },
-    );
+    const fetchSpy = mockSummarizationStream();
+    try {
+      await run.processStream(
+        { messages: history },
+        {
+          configurable: { thread_id: 'summ-e2e-thread', user_id: 'user-1' },
+          streamMode: 'values',
+          version: 'v2',
+        },
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
     return run;
   }
 

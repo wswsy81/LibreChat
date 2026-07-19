@@ -1,6 +1,7 @@
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import JSZip from 'jszip';
 import {
   _resetLibreOfficeProbeCache,
   buildPdfEmbedDocument,
@@ -36,6 +37,31 @@ const itIfLibreOffice = LIBREOFFICE_INSTALLED ? it : it.skip;
 const FIXTURES_DIR = __dirname;
 function readFixture(name: string): Buffer {
   return fs.readFileSync(path.join(FIXTURES_DIR, name));
+}
+
+async function buildMinimalPptx(): Promise<Buffer> {
+  const zip = new JSZip();
+  zip.file(
+    '[Content_Types].xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/><Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/></Types>',
+  );
+  zip.file(
+    '_rels/.rels',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>',
+  );
+  zip.file(
+    'ppt/presentation.xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst><p:sldSz cx="9144000" cy="6858000" type="screen4x3"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>',
+  );
+  zip.file(
+    'ppt/_rels/presentation.xml.rels',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>',
+  );
+  zip.file(
+    'ppt/slides/slide1.xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr><p:sp><p:nvSpPr><p:cNvPr id="2" name="TextBox 1"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="914400" y="914400"/><a:ext cx="7315200" cy="1828800"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr><p:txBody><a:bodyPr wrap="square"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" sz="3200"/><a:t>Yiwei production gate</a:t></a:r><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>',
+  );
+  return zip.generateAsync({ type: 'nodebuffer' });
 }
 
 describe('libreoffice (env gating + wrapper)', () => {
@@ -231,19 +257,20 @@ describe('libreoffice (env gating + wrapper)', () => {
     });
 
     it('never throws — falls through to null on any conversion failure', async () => {
-      /* Even if the binary IS available, a malformed buffer should
-       * cause `convertOfficeToPdf` to throw and `tryLibreOfficePreview`
-       * to swallow it. The dispatcher pipeline takes over from there. */
+      /* Make the failure deterministic even on developer Macs that have
+       * LibreOffice installed. The dispatcher pipeline takes over. */
       process.env.OFFICE_PREVIEW_LIBREOFFICE = 'true';
-      const garbage = Buffer.from('this-is-definitely-not-a-docx');
-      let threw = false;
+      const originalPath = process.env.PATH;
+      process.env.PATH = '/nonexistent';
+      _resetLibreOfficeProbeCache();
       try {
-        const out = await tryLibreOfficePreview(garbage, 'docx', 512 * 1024);
-        expect(out).toBeNull();
-      } catch {
-        threw = true;
+        await expect(
+          tryLibreOfficePreview(Buffer.from('not-an-office-document'), 'docx', 512 * 1024),
+        ).resolves.toBeNull();
+      } finally {
+        process.env.PATH = originalPath;
+        _resetLibreOfficeProbeCache();
       }
-      expect(threw).toBe(false);
     });
   });
 
@@ -340,7 +367,7 @@ describe('libreoffice integration (skipped unless LibreOffice is on $PATH)', () 
   itIfLibreOffice(
     'convertOfficeToPdf converts a PPTX to PDF bytes',
     async () => {
-      const buf = readFixture('sample.pptx');
+      const buf = await buildMinimalPptx();
       const pdf = await convertOfficeToPdf(buf, 'pptx');
       expect(pdf.subarray(0, 4).toString('ascii')).toBe('%PDF');
     },

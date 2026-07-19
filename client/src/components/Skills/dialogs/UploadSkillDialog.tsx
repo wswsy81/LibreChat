@@ -150,6 +150,7 @@ export default function UploadSkillDialog({ isOpen, setIsOpen }: UploadSkillDial
           <input
             ref={fileInputRef}
             type="file"
+            aria-label={localize('com_ui_skill_upload_drag')}
             accept=".zip,.skill,.md"
             className="hidden"
             onChange={handleFileInput}

@@ -37,7 +37,9 @@ function StatusCard({ label, ok, detail }: { label: string; ok: boolean; detail:
   return (
     <div className="rounded-2xl border border-border-light bg-surface-primary p-5">
       <p className="text-life-meta text-text-secondary">{label}</p>
-      <p className={`mt-1 font-serif text-life-lead font-semibold ${ok ? 'text-life-moss' : 'text-red-600'}`}>
+      <p
+        className={`font-serif mt-1 text-life-lead font-semibold ${ok ? 'text-life-moss' : 'text-red-600'}`}
+      >
         {ok ? '正常' : '异常'}
       </p>
       <p className="mt-1 text-life-meta text-text-secondary">{detail}</p>
@@ -93,8 +95,12 @@ export default function StatusPanel() {
           <p className="mt-1 font-mono text-life-sm tabular-nums text-text-primary">
             共 {engine.background.runs} 轮 · 失败 {engine.background.failures} · 累计{' '}
             {Math.round(engine.background.totalTokens / 1000)}k tokens
-            {engine.background.autoExpired ? ` · 事件自动过期 ${engine.background.autoExpired}` : ''}
-            {engine.background.packDegrades ? ` · 上下文降级 ${engine.background.packDegrades}` : ''}
+            {engine.background.autoExpired
+              ? ` · 事件自动过期 ${engine.background.autoExpired}`
+              : ''}
+            {engine.background.packDegrades
+              ? ` · 上下文降级 ${engine.background.packDegrades}`
+              : ''}
             {engine.background.lastAt
               ? ` · 最近 ${new Date(engine.background.lastAt).toLocaleString('zh-CN')}`
               : ''}

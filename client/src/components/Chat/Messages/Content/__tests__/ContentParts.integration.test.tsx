@@ -5,6 +5,11 @@ import type { TAttachment, TMessageContentParts } from 'librechat-data-provider'
 import { fireEvent, render, screen } from '@testing-library/react';
 import ContentParts from '../ContentParts';
 
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useNavigate: () => jest.fn(),
+}));
+
 jest.mock('~/hooks', () => ({
   useLocalize: () => (key: string, values?: Record<string | number, string>) => {
     if (key === 'com_ui_used_n_tools') {
@@ -127,13 +132,24 @@ const makeMcpToolCall = (id: string, hasOutput = true): TMessageContentParts =>
     },
   }) as unknown as TMessageContentParts;
 
-const makeMcpToolCallWithoutId = (name: string, hasOutput = true): TMessageContentParts =>
+const makeToolCall = (id: string, hasOutput = true): TMessageContentParts =>
   ({
     type: ContentTypes.TOOL_CALL,
     [ContentTypes.TOOL_CALL]: {
-      name: `${name}${MCP_DELIMITER}Everything`,
+      id,
+      name: 'search',
       args: '{}',
-      output: hasOutput ? 'image_returned' : '',
+      output: hasOutput ? 'done' : '',
+    },
+  }) as unknown as TMessageContentParts;
+
+const makeToolCallWithoutId = (name: string, hasOutput = true): TMessageContentParts =>
+  ({
+    type: ContentTypes.TOOL_CALL,
+    [ContentTypes.TOOL_CALL]: {
+      name,
+      args: '{}',
+      output: hasOutput ? 'done' : '',
     },
   }) as unknown as TMessageContentParts;
 
@@ -193,7 +209,7 @@ describe('ContentParts integration: MCP image hoist and grouping', () => {
       attachments,
     });
 
-    // Single tool call: AttachmentGroup is rendered by ToolCall, not hoisted.
+    // Single MCP tool call: Part renders regular attachments beside any MCP UI resource.
     const groups = screen.queryAllByTestId('attachment-group');
     expect(groups).toHaveLength(1);
     expect(groups[0].getAttribute('data-count')).toBe('1');
@@ -238,7 +254,7 @@ describe('ContentParts integration: MCP image hoist and grouping', () => {
   });
 
   it('keeps a manually expanded completed tool group open when its content index shifts', () => {
-    const content = [makeMcpToolCall('t1'), makeMcpToolCall('t2')];
+    const content = [makeToolCall('t1'), makeToolCall('t2')];
     const nextContent = [makeTextPart('streamed preface'), ...content];
 
     const { rerender } = render(
@@ -266,8 +282,8 @@ describe('ContentParts integration: MCP image hoist and grouping', () => {
   });
 
   it('keeps a running tool group open when an individual tool is expanded before completion', () => {
-    const runningContent = [makeMcpToolCall('t1', false), makeMcpToolCall('t2', false)];
-    const completedContent = [makeMcpToolCall('t1'), makeMcpToolCall('t2')];
+    const runningContent = [makeToolCall('t1', false), makeToolCall('t2', false)];
+    const completedContent = [makeToolCall('t1'), makeToolCall('t2')];
 
     const { rerender } = render(
       <RecoilRoot>
@@ -298,7 +314,7 @@ describe('ContentParts integration: MCP image hoist and grouping', () => {
   });
 
   it('does not reuse fallback-index expansion state across message ids', () => {
-    const content = [makeMcpToolCallWithoutId('first'), makeMcpToolCallWithoutId('second')];
+    const content = [makeToolCallWithoutId('first'), makeToolCallWithoutId('second')];
 
     const { rerender } = render(
       <RecoilRoot>
@@ -325,7 +341,7 @@ describe('ContentParts integration: MCP image hoist and grouping', () => {
   });
 
   it('keeps id-backed expansion state across transient message id changes', () => {
-    const content = [makeMcpToolCall('t1'), makeMcpToolCall('t2')];
+    const content = [makeToolCall('t1'), makeToolCall('t2')];
 
     const { rerender } = render(
       <RecoilRoot>

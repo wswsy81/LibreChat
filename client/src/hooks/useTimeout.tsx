@@ -14,20 +14,23 @@ function useTimeout({ callback, delay = 400 }: TUseTimeoutParams) {
     callbackRef.current = callback;
   }, [callback]);
 
-  const callOnTimeout = useCallback((value?: string) => {
-    // Clear existing timeout
-    if (timeout.current !== null) {
-      clearTimeout(timeout.current);
-    }
+  const callOnTimeout = useCallback(
+    (value?: string) => {
+      // Clear existing timeout
+      if (timeout.current !== null) {
+        clearTimeout(timeout.current);
+      }
 
-    // Set new timeout
-    if (value != null && value) {
-      console.log(value);
-      timeout.current = setTimeout(() => {
-        callbackRef.current(value);
-      }, delay);
-    }
-  }, [delay]);
+      // Set new timeout
+      if (value != null && value) {
+        console.log(value);
+        timeout.current = setTimeout(() => {
+          callbackRef.current(value);
+        }, delay);
+      }
+    },
+    [delay],
+  );
 
   // Clear timeout when the component unmounts
   useEffect(() => {

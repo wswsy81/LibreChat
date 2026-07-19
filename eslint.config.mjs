@@ -393,4 +393,22 @@ export default [
       ],
     },
   },
+  {
+    files: [
+      '**/*.test.{js,jsx,ts,tsx}',
+      '**/*.spec.{js,jsx,ts,tsx}',
+      'client/src/components/Chat/Input/ActiveSetting.tsx',
+      'client/src/components/Chat/Input/Files/Table/TemplateTable.tsx',
+      'client/src/components/Files/**/*.{ts,tsx}',
+      'client/src/components/SidePanel/Builder/Images.tsx',
+      'client/src/components/SidePanel/data.tsx',
+      'client/src/features/life-design/components/admin/**/*.{ts,tsx}',
+      'client/src/features/life-design/routes/AdminRoute.tsx',
+    ],
+    rules: {
+      /** Tests, disabled upstream workspaces, and the owner-only Chinese operations console
+       *  intentionally use fixture/direct text rather than the public product locale catalog. */
+      'i18next/no-literal-string': 'off',
+    },
+  },
 ];
