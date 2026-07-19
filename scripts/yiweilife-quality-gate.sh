@@ -25,7 +25,14 @@ run npm run build:client-package
 
 if [[ "$MODE" == "--full" ]]; then
   export NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=8192}
-  run npm run test:client -- --runInBand
+  # UploadSkillDialog's userEvent upload can stop dispatching change after the
+  # full client process grows past roughly 1 GB. Run every other client suite
+  # first, then this suite in a fresh Jest process. Coverage remains complete.
+  client_isolated_pattern='src/components/Skills/dialogs/__tests__/UploadSkillDialog\.spec\.tsx$'
+  run npm run test:client -- --runInBand \
+    --testPathIgnorePatterns="$client_isolated_pattern"
+  run npm run test:client -- --runInBand --runTestsByPath \
+    src/components/Skills/dialogs/__tests__/UploadSkillDialog.spec.tsx
   # A single long-lived API run grows beyond 6 GB and lets integration suites
   # leak native workspace caches and sockets into later suites. Four sequential
   # shards keep every Jest process short-lived without reducing coverage.
