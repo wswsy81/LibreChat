@@ -182,10 +182,10 @@ export default defineConfig(({ command }) => ({
     sourcemap: buildSourceMap,
     outDir: './dist',
     minify: 'oxc',
-    // Rolldown 会把 Vite 的 modulepreload helper 放进任意共享块；本项目曾把它
-    // 放进 2.8MB 的 mermaid，导致首页仅为加载语言包就先下载整套画图引擎。
-    // 关闭自动 modulepreload 后，静态依赖仍由原生 ESM 加载，路由重块只在使用时下载。
-    modulePreload: false,
+    // Mermaid 与 Sandpack 已恢复为 Rolldown 的自然动态边界；重新开启入口预加载，
+    // 避免高延迟网络下原生 ESM 逐层发现依赖形成数秒瀑布。首屏预算与浏览器
+    // production smoke 会同时阻止重块重新被拉回入口或跨块求值再次退化。
+    modulePreload: true,
     rolldownOptions: {
       preserveEntrySignatures: 'strict',
       output: {

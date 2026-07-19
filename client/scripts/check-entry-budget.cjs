@@ -41,6 +41,9 @@ if (!entry) {
 const styles = [
   ...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="\.\/(assets\/[^"]+\.css)"/g),
 ].map((match) => match[1]);
+const modulePreloads = [
+  ...html.matchAll(/<link[^>]+rel="modulepreload"[^>]+href="\.\/(assets\/[^"]+\.js)"/g),
+].map((match) => match[1]);
 const staticModules = new Set();
 const pending = [entry];
 
@@ -97,6 +100,14 @@ for (const asset of assets.sort((left, right) => right.gzip - left.gzip).slice(0
 }
 
 const failures = [];
+if (modulePreloads.length === 0) {
+  failures.push('production entry has no modulepreload hints; high-latency ESM waterfall will regress');
+}
+for (const preload of modulePreloads) {
+  if (/(?:mermaid|sandpack|nodebox|heic-converter|rum)\./.test(preload)) {
+    failures.push(`route-only heavy chunk was modulepreloaded: ${preload}`);
+  }
+}
 for (const sandpackAsset of jsAssets.filter((asset) => /\/sandpack\.[^/]+\.js$/.test(asset))) {
   for (const dependency of importGraph.get(sandpackAsset) || []) {
     const cycle = findStaticPath(dependency, sandpackAsset);
