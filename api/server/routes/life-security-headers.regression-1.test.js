@@ -75,6 +75,8 @@ test('HTML artifacts allow only same-origin frames while the product shell denie
   expect(caddyfile).toContain('@embeddedLifeHtml');
   expect(caddyfile).toContain('@productSurface');
   expect(caddyfile).toContain("frame-ancestors 'none'");
+  expect(caddyfile).toContain('https://static.cloudflareinsights.com');
+  expect(caddyfile).toContain('https://cloudflareinsights.com');
   expect(caddyfile).toContain('X-Frame-Options "DENY"');
   expect(caddyfile).toContain('X-Frame-Options "SAMEORIGIN"');
 });
