@@ -38,7 +38,7 @@
     "@fontsource/noto-sans-sc": "^5.2.9",
     "@fontsource/noto-serif-sc": "^5.2.8",
     "@headlessui/react": "^2.1.2",
-    "@hyperdx/browser": "^0.24.0",
+    "@hyperdx/browser": "^0.25.1",
     "@librechat/client": "*",
     "@marsidev/react-turnstile": "^1.1.0",
     "@mcp-ui/client": "^5.7.0",
