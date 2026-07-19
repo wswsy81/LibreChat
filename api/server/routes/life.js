@@ -165,6 +165,11 @@ function safeDownloadName(value) {
   return clean || '人生存档报告';
 }
 
+function setEmbeddedHtmlHeaders(res, policy) {
+  res.set('Content-Security-Policy', `${policy}; frame-ancestors 'self'`);
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+}
+
 async function reportHtml(req, res, format, download = false) {
   try {
     const reportId = encodeURIComponent(req.params.id);
@@ -175,8 +180,8 @@ async function reportHtml(req, res, format, download = false) {
         : Promise.resolve(null),
     ]);
     res.type('html');
-    res.set(
-      'Content-Security-Policy',
+    setEmbeddedHtmlHeaders(
+      res,
       format === 'print'
         ? "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; base-uri 'none'; form-action 'none'"
         : "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'",
@@ -422,8 +427,8 @@ router.get('/dossier/html', async (req, res) => {
     const revision = req.query.revision === '1' ? '?revision=1' : '';
     const html = await engine.text(`/internal/dossier/html${revision}`, { userId: userId(req) });
     res.type('html');
-    res.set(
-      'Content-Security-Policy',
+    setEmbeddedHtmlHeaders(
+      res,
       "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'",
     );
     return res.send(html);
@@ -437,8 +442,8 @@ router.get('/map/html', async (req, res) => {
     const view = req.query.view === 'full' ? '?view=full' : '';
     const html = await engine.text(`/internal/map/html${view}`, { userId: userId(req) });
     res.type('html');
-    res.set(
-      'Content-Security-Policy',
+    setEmbeddedHtmlHeaders(
+      res,
       "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'",
     );
     return res.send(html);

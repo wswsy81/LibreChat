@@ -5,6 +5,15 @@
 {$DOMAIN} {
 	encode zstd gzip
 
+	# 人生设计室产品壳不允许被第三方站点嵌入。报告、地图、人物志 HTML
+	# 是同源 iframe 制品，走下面的最小 SAMEORIGIN 例外。
+	@embeddedLifeHtml {
+		path /api/life/dossier/html /api/life/map/html /api/life/reports/*/html /api/life/reports/*/print /api/life/reports/*/print.html
+	}
+	@productSurface {
+		not path /api/life/dossier/html /api/life/map/html /api/life/reports/*/html /api/life/reports/*/print /api/life/reports/*/print.html
+	}
+
 	# 反代到内网 api 容器;SSE 流式、WebSocket、文件上传 Caddy 默认透传
 	reverse_proxy api:3080 {
 		# 大文件上传不设上限(LibreChat 图片/文档上传)
@@ -16,7 +25,17 @@
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), payment=(), usb=()"
 		-Server
+	}
+
+	header @productSurface {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://analytics.yiweilife.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://analytics.yiweilife.com wss://{$DOMAIN}; media-src 'self' blob:; frame-src 'self' data: blob: https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+		X-Frame-Options "DENY"
+	}
+
+	header @embeddedLifeHtml {
+		X-Frame-Options "SAMEORIGIN"
 	}
 }
 
