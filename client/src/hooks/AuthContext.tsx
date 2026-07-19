@@ -144,7 +144,7 @@ const AuthContextProvider = ({
         token: undefined,
         isAuthenticated: false,
         user: undefined,
-        redirect: '/login',
+        redirect: '/home',
       });
     },
     onError: (error) => {
@@ -153,7 +153,7 @@ const AuthContextProvider = ({
         token: undefined,
         isAuthenticated: false,
         user: undefined,
-        redirect: '/login',
+        redirect: '/home',
       });
     },
   });

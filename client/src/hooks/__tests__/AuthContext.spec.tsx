@@ -231,6 +231,22 @@ describe('AuthContextProvider — logout onSuccess/onError handling', () => {
     expect(replaceSpy).not.toHaveBeenCalled();
   });
 
+  it('navigates local logout to the public product home instead of leaving a blank chat route', () => {
+    jest.useFakeTimers();
+    try {
+      renderProvider();
+
+      act(() => {
+        mockCapturedLogoutOptions.onSuccess({ message: 'Logout successful' });
+        jest.advanceTimersByTime(50);
+      });
+
+      expect(mockNavigate).toHaveBeenCalledWith('/home', { replace: true });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('does not trigger silentRefresh after OIDC redirect', () => {
     const replaceSpy = jest.spyOn(window.location, 'replace').mockImplementation(() => {});
 
@@ -449,6 +465,7 @@ describe('AuthContextProvider — logout error handling', () => {
 
     expect(replaceSpy).not.toHaveBeenCalled();
     expect(getByTestId('consumer').getAttribute('data-authenticated')).toBe('false');
+    expect(mockNavigate).toHaveBeenCalledWith('/home', { replace: true });
     jest.useRealTimers();
   });
 });

@@ -32,7 +32,13 @@ if (!fs.existsSync(htmlPath)) {
   throw new Error('client/dist/index.html is missing; run the production build first');
 }
 
+const manifestPath = path.join(DIST_DIR, 'manifest.webmanifest');
+if (!fs.existsSync(manifestPath)) {
+  throw new Error('client/dist/manifest.webmanifest is missing; run the production build first');
+}
+
 const html = fs.readFileSync(htmlPath, 'utf8');
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const entry = html.match(/<script[^>]+type="module"[^>]+src="\.\/(assets\/[^"]+\.js)"/)?.[1];
 if (!entry) {
   throw new Error('production entry module was not found in client/dist/index.html');
@@ -100,6 +106,9 @@ for (const asset of assets.sort((left, right) => right.gzip - left.gzip).slice(0
 }
 
 const failures = [];
+if (manifest.name !== '人生设计室' || manifest.short_name !== '人生设计室') {
+  failures.push('installed PWA brand must be 人生设计室 without the upstream LibreChat name');
+}
 if (!html.includes('id="loading-label"') || !html.includes('>人生设计室</span>')) {
   failures.push('production shell has no contentful branded loading state');
 }
