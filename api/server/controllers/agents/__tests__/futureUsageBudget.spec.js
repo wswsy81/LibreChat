@@ -64,7 +64,10 @@ describe('future-lines usage budget', () => {
   test('生产 model spec 同时锁单次上下文、输出上限与已核实价格', () => {
     const yaml = fs.readFileSync(path.resolve(__dirname, '../../../../../librechat.yaml'), 'utf8');
     expect(yaml).toMatch(/gpt-5\.6-sol:\s*\n\s+prompt: 75\s*\n\s+completion: 600/);
-    expect(yaml).toMatch(/maxContextTokens: 12000/);
+    const maxContextTokens = Number(yaml.match(/maxContextTokens:\s*(\d+)/)?.[1]);
+    const measuredStaticInstructionTokens = 18_713;
+    expect(maxContextTokens).toBe(32_000);
+    expect(maxContextTokens - measuredStaticInstructionTokens).toBeGreaterThanOrEqual(12_000);
     expect(yaml).toMatch(/max_tokens: 1200/);
   });
 
