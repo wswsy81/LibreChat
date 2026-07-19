@@ -53,6 +53,7 @@ if [[ "$MODE" == "--full" ]]; then
 fi
 
 run npm run build:client
+run node client/scripts/smoke-production-build.cjs
 run bash -n deploy/build-release.sh
 run bash -n deploy/apply-release.sh
 run bash -n deploy/compose.sh

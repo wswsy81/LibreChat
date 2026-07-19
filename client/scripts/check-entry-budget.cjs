@@ -55,6 +55,31 @@ while (pending.length) {
   }
 }
 
+const jsAssets = fs
+  .readdirSync(path.join(DIST_DIR, 'assets'))
+  .filter((name) => name.endsWith('.js'))
+  .map((name) => `assets/${name}`);
+const importGraph = new Map(
+  jsAssets.map((asset) => {
+    const code = fs.readFileSync(path.join(DIST_DIR, asset), 'utf8');
+    const dependencies = staticImports(code)
+      .map((specifier) => relativeAsset(asset, specifier))
+      .filter((dependency) => dependency?.endsWith('.js'));
+    return [asset, new Set(dependencies)];
+  }),
+);
+
+function findStaticPath(start, target, visited = new Set()) {
+  if (start === target) return [target];
+  if (visited.has(start)) return null;
+  visited.add(start);
+  for (const dependency of importGraph.get(start) || []) {
+    const pathToTarget = findStaticPath(dependency, target, new Set(visited));
+    if (pathToTarget) return [start, ...pathToTarget];
+  }
+  return null;
+}
+
 const assets = [...staticModules, ...styles].map((asset) => {
   const bytes = fs.readFileSync(path.join(DIST_DIR, asset));
   return { asset, raw: bytes.length, gzip: zlib.gzipSync(bytes).length };
@@ -72,6 +97,14 @@ for (const asset of assets.sort((left, right) => right.gzip - left.gzip).slice(0
 }
 
 const failures = [];
+for (const sandpackAsset of jsAssets.filter((asset) => /\/sandpack\.[^/]+\.js$/.test(asset))) {
+  for (const dependency of importGraph.get(sandpackAsset) || []) {
+    const cycle = findStaticPath(dependency, sandpackAsset);
+    if (cycle) {
+      failures.push(`sandpack static import cycle: ${[sandpackAsset, ...cycle].join(' -> ')}`);
+    }
+  }
+}
 if (totals.gzip > MAX_STATIC_GZIP_BYTES) {
   failures.push(`gzip ${totals.gzip} > ${MAX_STATIC_GZIP_BYTES}`);
 }

@@ -187,11 +187,9 @@ export default defineConfig(({ command }) => ({
     // 关闭自动 modulepreload 后，静态依赖仍由原生 ESM 加载，路由重块只在使用时下载。
     modulePreload: false,
     rolldownOptions: {
-      preserveEntrySignatures: 'allow-extension',
+      preserveEntrySignatures: 'strict',
       output: {
-        strictExecutionOrder: true,
         codeSplitting: {
-          includeDependenciesRecursively: false,
           groups: [
             {
               name: 'preload-runtime',
@@ -216,20 +214,25 @@ export default defineConfig(({ command }) => ({
                   if (normalizedId.includes('lodash-es')) {
                     return 'lodash-es';
                   }
-                  // mermaid 及其(非 lodash-es)依赖仍同块,避免初始化顺序问题。
-                  // 只匹配 node_modules 里的库——原来 includes('mermaid') 把源文件
-                  // utils/mermaid.ts(首屏 hook 静态引用)也归进来,导致整块 2.7MB 变 eager。
+                  // Mermaid is loaded with import() by the renderer. Forcing Mermaid and its
+                  // helpers into a named chunk creates a static back-edge to the shared hooks
+                  // chunk under strict ESM signatures, pulling 700KB+ gzip into startup.
+                  // Leave the whole graph to Rolldown so the dynamic boundary stays dynamic.
                   if (
                     normalizedId.includes('node_modules/mermaid') ||
                     normalizedId.includes('dagre-d3-es') ||
                     normalizedId.includes('chevrotain') ||
                     normalizedId.includes('langium')
                   ) {
-                    return 'mermaid';
+                    return null;
                   }
 
-                  if (normalizedId.includes('@codesandbox/sandpack')) {
-                    return 'sandpack';
+                  // Sandpack and nodebox share runtime helpers with the artifact UI. Forcing
+                  // any @codesandbox package into a named chunk creates cross-chunk ESM cycles
+                  // whose exports may still be uninitialized when the app starts. Leave this
+                  // strongly connected subgraph to Rolldown's route-aware splitter.
+                  if (normalizedId.includes('@codesandbox/')) {
+                    return null;
                   }
                   if (normalizedId.includes('react-vtree')) {
                     return 'react-vtree';
