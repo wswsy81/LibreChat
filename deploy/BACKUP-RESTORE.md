@@ -4,18 +4,18 @@
 
 ## 恢复包内容
 
-| 文件                           | 用途                                                                                      |
-| ------------------------------ | ----------------------------------------------------------------------------------------- |
-| `mongodb-LibreChat.archive.gz` | LibreChat 账号、会话、消息和 Life 协调数据                                                |
-| `umami-postgres.dump`          | Umami Postgres custom-format 备份                                                         |
-| `future-engine-data.tgz`       | 画像、报告、分享、inbox、后台记录和删除墓碑                                               |
-| `future-engine-runtime.tgz`    | 引擎代码和构建入口，不重复包含 data                                                       |
-| `librechat-user-files.tgz`     | `uploads/` 和 `images/`                                                                   |
-| `librechat-runtime.tgz`        | `.env`、compose、LibreChat YAML、Caddy、deploy 脚本、前端/API dist 与生产 bind-mount 源码 |
-| `images.txt`                   | 备份时六个容器的镜像 ID                                                                   |
-| `SHA256SUMS`                   | 恢复前完整性校验                                                                          |
-| `mongorestore-dry-run.txt`     | 备份时 Mongo 可读验证                                                                     |
-| `postgres-restore-list.txt`    | 备份时 Postgres 可读验证                                                                  |
+| 文件                           | 用途                                                                                                              |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `mongodb-LibreChat.archive.gz` | LibreChat 账号、会话、消息和 Life 协调数据                                                                        |
+| `umami-postgres.dump`          | Umami Postgres custom-format 备份                                                                                 |
+| `future-engine-data.tgz`       | 画像、报告、分享、inbox、后台记录和删除墓碑                                                                       |
+| `future-engine-runtime.tgz`    | 引擎代码和构建入口，不重复包含 data                                                                               |
+| `librechat-user-files.tgz`     | `uploads/` 和 `images/`                                                                                           |
+| `librechat-runtime.tgz`        | `.env`、当前/历史 release manifest、compose、Docker 构建入口、LibreChat YAML、Caddy、deploy 脚本及可重建源码/dist |
+| `images.txt`                   | 备份时六个容器的镜像 ID                                                                                           |
+| `SHA256SUMS`                   | 恢复前完整性校验                                                                                                  |
+| `mongorestore-dry-run.txt`     | 备份时 Mongo 可读验证                                                                                             |
+| `postgres-restore-list.txt`    | 备份时 Postgres 可读验证                                                                                          |
 
 ## 恢复前闸门
 
@@ -27,7 +27,7 @@
 
 ## 恢复顺序
 
-1. 恢复 `librechat-runtime.tgz` 和 `future-engine-runtime.tgz`，只读检查 `.env` 必需键存在，不整份 `source`。
+1. 恢复 `librechat-runtime.tgz` 和 `future-engine-runtime.tgz`，只读检查 `.env` 必需键存在，不整份 `source`；同主机回滚直接使用 `.releases/*.env`，整机丢失时按 manifest 的 revision 重建镜像。
 2. 恢复 Mongo 与 Umami Postgres。
 3. 恢复 `future-engine-data.tgz` 和 `librechat-user-files.tgz`。
 4. 按 `images.txt` 与 Git SHA 恢复运行版本，重建/启动容器。Caddy 证书可重签，但必须保留同一域名配置并观察 CA 限频。

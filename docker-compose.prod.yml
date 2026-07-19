@@ -2,46 +2,51 @@
 # 自包含四件套:mongodb + future-engine(shim) + api(LibreChat) + caddy(自动 HTTPS)
 # 模型层复用宿主已有的 new-api(:3000),经 host.docker.internal 连,不在此编排内。
 #
-# 起停:
-#   cd librechat
-#   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
-#   docker compose -f docker-compose.prod.yml down
+# 发布与起停:
+#   bash deploy/build-release.sh <release-id>
+#   bash deploy/apply-release.sh .releases/<release-id>.env
+#   bash deploy/compose.sh ps|logs|down
+# 详见 deploy/RELEASE.md；禁止绕过 release env 直接用浮动 tag 起业务容器。
 #
 # 前置:.env 已生成(见 deploy/gen-secrets.sh)、DNS 域名 A 记录已指向本机、安全组放行 80/443。
 
 services:
   mongodb:
-    image: mongo:8.0.20
+    # 生产运行镜像全部固定到当前已验收 digest，禁止 tag 漂移。
+    image: mongo@sha256:098862b1339f031900ca66cf8fef799e616d6324fa41b9a263f2ec899552c1ef
     container_name: chat-mongodb
     restart: always
     volumes:
-      - ./data-node:/data/db            # 账号/对话/消息,持久化,务必进备份
+      - ./data-node:/data/db # 账号/对话/消息,持久化,务必进备份
     environment:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
-    command: ["mongod", "--auth", "--bind_ip_all"]
+    command: ['mongod', '--auth', '--bind_ip_all']
     networks:
       - trusted-data
     # 不发布端口,只在内网,绝不公网
 
   future-engine:
-    build:
-      context: ../future-engine-shim    # 用 shim 的生产 Dockerfile(x64 免编译)
-    image: future-engine:prod
+    # deploy/build-release.sh 先离线构建，compose 只接受内容寻址的本地 image ID。
+    image: ${FUTURE_ENGINE_RELEASE_IMAGE:?Run deploy/build-release.sh first}
+    pull_policy: never
     container_name: future-engine
     restart: always
+    init: true
+    security_opt:
+      - no-new-privileges:true
     environment:
       - SHIM_PORT=8899
-      - CHAT_URL=https://${DOMAIN}       # 报告链接 APP_BASE 用它,必须是公网 https 域名
+      - CHAT_URL=https://${DOMAIN} # 报告链接 APP_BASE 用它,必须是公网 https 域名
       - FUTURE_ENGINE_INTERNAL_TOKEN=${FUTURE_ENGINE_INTERNAL_TOKEN}
       - FUTURE_ENGINE_IDENTITY_SECRET=${FUTURE_ENGINE_IDENTITY_SECRET}
       - MONGO_URI=mongodb://librechat:${MONGO_APP_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat
-      - POLARIS_URL=http://host.docker.internal:3000/v1   # 宿主 new-api
+      - POLARIS_URL=http://host.docker.internal:3000/v1 # 宿主 new-api
       - POLARIS_KEY=${POLARIS_KEY}
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     volumes:
-      - ../future-engine-shim/data:/app/data   # 画像/报告/邀请码,持久化,务必进备份
+      - ../future-engine-shim/data:/app/data # 画像/报告/邀请码,持久化,务必进备份
     networks:
       trusted-data: {}
       engine-egress:
@@ -49,10 +54,14 @@ services:
     # 不发布 8899,只在内网
 
   api:
-    # 钉死 digest:与开发机验证通过的同一镜像(:latest 会漂移,内部结构变了会崩)
-    image: registry.librechat.ai/danny-avila/librechat-dev@sha256:7f95c733d6c9b29de9feb7dd14efa8b29cb0d369bf49710daf7e9b302a8bbe41
+    # 自定义代码、配置和四份 dist 全部在同一 release image 内，切换只认 image ID。
+    image: ${LIBRECHAT_RELEASE_IMAGE:?Run deploy/build-release.sh first}
+    pull_policy: never
     container_name: LibreChat
     restart: always
+    init: true
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       - mongodb
       - future-engine
@@ -72,29 +81,7 @@ services:
       - FUTURE_ENGINE_IDENTITY_SECRET=${FUTURE_ENGINE_IDENTITY_SECRET}
       - MONGO_URI=mongodb://librechat:${MONGO_APP_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat
     volumes:
-      # 自定义配置 + 构建产物 + 未来线定制源文件(镜像基线之上覆盖,同 dev override)
-      - ./librechat.yaml:/app/librechat.yaml
-      - ./client/dist:/app/client/dist:ro
-      - ./packages/api/dist:/app/packages/api/dist:ro
-      - ./packages/data-schemas/dist:/app/packages/data-schemas/dist:ro
-      - ./packages/data-provider/dist:/app/packages/data-provider/dist:ro
-      - ./api/server/index.js:/app/api/server/index.js:ro
-      - ./api/server/controllers/UserController.js:/app/api/server/controllers/UserController.js:ro
-      - ./api/server/controllers/agents/callbacks.js:/app/api/server/controllers/agents/callbacks.js:ro
-      - ./api/server/controllers/agents/client.js:/app/api/server/controllers/agents/client.js:ro
-      - ./api/server/services/Endpoints/agents/initialize.js:/app/api/server/services/Endpoints/agents/initialize.js:ro
-      - ./api/server/routes/config.js:/app/api/server/routes/config.js:ro
-      - ./api/server/routes/index.js:/app/api/server/routes/index.js:ro
-      - ./api/server/routes/life.js:/app/api/server/routes/life.js:ro
-      - ./api/server/middleware/requireJwtAuth.js:/app/api/server/middleware/requireJwtAuth.js:ro
-      - ./api/server/middleware/accountDeletionFence.js:/app/api/server/middleware/accountDeletionFence.js:ro
-      - ./api/server/middleware/limiters/index.js:/app/api/server/middleware/limiters/index.js:ro
-      - ./api/server/middleware/limiters/lifeShareLimiter.js:/app/api/server/middleware/limiters/lifeShareLimiter.js:ro
-      - ./api/server/services/lifeOperations.js:/app/api/server/services/lifeOperations.js:ro
-      - ./config/invite-user.js:/app/config/invite-user.js:ro
-      - ./api/server/middleware/checkInviteUser.js:/app/api/server/middleware/checkInviteUser.js:ro
-      - ./api/strategies/validators.js:/app/api/strategies/validators.js:ro
-      # 运行时可写目录(持久化用户上传/日志/图片,重启不丢)
+      # 只保留用户产生的可写数据；代码/config/dist 不再从宿主覆盖。
       - ./uploads:/app/uploads
       - ./logs:/app/logs
       - ./images:/app/client/public/images
@@ -106,7 +93,7 @@ services:
 
   # 产品分析:Umami(自建,数据留本机)。漏斗/留存/路径/仪表盘全用它原生。
   umami-db:
-    image: postgres:16-alpine
+    image: postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
     container_name: umami-db
     restart: always
     environment:
@@ -119,7 +106,7 @@ services:
       - analytics-data
 
   umami:
-    image: ghcr.io/umami-software/umami:postgresql-latest
+    image: ghcr.io/umami-software/umami@sha256:8edfe4beaef13f9d1300619fa264ef250a3688df9cc54d24ca830ca31cb475ec
     container_name: umami
     restart: always
     depends_on:
@@ -135,21 +122,21 @@ services:
     # 不发布端口,Caddy 内网反代到 analytics 子域
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     container_name: future-caddy
     restart: always
     depends_on:
       - api
       - umami
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     environment:
       - DOMAIN=${DOMAIN}
       - ANALYTICS_DOMAIN=${ANALYTICS_DOMAIN}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data          # 证书,别丢(丢了会重新签,有速率限制)
+      - caddy_data:/data # 证书,别丢(丢了会重新签,有速率限制)
       - caddy_config:/config
     networks:
       - edge

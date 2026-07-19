@@ -54,6 +54,7 @@ RUN \
 COPY --chown=node:node . .
 
 RUN \
+    test -s /app/librechat.yaml; \
     # React client build with configurable memory
     NODE_OPTIONS="--max-old-space-size=${NODE_MAX_OLD_SPACE_SIZE}" npm run frontend; \
     npm prune --production; \
@@ -70,6 +71,9 @@ ARG BUILD_DATE=
 ENV BUILD_COMMIT=${BUILD_COMMIT}
 ENV BUILD_BRANCH=${BUILD_BRANCH}
 ENV BUILD_DATE=${BUILD_DATE}
+LABEL org.opencontainers.image.revision=${BUILD_COMMIT}
+LABEL org.opencontainers.image.created=${BUILD_DATE}
+LABEL org.opencontainers.image.title="yiweilife-librechat"
 
 # Node API setup
 EXPOSE 3080

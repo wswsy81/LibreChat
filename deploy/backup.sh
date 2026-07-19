@@ -127,7 +127,11 @@ tar -C "$APP_DIR" -czf "$STAGING/librechat-user-files.tgz" "${user_file_paths[@]
 runtime_paths=()
 for path in \
   .env \
+  .release.env \
+  .releases \
   docker-compose.prod.yml \
+  Dockerfile \
+  .dockerignore \
   librechat.yaml \
   deploy \
   client/dist \
