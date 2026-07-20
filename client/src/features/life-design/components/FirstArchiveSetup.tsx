@@ -185,8 +185,16 @@ export default function FirstArchiveSetup({
                     {localize(field.hint)}
                   </span>
                 </span>
-                <output className="min-w-12 rounded-xl bg-surface-primary px-3 py-1.5 text-center font-semibold tabular-nums text-text-primary">
-                  {values[field.key]}
+                <output
+                  className={`min-w-14 rounded-xl px-3 py-1.5 text-center font-semibold tabular-nums ${
+                    touched.has(field.key)
+                      ? 'bg-surface-primary text-text-primary'
+                      : 'bg-transparent text-text-secondary'
+                  }`}
+                >
+                  {touched.has(field.key)
+                    ? localize('com_life_bar_value', { 0: values[field.key] })
+                    : localize('com_life_bar_unset')}
                 </output>
               </span>
               <input
@@ -198,10 +206,15 @@ export default function FirstArchiveSetup({
                 onChange={(event) => updateValue(field.key, Number(event.target.value))}
                 className="mt-4 h-3 w-full cursor-pointer accent-life-moss"
                 aria-label={localize(field.label)}
+                aria-valuetext={
+                  touched.has(field.key)
+                    ? localize('com_life_bar_value', { 0: values[field.key] })
+                    : localize('com_life_bar_unset')
+                }
               />
               <span className="mt-2 flex justify-between text-life-meta text-text-secondary">
-                <span>{localize('com_life_bar_empty')}</span>
-                <span>{localize('com_life_bar_full')}</span>
+                <span>{localize('com_life_bar_scale_low')}</span>
+                <span>{localize('com_life_bar_scale_high')}</span>
               </span>
             </label>
           ))}

@@ -128,3 +128,31 @@ test('关于我在前端拒绝不存在的公历日期', () => {
     status: 'error',
   });
 });
+
+// FB-003:量表歧义修复(以为 5 分是满分)。未拨动前不显示预设 5;拨动后显示 n/10;端点带数字。
+test('FB-003:未拨动血条时显示「还没打分」,不把预设 5 当作用户答案', () => {
+  render(
+    <MemoryRouter>
+      <FirstArchiveSetup initialName="张东" />
+    </MemoryRouter>,
+  );
+  // 四条血条初始都未拨动 → 均显示未答态,页面上不出现独立的 "5"
+  const unset = screen.getAllByText('com_life_bar_unset');
+  expect(unset.length).toBe(4);
+  expect(screen.queryByText('5')).toBeNull();
+});
+
+test('FB-003:拨动后显示带 /10 刻度的读数,端点带 0/10 数字', () => {
+  render(
+    <MemoryRouter>
+      <FirstArchiveSetup initialName="张东" />
+    </MemoryRouter>,
+  );
+  fireEvent.change(screen.getByLabelText('com_life_health'), { target: { value: '4' } });
+  // 只这一条变为读数;其余仍未答
+  expect(screen.getByText('com_life_bar_value')).toBeInTheDocument();
+  expect(screen.getAllByText('com_life_bar_unset').length).toBe(3);
+  // 端点用带数字的刻度键,替代无数字的旧标签
+  expect(screen.getAllByText('com_life_bar_scale_low').length).toBe(4);
+  expect(screen.getAllByText('com_life_bar_scale_high').length).toBe(4);
+});
