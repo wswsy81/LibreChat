@@ -73,6 +73,18 @@ describe('public registration policy', () => {
     );
   });
 
+  it('explains the product, shows the mist map, and renders all three steps', () => {
+    renderHome();
+
+    expect(screen.getByText('com_life_public_title')).toBeInTheDocument();
+    expect(screen.getByText('com_life_public_description')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'com_life_public_map_aria' })).toBeInTheDocument();
+    expect(screen.getByText('com_life_public_step_one')).toBeInTheDocument();
+    expect(screen.getByText('com_life_public_step_two')).toBeInTheDocument();
+    expect(screen.getByText('com_life_public_step_three')).toBeInTheDocument();
+    expect(screen.getByText('com_life_public_private')).toBeInTheDocument();
+  });
+
   it('stores an invite from the home fragment without sending the code to analytics', async () => {
     renderHome('/home#invite=YW-7K9P-2M8Q');
 

@@ -1,4 +1,3 @@
-/* eslint-disable i18next/no-literal-string */
 import { useCallback, useMemo, useState } from 'react';
 import { request } from 'librechat-data-provider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,9 +16,25 @@ const CURATED: { group: string; items: { key: string; label: string }[] }[] = [
       { key: 'com_life_public_kicker', label: '小字(标题上一句)' },
       { key: 'com_life_public_title', label: '大标题' },
       { key: 'com_life_public_description', label: '副标题' },
-      { key: 'com_life_start_first', label: '主按钮(开始第一次对话)' },
+      { key: 'com_life_start_first', label: '主按钮(开始20分钟梳理)' },
       { key: 'com_life_login_archive', label: '次按钮(登录已有存档)' },
       { key: 'com_life_boundary_short', label: '底线一行(不算命·不预测…)' },
+      { key: 'com_life_public_result_problem', label: '首屏结果1(真问题)' },
+      { key: 'com_life_public_result_map', label: '首屏结果2(地图)' },
+      { key: 'com_life_public_result_next', label: '首屏结果3(下一步)' },
+      { key: 'com_life_public_map_title', label: '地图·标题' },
+      { key: 'com_life_public_map_description', label: '地图·说明' },
+      { key: 'com_life_public_map_caption', label: '地图·脚注' },
+      { key: 'com_life_public_process_title', label: '三步流程·标题' },
+      { key: 'com_life_public_step_one', label: '三步流程·第一步' },
+      { key: 'com_life_public_step_one_help', label: '三步流程·第一步说明' },
+      { key: 'com_life_public_step_two', label: '三步流程·第二步' },
+      { key: 'com_life_public_step_two_help', label: '三步流程·第二步说明' },
+      { key: 'com_life_public_step_three', label: '三步流程·第三步' },
+      { key: 'com_life_public_step_three_help', label: '三步流程·第三步说明' },
+      { key: 'com_life_public_archive_title', label: '存档说明·标题' },
+      { key: 'com_life_public_archive_description', label: '存档说明·正文' },
+      { key: 'com_life_public_private', label: '隐私承诺' },
       { key: 'com_life_sample_no', label: '存档预览·编号' },
       { key: 'com_life_sample_problem', label: '存档预览·标题句' },
       { key: 'com_life_sample_caption', label: '存档预览·脚注' },

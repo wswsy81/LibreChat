@@ -121,6 +121,10 @@ export const router = createBrowserRouter(
           path: 'home',
           lazy: () => loadShellComponent(() => import('~/features/life-design/routes/HomeRoute')),
         },
+        {
+          path: 'faq',
+          lazy: () => loadShellComponent(() => import('~/features/life-design/routes/FaqRoute')),
+        },
       ],
     },
     {
