@@ -57,6 +57,48 @@ describe('bedrockEndpointSchema', () => {
   });
 });
 
+describe('speech STT configuration', () => {
+  it('accepts Doubao with bounded static hints and external client routing', () => {
+    const result = configSchema.safeParse({
+      version: '1.3.13',
+      speech: {
+        stt: {
+          volcengine: {
+            apiKey: '${VOLCENGINE_ASR_API_KEY}',
+            url: 'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream',
+            resourceId: 'volc.seedasr.sauc.duration',
+            hints: { keyterms: ['未来线', '人生设计室'] },
+          },
+        },
+        speechTab: {
+          speechToText: {
+            engineSTT: 'external',
+            languageSTT: 'zh-CN',
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an oversized static hint vocabulary', () => {
+    const result = configSchema.safeParse({
+      version: '1.3.13',
+      speech: {
+        stt: {
+          volcengine: {
+            apiKey: '${VOLCENGINE_ASR_API_KEY}',
+            hints: { keyterms: Array.from({ length: 21 }, (_, index) => `词${index}`) },
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('resolveEndpointType', () => {
   describe('non-agents endpoints', () => {
     it('returns the config type for a custom endpoint', () => {
