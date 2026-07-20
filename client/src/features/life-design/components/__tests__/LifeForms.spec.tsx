@@ -156,3 +156,36 @@ test('FB-003:拨动后显示带 /10 刻度的读数,端点带 0/10 数字', () =
   expect(screen.getAllByText('com_life_bar_scale_low').length).toBe(4);
   expect(screen.getAllByText('com_life_bar_scale_high').length).toBe(4);
 });
+
+test('FB-003:点按停在默认位置的滑块也能确认 5 分并只提交这一条', () => {
+  render(
+    <MemoryRouter>
+      <FirstArchiveSetup initialName="张东" />
+    </MemoryRouter>,
+  );
+
+  fireEvent.pointerUp(screen.getByLabelText('com_life_health'));
+  expect(screen.getByText('com_life_bar_value')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /com_life_enter_studio/ })).toBeEnabled();
+
+  fireEvent.click(screen.getByRole('button', { name: /com_life_enter_studio/ }));
+  expect(mockOnboardingMutate).toHaveBeenCalledWith(
+    { archiveName: '张东', dashboards: { health: 5 } },
+    expect.any(Object),
+  );
+});
+
+test.each([
+  ['Enter', 'Enter'],
+  ['空格', ' '],
+])('FB-003:键盘用户可用 %s 确认当前 5 分', (_label, key) => {
+  render(
+    <MemoryRouter>
+      <FirstArchiveSetup initialName="张东" />
+    </MemoryRouter>,
+  );
+
+  fireEvent.keyDown(screen.getByLabelText('com_life_health'), { key });
+  expect(screen.getByText('com_life_bar_value')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /com_life_enter_studio/ })).toBeEnabled();
+});

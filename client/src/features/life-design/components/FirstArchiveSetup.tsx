@@ -80,19 +80,24 @@ export default function FirstArchiveSetup({
     track(diagnostic ? 'recheck_view' : 'onboarding_view');
   }, [diagnostic]);
 
-  const updateValue = (key: keyof LifeDashboards, value: number) => {
-    setValues((current) => ({ ...current, [key]: value }));
+  const markTouched = (key: keyof LifeDashboards) => {
     setTouched((current) => {
+      if (current.has(key)) {
+        return current;
+      }
       const next = new Set(current).add(key);
-      if (!current.has(key)) {
-        // 首次拨动某条血条:只记类别,不记分值
-        track('onboarding_bar_touched', { bar: key });
-        if (next.size === fields.length) {
-          track('onboarding_all_touched');
-        }
+      // 首次拨动某条血条:只记类别,不记分值
+      track('onboarding_bar_touched', { bar: key });
+      if (next.size === fields.length) {
+        track('onboarding_all_touched');
       }
       return next;
     });
+  };
+
+  const updateValue = (key: keyof LifeDashboards, value: number) => {
+    setValues((current) => ({ ...current, [key]: value }));
+    markTouched(key);
   };
 
   const submit = () => {
@@ -204,6 +209,14 @@ export default function FirstArchiveSetup({
                 step="1"
                 value={values[field.key]}
                 onChange={(event) => updateValue(field.key, Number(event.target.value))}
+                onPointerUp={() => markTouched(field.key)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                  }
+                  event.preventDefault();
+                  markTouched(field.key);
+                }}
                 className="mt-4 h-3 w-full cursor-pointer accent-life-moss"
                 aria-label={localize(field.label)}
                 aria-valuetext={
