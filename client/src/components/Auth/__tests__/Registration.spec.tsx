@@ -13,6 +13,11 @@ import AuthLayout from '~/components/Auth/AuthLayout';
 
 jest.mock('librechat-data-provider/react-query');
 
+beforeEach(() => {
+  sessionStorage.clear();
+  window.history.replaceState({}, '', '/register');
+});
+
 const mockStartupConfig = {
   isFetching: false,
   isLoading: false,
@@ -183,9 +188,9 @@ test('renders registration form', () => {
   );
 });
 
-test('does not offer a registration form when public registration is closed without an invite', () => {
+test('keeps the normal registration form and requires an invite code when public registration is closed', async () => {
   window.history.replaceState({}, '', '/register');
-  const { queryByRole, getByText } = setup({
+  const { getByRole, getByText, getByTestId } = setup({
     useGetStartupConfigReturnValue: {
       ...mockStartupConfig,
       data: {
@@ -195,8 +200,17 @@ test('does not offer a registration form when public registration is closed with
     },
   });
 
-  expect(queryByRole('form', { name: /Registration form/i })).not.toBeInTheDocument();
-  expect(getByText(/这里目前只接待受邀用户/)).toBeInTheDocument();
+  expect(getByRole('form', { name: /Registration form/i })).toBeVisible();
+  expect(getByRole('textbox', { name: '邀请码' })).toBeVisible();
+  expect(getByText(/目前是小范围邀请体验/)).toBeInTheDocument();
+
+  await userEvent.type(getByRole('textbox', { name: /Full name/i }), 'Invite User');
+  await userEvent.type(getByRole('textbox', { name: /Email/i }), 'invite@example.com');
+  await userEvent.type(getByTestId('password'), 'password');
+  await userEvent.type(getByTestId('confirm_password'), 'password');
+  await userEvent.click(getByRole('button', { name: /Submit registration/i }));
+
+  expect(await screen.findByText('请输入邀请码')).toBeInTheDocument();
 });
 
 test('keeps the registration form available for an invite link', () => {
@@ -212,9 +226,26 @@ test('keeps the registration form available for an invite link', () => {
   });
 
   expect(getByRole('form', { name: /Registration form/i })).toBeVisible();
+  expect(getByRole('textbox', { name: '邀请码' })).toBeVisible();
+});
+
+test('prefills the invite code saved by the home invitation link', () => {
+  sessionStorage.setItem('life_invite_code', 'YW-7K9P-2M8Q');
+  const { getByRole } = setup({
+    useGetStartupConfigReturnValue: {
+      ...mockStartupConfig,
+      data: {
+        ...mockStartupConfig.data,
+        registrationEnabled: false,
+      },
+    },
+  });
+
+  expect(getByRole('textbox', { name: '邀请码' })).toHaveValue('YW-7K9P-2M8Q');
 });
 
 test('logs in immediately after registration when email verification is disabled', () => {
+  sessionStorage.setItem('life_invite_code', 'YW-7K9P-2M8Q');
   const login = jest.fn();
   const { getRegisterMutationOptions } = setup({
     useGetStartupConfigReturnValue: {
@@ -254,6 +285,7 @@ test('logs in immediately after registration when email verification is disabled
     email: registration.email,
     password: registration.password,
   });
+  expect(sessionStorage.getItem('life_invite_code')).toBeNull();
 });
 
 // test('calls registerUser.mutate on registration', async () => {

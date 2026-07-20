@@ -1,8 +1,13 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const { createHmac } = require('crypto');
-const { createLifeEngineClient, LifeEngineError, createInvite } = require('@librechat/api');
-const { logger } = require('@librechat/data-schemas');
+const {
+  createLifeEngineClient,
+  LifeEngineError,
+  formatLifeInviteCode,
+  generateLifeInviteCode,
+} = require('@librechat/api');
+const { logger, hashToken } = require('@librechat/data-schemas');
 const checkAdmin = require('~/server/middleware/roles/admin');
 const { lifeShareLimiter } = require('~/server/middleware/limiters');
 const optionalJwtAuth = require('~/server/middleware/optionalJwtAuth');
@@ -12,7 +17,7 @@ const {
   LifeOperationPendingError,
   LifeOperationConflictError,
 } = require('~/server/services/lifeOperations');
-const { createToken } = require('~/models');
+const { createLifeInvitation } = require('~/models');
 
 const router = express.Router();
 const engine = createLifeEngineClient({
@@ -662,31 +667,153 @@ const byUserFilter = (id) => {
   return { $or: or };
 };
 
+const byUserIdsFilter = (ids) => {
+  const values = ids.reduce((result, id) => {
+    result.push(String(id));
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      result.push(new mongoose.Types.ObjectId(id));
+    }
+    return result;
+  }, []);
+  return { user: { $in: values } };
+};
+
+const inviteStatus = (row, stats, now) => {
+  if (row.status === 'accepted') {
+    return stats?.conversations > 0 ? 'activated' : 'registered';
+  }
+  if (row.status === 'revoked') {
+    return 'revoked';
+  }
+  if (row.expiresAt && new Date(row.expiresAt) <= now) {
+    return 'expired';
+  }
+  return 'pending';
+};
+
 admin.post('/invites', async (req, res) => {
-  const token = await createInvite(UNBOUND_INVITE_EMAIL, { createToken });
-  if (typeof token !== 'string') {
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  let code;
+  let invitation;
+  for (let attempt = 0; attempt < 5 && !invitation; attempt += 1) {
+    code = generateLifeInviteCode();
+    try {
+      invitation = await createLifeInvitation({
+        codeHash: await hashToken(code),
+        codeHint: code.slice(-4),
+        inviterUserId: userId(req),
+        expiresAt,
+      });
+    } catch (error) {
+      if (error?.code !== 11000) {
+        throw error;
+      }
+    }
+  }
+  if (!invitation || !code) {
     return res.status(500).json({ error: { code: 'INVITE_FAILED', message: '邀请创建失败' } });
   }
-  const base = process.env.DOMAIN_CLIENT || 'http://localhost:3080';
-  return res.status(201).json({ url: `${base}/register?token=${token}` });
+  const base = (process.env.DOMAIN_CLIENT || 'http://localhost:3080').replace(/\/+$/, '');
+  const displayCode = formatLifeInviteCode(code);
+  return res.status(201).json({
+    code: displayCode,
+    url: `${base}/home#invite=${encodeURIComponent(displayCode)}`,
+  });
 });
 
 admin.get('/invites', async (_req, res) => {
   const Token = mongoose.models.Token;
-  if (!Token) {
-    return res.json({ invites: [] });
-  }
-  const rows = await Token.find({ email: UNBOUND_INVITE_EMAIL })
-    .select({ _id: 0, createdAt: 1, expiresAt: 1 })
-    .sort({ createdAt: -1 })
-    .limit(100)
-    .lean();
-  return res.json({
-    invites: rows.map((row) => ({
+  const LifeInvitation = mongoose.models.LifeInvitation;
+  const [rows, legacyRows] = await Promise.all([
+    LifeInvitation
+      ? LifeInvitation.find({}).sort({ createdAt: -1 }).limit(100).lean()
+      : Promise.resolve([]),
+    Token
+      ? Token.find({ email: UNBOUND_INVITE_EMAIL })
+          .select({ _id: 0, createdAt: 1, expiresAt: 1 })
+          .sort({ createdAt: -1 })
+          .limit(100)
+          .lean()
+      : Promise.resolve([]),
+  ]);
+  const userIds = [
+    ...rows.map((row) => row.inviterUserId),
+    ...rows.map((row) => row.acceptedByUserId).filter(Boolean),
+  ];
+  const acceptedIds = rows.map((row) => row.acceptedByUserId).filter(Boolean);
+  const [users, activity] = await Promise.all([
+    userIds.length
+      ? mongoose.models.User.find({ _id: { $in: userIds } })
+          .select({ name: 1, email: 1 })
+          .lean()
+      : Promise.resolve([]),
+    acceptedIds.length
+      ? mongoose.models.Conversation.aggregate([
+          {
+            $match: {
+              ...byUserIdsFilter(acceptedIds),
+              spec: 'future-lines',
+              isTemporary: { $ne: true },
+              'messages.0': { $exists: true },
+            },
+          },
+          {
+            $group: {
+              _id: '$user',
+              conversations: { $sum: 1 },
+              lastActive: { $max: '$updatedAt' },
+            },
+          },
+        ])
+      : Promise.resolve([]),
+  ]);
+  const byId = new Map(users.map((user) => [String(user._id), user]));
+  const byAcceptedUser = new Map(activity.map((row) => [String(row._id), row]));
+  const now = new Date();
+  const durableInvites = rows.map((row) => {
+    const inviter = byId.get(String(row.inviterUserId));
+    const acceptedUser = row.acceptedByUserId ? byId.get(String(row.acceptedByUserId)) : undefined;
+    const stats = row.acceptedByUserId
+      ? byAcceptedUser.get(String(row.acceptedByUserId))
+      : undefined;
+    return {
+      id: String(row._id),
+      codeHint: row.codeHint,
       createdAt: row.createdAt,
       expiresAt: row.expiresAt,
-      expired: row.expiresAt ? new Date(row.expiresAt) < new Date() : false,
-    })),
+      status: inviteStatus(row, stats, now),
+      inviter: inviter
+        ? { id: String(inviter._id), name: inviter.name, email: inviter.email }
+        : null,
+      acceptedBy: acceptedUser
+        ? {
+            id: String(acceptedUser._id),
+            name: acceptedUser.name,
+            email: acceptedUser.email,
+          }
+        : null,
+      acceptedAt: row.acceptedAt || null,
+      conversationCount: stats?.conversations || 0,
+      lastActive: stats?.lastActive || null,
+    };
+  });
+  const legacyInvites = legacyRows.map((row, index) => ({
+    id: `legacy-${index}-${new Date(row.createdAt).getTime()}`,
+    codeHint: null,
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    status: row.expiresAt && new Date(row.expiresAt) <= now ? 'expired' : 'pending',
+    inviter: null,
+    acceptedBy: null,
+    acceptedAt: null,
+    conversationCount: 0,
+    lastActive: null,
+    legacy: true,
+  }));
+  return res.json({
+    invites: [...durableInvites, ...legacyInvites]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 100),
   });
 });
 

@@ -28,6 +28,7 @@ import { createPromptModel } from './prompt';
 import { createMemoryModel } from './memory';
 import { createConfigModel } from './config';
 import { createTokenModel } from './token';
+import { createLifeInvitationModel } from './lifeInvitation';
 import { createAgentModel } from './agent';
 import { createSkillModel } from './skill';
 import { createGroupModel } from './group';
@@ -42,6 +43,7 @@ import { createKeyModel } from './key';
 export function createModels(mongoose: typeof import('mongoose')): {
   User: ReturnType<typeof createUserModel>;
   Token: ReturnType<typeof createTokenModel>;
+  LifeInvitation: ReturnType<typeof createLifeInvitationModel>;
   Session: ReturnType<typeof createSessionModel>;
   Balance: ReturnType<typeof createBalanceModel>;
   Conversation: ReturnType<typeof createConversationModel>;
@@ -81,6 +83,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
   return {
     User: createUserModel(mongoose),
     Token: createTokenModel(mongoose),
+    LifeInvitation: createLifeInvitationModel(mongoose),
     Session: createSessionModel(mongoose),
     Balance: createBalanceModel(mongoose),
     Conversation: createConversationModel(mongoose),

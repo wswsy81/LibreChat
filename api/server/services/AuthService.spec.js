@@ -95,6 +95,7 @@ const {
   createSession,
   createToken,
   deleteTokens,
+  deleteUserById,
 } = require('~/models');
 const { getAppConfig } = require('~/server/services/Config');
 const { sendEmail } = require('~/server/utils');
@@ -470,6 +471,36 @@ describe('registerUser', () => {
         provider: 'google',
       }),
     );
+  });
+
+  it('runs the final trusted write after the user is ready and returns the internal user', async () => {
+    const createdUser = { _id: 'new-user-id', email: registrationPayload.email };
+    createUser.mockResolvedValue(createdUser);
+    const onUserCreated = jest.fn().mockResolvedValue(undefined);
+
+    const result = await registerUser(
+      registrationPayload,
+      { invitationId: 'invitation-id' },
+      onUserCreated,
+    );
+
+    expect(onUserCreated).toHaveBeenCalledWith(createdUser);
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 200,
+        user: createdUser,
+      }),
+    );
+  });
+
+  it('deletes the new user when the final trusted write fails', async () => {
+    deleteUserById.mockResolvedValue({ deletedCount: 1 });
+    const onUserCreated = jest.fn().mockRejectedValue(new Error('invite reservation lost'));
+
+    const result = await registerUser(registrationPayload, {}, onUserCreated);
+
+    expect(result).toEqual({ status: 500, message: 'Something went wrong' });
+    expect(deleteUserById).toHaveBeenCalledWith('new-user-id');
   });
 });
 

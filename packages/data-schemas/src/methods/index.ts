@@ -3,6 +3,7 @@ import { createSessionMethods, DEFAULT_REFRESH_TOKEN_EXPIRY, type SessionMethods
 import { createUserMethods, DEFAULT_SESSION_EXPIRY, type UserMethods } from './user';
 import { createFileMethods, type FileMethods, type FileOwnerScope } from './file';
 import { createTokenMethods, type TokenMethods } from './token';
+import { createLifeInvitationMethods, type LifeInvitationMethods } from './lifeInvitation';
 import { createRoleMethods, RoleConflictError } from './role';
 import { createKeyMethods, type KeyMethods } from './key';
 /* Memories */
@@ -121,6 +122,7 @@ export { MAX_TOOL_FAVORITES };
 export type AllMethods = UserMethods &
   SessionMethods &
   TokenMethods &
+  LifeInvitationMethods &
   RoleMethods &
   KeyMethods &
   FileMethods &
@@ -250,6 +252,7 @@ export function createMethods(
     ...createUserMethods(mongoose),
     ...createSessionMethods(mongoose),
     ...createTokenMethods(mongoose),
+    ...createLifeInvitationMethods(mongoose),
     ...roleMethods,
     ...createKeyMethods(mongoose),
     ...createFileMethods(mongoose),
@@ -295,6 +298,7 @@ export type {
   UserMethods,
   SessionMethods,
   TokenMethods,
+  LifeInvitationMethods,
   RoleMethods,
   KeyMethods,
   FileMethods,

@@ -1,5 +1,5 @@
-import { useForm } from 'react-hook-form';
 import React, { useContext, useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { Turnstile } from '@marsidev/react-turnstile';
 import { ThemeContext, SecretInput, Spinner, Button, isDark } from '@librechat/client';
 import { useNavigate, useOutletContext, useLocation } from 'react-router-dom';
@@ -9,6 +9,7 @@ import type { TRegisterUser, TError } from 'librechat-data-provider';
 import type { TLoginLayoutContext } from '~/common';
 import { useLoginUserMutation } from '~/data-provider/Auth/mutations';
 import { useLocalize, TranslationKeys } from '~/hooks';
+import { clearStoredInviteCode, formatLifeInviteCode, getStoredInviteCode } from '~/utils/invite';
 import { track } from '~/utils/track';
 import { ErrorMessage } from './ErrorMessage';
 
@@ -18,13 +19,19 @@ const Registration: React.FC = () => {
   const { theme } = useContext(ThemeContext);
   const { startupConfig, startupConfigError, isFetching, setHeaderText } =
     useOutletContext<TLoginLayoutContext>();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const token = queryParams.get('token');
 
   const {
     watch,
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<TRegisterUser>({ mode: 'onChange' });
+  } = useForm<TRegisterUser>({
+    mode: 'onChange',
+    defaultValues: { inviteCode: getStoredInviteCode() },
+  });
   const password = watch('password');
 
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -32,25 +39,22 @@ const Registration: React.FC = () => {
   const [countdown, setCountdown] = useState<number>(3);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const token = queryParams.get('token');
-  const isInviteOnly = startupConfig?.registrationEnabled === false && !token;
+  const inviteRequired = startupConfig?.registrationEnabled === false && !token;
   const validTheme = isDark(theme) ? 'dark' : 'light';
 
   useEffect(() => {
-    setHeaderText(isInviteOnly ? 'com_auth_invite_only_title' : 'com_auth_create_account');
-  }, [isInviteOnly, setHeaderText]);
+    setHeaderText(inviteRequired ? 'com_auth_invite_only_title' : 'com_auth_create_account');
+  }, [inviteRequired, setHeaderText]);
 
   // only require captcha if we have a siteKey
   const requireCaptcha = Boolean(startupConfig?.turnstile?.siteKey);
   const authInputClassName =
-    'webkit-dark-styles transition-color peer w-full rounded-2xl border border-border-light bg-surface-primary px-3.5 pb-2.5 pt-3 text-text-primary duration-200 hover:border-border-light focus:border-life-moss focus:outline-none focus-visible:border-life-moss';
+    'webkit-dark-styles transition-color peer w-full rounded-[4px] border border-border-light bg-surface-primary px-3.5 pb-2.5 pt-3 text-text-primary duration-200 hover:border-border-light focus:border-life-moss focus:outline-none focus-visible:border-life-moss';
   const authSecretInputClassName = `${authInputClassName} h-auto pr-12`;
   const authLabelClassName =
     'absolute start-3 top-1.5 z-10 origin-[0] -translate-y-4 scale-75 transform bg-surface-primary px-2 text-sm text-text-secondary-alt duration-200 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:scale-100 peer-focus:top-1.5 peer-focus:-translate-y-4 peer-focus:scale-75 peer-focus:px-2 peer-focus:text-life-moss rtl:peer-focus:left-auto rtl:peer-focus:translate-x-1/4';
   const authSecretButtonClassName =
-    'size-9 rounded-xl text-text-secondary-alt hover:bg-transparent hover:text-text-primary';
+    'size-9 rounded-[4px] text-text-secondary-alt hover:bg-transparent hover:text-text-primary';
 
   const loginUser = useLoginUserMutation({
     onSuccess: (data) => {
@@ -72,6 +76,7 @@ const Registration: React.FC = () => {
       setIsSubmitting(true);
     },
     onSuccess: (_data, registration) => {
+      clearStoredInviteCode();
       track('register_success');
       if (startupConfig?.emailEnabled === false) {
         loginUser.mutate({
@@ -103,12 +108,14 @@ const Registration: React.FC = () => {
     },
   });
 
-  const renderInput = (id: string, label: TranslationKeys, type: string, validation: object) => {
+  const renderInput = (
+    id: keyof TRegisterUser,
+    label: TranslationKeys,
+    type: string,
+    validation: object,
+  ) => {
     const fieldLabel = localize(label);
-    const field = register(
-      id as 'name' | 'email' | 'username' | 'password' | 'confirm_password',
-      validation,
-    );
+    const field = register(id, validation);
 
     return (
       <div className="mb-4">
@@ -116,7 +123,7 @@ const Registration: React.FC = () => {
           {type === 'password' ? (
             <SecretInput
               id={id}
-              autoComplete={id}
+              autoComplete={id === 'inviteCode' ? 'off' : id}
               aria-label={fieldLabel}
               {...field}
               aria-invalid={!!errors[id]}
@@ -133,7 +140,7 @@ const Registration: React.FC = () => {
               <input
                 id={id}
                 type={type}
-                autoComplete={id}
+                autoComplete={id === 'inviteCode' ? 'off' : id}
                 aria-label={fieldLabel}
                 {...field}
                 aria-invalid={!!errors[id]}
@@ -177,28 +184,25 @@ const Registration: React.FC = () => {
             localize('com_auth_email_verification_redirecting', { 0: countdown.toString() })}
         </div>
       )}
-      {!startupConfigError && !isFetching && isInviteOnly && (
-        <div className="mt-6 border-l-2 border-life-brass py-2 pl-4 text-left" role="status">
-          <p className="font-life-kai text-life-body leading-8 text-life-brass">
-            {localize('com_auth_invite_only_description')}
-          </p>
-          <a
-            href={loginPage()}
-            className="mt-5 inline-flex min-h-11 items-center border border-life-ink/20 px-5 font-life-sans text-life-sm font-medium text-life-cinnabar transition-colors hover:border-life-cinnabar"
-          >
-            {localize('com_auth_login')}
-          </a>
-        </div>
-      )}
-      {!startupConfigError && !isFetching && !isInviteOnly && (
+      {!startupConfigError && !isFetching && (
         <>
+          {inviteRequired && (
+            <p
+              className="mt-6 border-l-2 border-life-brass py-1 pl-4 text-left font-life-kai text-life-body leading-8 text-life-brass"
+              role="status"
+            >
+              {localize('com_auth_invite_only_description')}
+            </p>
+          )}
           <form
             className="mt-6"
             aria-label="Registration form"
             method="POST"
-            onSubmit={handleSubmit((data: TRegisterUser) =>
-              registerUser.mutate({ ...data, token: token ?? undefined }),
-            )}
+            onSubmit={handleSubmit((data: TRegisterUser) => {
+              const inviteCode = data.inviteCode?.trim() || undefined;
+              track('register_submit', { invited: Boolean(inviteCode || token) });
+              registerUser.mutate({ ...data, inviteCode, token: token ?? undefined });
+            })}
           >
             {renderInput('name', 'com_auth_full_name', 'text', {
               required: localize('com_auth_name_required'),
@@ -235,6 +239,13 @@ const Registration: React.FC = () => {
                 value: /\S+@\S+\.\S+/,
                 message: localize('com_auth_email_pattern'),
               },
+            })}
+            {renderInput('inviteCode', 'com_auth_invite_code', 'text', {
+              required: inviteRequired ? localize('com_auth_invite_code_required') : false,
+              validate: (value?: string) =>
+                !value ||
+                Boolean(formatLifeInviteCode(value)) ||
+                localize('com_auth_invite_code_invalid'),
             })}
             {renderInput('password', 'com_auth_password', 'password', {
               required: localize('com_auth_password_required'),

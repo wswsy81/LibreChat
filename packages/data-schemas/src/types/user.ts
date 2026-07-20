@@ -61,6 +61,9 @@ export interface IUser extends Document {
   /** Field for external source identification (for consistency with TPrincipal schema) */
   idOnTheSource?: string;
   tenantId?: string;
+  invitedByUserId?: Types.ObjectId;
+  invitationId?: Types.ObjectId;
+  invitationAcceptedAt?: Date;
   federatedTokens?: OIDCTokens;
   openidTokens?: OIDCTokens;
 }

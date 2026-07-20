@@ -1,9 +1,12 @@
+import { useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@librechat/client';
 import { useGetStartupConfig, useLifeBootstrapQuery } from '~/data-provider';
 import { useAuthContext, useLocalize } from '~/hooks';
 import { ProductShell } from '~/routes/Root';
+import { getInviteCodeFromHash, getStoredInviteCode, storeInviteCode } from '~/utils/invite';
+import { track } from '~/utils/track';
 import FirstArchiveSetup from '../components/FirstArchiveSetup';
 import ReturningHome from '../components/ReturningHome';
 import { LifeError, LifeLoading } from '../components/PageState';
@@ -26,6 +29,11 @@ function PublicHome() {
   const localize = useLocalize();
   const { data: startupConfig } = useGetStartupConfig();
   const registrationEnabled = startupConfig?.registrationEnabled === true;
+  const startRegistration = () => {
+    if (getStoredInviteCode()) {
+      track('invite_registration_started');
+    }
+  };
   return (
     <main className="min-h-screen overflow-hidden bg-life-paper text-life-ink dark:bg-[#171512] dark:text-[#f6f0e6]">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-12">
@@ -58,24 +66,15 @@ function PublicHome() {
               {localize('com_life_public_description')}
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              {registrationEnabled ? (
-                <Button
-                  asChild
-                  className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
-                >
-                  <Link to="/register">
-                    {localize('com_life_start_first')}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              ) : (
-                <p
-                  className="max-w-[30em] border-l-2 border-life-brass py-2 pl-4 font-life-kai text-life-body leading-8 text-life-brass"
-                  role="status"
-                >
-                  {localize('com_life_invite_only_notice')}
-                </p>
-              )}
+              <Button
+                asChild
+                className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
+              >
+                <Link to="/register" onClick={startRegistration}>
+                  {localize('com_life_start_first')}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
               <Button
                 asChild
                 variant="outline"
@@ -84,6 +83,14 @@ function PublicHome() {
                 <Link to="/login?redirect_to=%2Fhome">{localize('com_life_login_archive')}</Link>
               </Button>
             </div>
+            {!registrationEnabled && (
+              <p
+                className="mt-5 max-w-[30em] border-l-2 border-life-brass py-1 pl-4 font-life-kai text-life-body leading-8 text-life-brass"
+                role="status"
+              >
+                {localize('com_life_invite_only_notice')}
+              </p>
+            )}
             <p className="mt-6 font-life-mono text-life-meta text-life-muted dark:text-[#a99f92]">
               {localize('com_life_boundary_short')}
             </p>
@@ -154,9 +161,20 @@ function PublicHome() {
 
 export default function HomeRoute() {
   const localize = useLocalize();
+  const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, isAuthReady } = useAuthContext();
   const bootstrap = useLifeBootstrapQuery({ enabled: isAuthReady && isAuthenticated });
+
+  useEffect(() => {
+    const inviteCode = getInviteCodeFromHash(location.hash);
+    if (!inviteCode) {
+      return;
+    }
+    storeInviteCode(inviteCode);
+    track('invite_opened');
+    navigate({ pathname: location.pathname, search: location.search }, { replace: true });
+  }, [location.hash, location.pathname, location.search, navigate]);
 
   if (!isAuthReady) {
     return <LifeLoading fullScreen />;

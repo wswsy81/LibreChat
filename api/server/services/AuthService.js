@@ -325,9 +325,10 @@ const verifyEmail = async (req) => {
  * Register a new user.
  * @param {IUser} user <email, password, name, username>
  * @param {Partial<IUser>} [additionalData={}] Trusted server-provided fields, such as CLI overrides.
+ * @param {(user: IUser) => Promise<void>} [onUserCreated] Final trusted write before success.
  * @returns {Promise<{status: number, message: string, user?: IUser}>}
  */
-const registerUser = async (user, additionalData = {}) => {
+const registerUser = async (user, additionalData = {}, onUserCreated) => {
   const result = registerSchema.safeParse(user);
   if (!result.success) {
     const errorMessage = errorsToString(result.error.errors);
@@ -397,8 +398,11 @@ const registerUser = async (user, additionalData = {}) => {
     } else {
       await updateUser(newUserId, { emailVerified: true });
     }
+    if (onUserCreated) {
+      await onUserCreated(newUser);
+    }
 
-    return { status: 200, message: genericVerificationMessage };
+    return { status: 200, message: genericVerificationMessage, user: newUser };
   } catch (err) {
     logger.error('[registerUser] Error in registering user:', err);
     if (newUserId) {

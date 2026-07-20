@@ -2,12 +2,14 @@
  * @jest-environment @happy-dom/jest-environment
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import HomeRoute from '../HomeRoute';
 
 const mockStartupConfig = { data: { registrationEnabled: false } };
+const mockTrack = jest.fn();
 
 jest.mock('@librechat/client', () => ({
   Button: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -23,6 +25,8 @@ jest.mock('~/data-provider', () => ({
   useLifeBootstrapQuery: () => ({ isLoading: false }),
 }));
 
+jest.mock('~/utils/track', () => ({ track: (...args: unknown[]) => mockTrack(...args) }));
+
 jest.mock('~/routes/Root', () => ({
   ProductShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -34,22 +38,29 @@ jest.mock('../../components/PageState', () => ({
   LifeLoading: () => <div data-testid="loading" />,
 }));
 
-function renderHome() {
+function renderHome(initialEntry = '/home') {
   return render(
-    <MemoryRouter initialEntries={['/home']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <HomeRoute />
     </MemoryRouter>,
   );
 }
 
 describe('public registration policy', () => {
-  it('does not send public visitors to a registration form that production rejects', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    mockTrack.mockClear();
+  });
+
+  it('keeps one registration action when public registration requires an invite', () => {
     mockStartupConfig.data = { registrationEnabled: false };
     renderHome();
 
     expect(screen.getByText('com_life_invite_only_notice')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /com_life_start_first/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /register/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /com_life_start_first/ })).toHaveAttribute(
+      'href',
+      '/register',
+    );
   });
 
   it('keeps the public registration action when registration is enabled', () => {
@@ -60,5 +71,27 @@ describe('public registration policy', () => {
       'href',
       '/register',
     );
+  });
+
+  it('stores an invite from the home fragment without sending the code to analytics', async () => {
+    renderHome('/home#invite=YW-7K9P-2M8Q');
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem('life_invite_code')).toBe('YW-7K9P-2M8Q');
+    });
+    expect(mockTrack).toHaveBeenCalledWith('invite_opened');
+    expect(mockTrack).not.toHaveBeenCalledWith(
+      'invite_opened',
+      expect.objectContaining({ inviteCode: expect.anything() }),
+    );
+  });
+
+  it('records the invited registration start without including the invite code', async () => {
+    sessionStorage.setItem('life_invite_code', 'YW-7K9P-2M8Q');
+    renderHome();
+
+    await userEvent.click(screen.getByRole('link', { name: /com_life_start_first/ }));
+
+    expect(mockTrack).toHaveBeenCalledWith('invite_registration_started');
   });
 });

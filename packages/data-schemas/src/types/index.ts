@@ -5,6 +5,7 @@ export * from './app';
 export * from './cache';
 export * from './user';
 export * from './token';
+export * from './lifeInvitation';
 export * from './convo';
 export * from './chatProject';
 export * from './session';

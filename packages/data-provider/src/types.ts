@@ -513,6 +513,7 @@ export type TRegisterUser = {
   password: string;
   confirm_password?: string;
   token?: string;
+  inviteCode?: string;
 };
 
 export type TLoginUser = {

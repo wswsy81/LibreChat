@@ -23,6 +23,7 @@ export { default as shareSchema } from './share';
 export { default as skillSyncCredentialSchema } from './skillSyncCredential';
 export { default as skillSyncStatusSchema } from './skillSyncStatus';
 export { default as tokenSchema } from './token';
+export { default as lifeInvitationSchema } from './lifeInvitation';
 export { default as toolCallSchema } from './toolCall';
 export { default as transactionSchema } from './transaction';
 export { default as userSchema } from './user';

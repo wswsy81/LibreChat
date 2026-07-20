@@ -19,8 +19,10 @@ const {
 } = require('~/server/services/AuthService');
 const {
   deleteAllUserSessions,
+  finalizeLifeInvitation,
   getUserById,
   findSession,
+  releaseLifeInvitation,
   updateUser,
   findUser,
 } = require('~/models');
@@ -43,11 +45,50 @@ const OPENID_REUSE_MAX_SESSION_AGE_MS = math(
 );
 
 const registrationController = async (req, res) => {
+  const reserved = req.lifeInvitation;
   try {
-    const response = await registerUser(req.body);
-    const { status, message } = response;
+    const invitation = reserved?.invitation;
+    const registrationBody = { ...req.body };
+    delete registrationBody.inviteCode;
+    const response = await registerUser(
+      registrationBody,
+      invitation
+        ? {
+            invitedByUserId: invitation.inviterUserId,
+            invitationId: invitation._id,
+            invitationAcceptedAt: new Date(),
+          }
+        : {},
+      reserved
+        ? async (user) => {
+            const accepted = await finalizeLifeInvitation({
+              invitationId: reserved.invitation._id,
+              reservationId: reserved.reservationId,
+              acceptedByUserId: user._id,
+            });
+            if (!accepted) {
+              throw new Error('Invitation finalization did not match reservation');
+            }
+          }
+        : undefined,
+    );
+    const { status, message, user } = response;
+    if (reserved && !user?._id) {
+      await releaseLifeInvitation({
+        invitationId: reserved.invitation._id,
+        reservationId: reserved.reservationId,
+      });
+    }
     res.status(status).send({ message });
   } catch (err) {
+    if (reserved) {
+      await releaseLifeInvitation({
+        invitationId: reserved.invitation._id,
+        reservationId: reserved.reservationId,
+      }).catch((releaseError) => {
+        logger.error('[registrationController] Failed to release invitation', releaseError);
+      });
+    }
     logger.error('[registrationController]', err);
     return res.status(500).json({ message: err.message });
   }
