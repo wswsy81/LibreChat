@@ -35,6 +35,7 @@ const {
 } = require('~/server/controllers/agents/callbacks');
 const { loadAgentTools, loadToolsForExecution } = require('~/server/services/ToolService');
 const { filterFilesByAgentAccess } = require('~/server/services/Files/permissions');
+const { getFutureUsageBudget } = require('./futureUsageBudget');
 const {
   getSkillToolDeps,
   getSkillDbMethods,
@@ -274,29 +275,7 @@ const initializeClient = async ({ req, res, signal, endpointOption }) => {
     enabled: appConfig?.interfaceConfig?.contextCost === true,
     pricing: { getMultiplier: db.getMultiplier, getCacheMultiplier: db.getCacheMultiplier },
   };
-  const positiveNumber = (value, fallback) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-  };
-  const usageBudget =
-    endpointOption.spec === 'future-lines'
-      ? {
-          softUsd: positiveNumber(process.env.FUTURE_LINES_TURN_SOFT_USD, 2.25),
-          maxUsd: positiveNumber(process.env.FUTURE_LINES_TURN_MAX_USD, 3),
-          maxInputTokens: positiveNumber(process.env.FUTURE_LINES_TURN_MAX_INPUT_TOKENS, 36_000),
-          maxOutputTokens: positiveNumber(process.env.FUTURE_LINES_TURN_MAX_OUTPUT_TOKENS, 4_000),
-          softChapterUsd: positiveNumber(process.env.FUTURE_LINES_CHAPTER_SOFT_USD, 7),
-          maxChapterUsd: positiveNumber(process.env.FUTURE_LINES_CHAPTER_MAX_USD, 9),
-          maxChapterInputTokens: positiveNumber(
-            process.env.FUTURE_LINES_CHAPTER_MAX_INPUT_TOKENS,
-            108_000,
-          ),
-          maxChapterOutputTokens: positiveNumber(
-            process.env.FUTURE_LINES_CHAPTER_MAX_OUTPUT_TOKENS,
-            12_000,
-          ),
-        }
-      : null;
+  const usageBudget = getFutureUsageBudget(endpointOption.spec);
 
   /** Latest visible context snapshot + every emitted usage payload for this
    *  response, captured by the handlers and persisted on the response message's
