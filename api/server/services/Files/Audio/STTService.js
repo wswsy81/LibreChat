@@ -3,7 +3,12 @@ const fs = require('fs').promises;
 const FormData = require('form-data');
 const { Readable } = require('stream');
 const { logger } = require('@librechat/data-schemas');
-const { genAzureEndpoint, logAxiosError, applyAxiosProxyConfig } = require('@librechat/api');
+const {
+  genAzureEndpoint,
+  logAxiosError,
+  applyAxiosProxyConfig,
+  transcribeWithVolcengine,
+} = require('@librechat/api');
 const { extractEnvVariable, STTProviders } = require('librechat-data-provider');
 const { getAppConfig } = require('~/server/services/Config');
 
@@ -116,6 +121,7 @@ class STTService {
     this.providerStrategies = {
       [STTProviders.OPENAI]: this.openAIProvider,
       [STTProviders.AZURE_OPENAI]: this.azureOpenAIProvider,
+      [STTProviders.VOLCENGINE]: this.volcengineProvider,
     };
   }
 
@@ -270,6 +276,30 @@ class STTService {
   }
 
   /**
+   * Transcribes browser-recorded audio through Doubao Streaming ASR 2.0.
+   * The permanent API key stays server-side and static v0 hints come only
+   * from the versioned product configuration.
+   *
+   * @param {Object} sttSchema - Volcengine provider configuration.
+   * @param {Buffer} audioBuffer - Uploaded browser audio.
+   * @returns {Promise<string>}
+   */
+  async volcengineProvider(sttSchema, audioBuffer) {
+    const apiKey = extractEnvVariable(sttSchema.apiKey) || '';
+    return transcribeWithVolcengine({
+      audioBuffer,
+      apiKey,
+      url: sttSchema.url,
+      resourceId: sttSchema.resourceId,
+      model: sttSchema.model,
+      segmentDurationMs: sttSchema.segmentDurationMs,
+      timeoutMs: sttSchema.timeoutMs,
+      keyterms: sttSchema.hints?.keyterms,
+      ffmpegPath: sttSchema.ffmpegPath,
+    });
+  }
+
+  /**
    * Sends an STT request to the specified provider.
    * @async
    * @param {string} provider - The STT provider to use.
@@ -285,6 +315,10 @@ class STTService {
     const strategy = this.providerStrategies[provider];
     if (!strategy) {
       throw new Error('Invalid provider');
+    }
+
+    if (provider === STTProviders.VOLCENGINE) {
+      return strategy.call(this, sttSchema, audioBuffer, audioFile, language);
     }
 
     const fileExtension = getFileExtensionFromMime(audioFile.mimetype);

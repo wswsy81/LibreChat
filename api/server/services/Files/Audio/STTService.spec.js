@@ -2,15 +2,35 @@
 jest.mock('axios');
 jest.mock('form-data');
 jest.mock('https-proxy-agent');
-jest.mock('@librechat/data-schemas', () => ({ logger: { warn: jest.fn(), error: jest.fn() } }));
-jest.mock('@librechat/api', () => ({ genAzureEndpoint: jest.fn(), logAxiosError: jest.fn() }));
-jest.mock('librechat-data-provider', () => ({
-  extractEnvVariable: jest.fn(),
-  STTProviders: {},
-}));
+jest.mock('@librechat/data-schemas', () => ({ logger: { warn: jest.fn(), error: jest.fn() } }), {
+  virtual: true,
+});
+jest.mock(
+  '@librechat/api',
+  () => ({
+    genAzureEndpoint: jest.fn(),
+    logAxiosError: jest.fn(),
+    applyAxiosProxyConfig: jest.fn(),
+    transcribeWithVolcengine: jest.fn(),
+  }),
+  { virtual: true },
+);
+jest.mock(
+  'librechat-data-provider',
+  () => ({
+    extractEnvVariable: jest.fn((value) => value),
+    STTProviders: {
+      OPENAI: 'openai',
+      AZURE_OPENAI: 'azureOpenAI',
+      VOLCENGINE: 'volcengine',
+    },
+  }),
+  { virtual: true },
+);
 jest.mock('~/server/services/Config', () => ({ getAppConfig: jest.fn() }));
 
-const { getFileExtensionFromMime, MIME_TO_EXTENSION_MAP } = require('./STTService');
+const { transcribeWithVolcengine } = require('@librechat/api');
+const { STTService, getFileExtensionFromMime, MIME_TO_EXTENSION_MAP } = require('./STTService');
 
 describe('getFileExtensionFromMime', () => {
   it('should normalize audio/x-m4a to m4a', () => {
@@ -109,5 +129,43 @@ describe('STT audio format validation with MIME normalization', () => {
     expect(isFormatAccepted('text/webm')).toBe(false);
     expect(isFormatAccepted('text/plain')).toBe(false);
     expect(isFormatAccepted('application/json')).toBe(false);
+  });
+});
+
+describe('Volcengine STT provider wiring', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('keeps credentials server-side and forwards only configured static hints', async () => {
+    transcribeWithVolcengine.mockResolvedValue('未来线语音输入测试。');
+    const service = new STTService();
+    const audioBuffer = Buffer.from('browser-audio');
+    const schema = {
+      apiKey: 'secret-from-env',
+      resourceId: 'volc.seedasr.sauc.duration',
+      model: 'bigmodel',
+      hints: { keyterms: ['未来线', '人生设计室'] },
+    };
+
+    await expect(
+      service.sttRequest('volcengine', schema, {
+        audioBuffer,
+        audioFile: { mimetype: 'audio/webm' },
+        language: 'zh-CN',
+      }),
+    ).resolves.toBe('未来线语音输入测试。');
+
+    expect(transcribeWithVolcengine).toHaveBeenCalledWith({
+      audioBuffer,
+      apiKey: 'secret-from-env',
+      url: undefined,
+      resourceId: 'volc.seedasr.sauc.duration',
+      model: 'bigmodel',
+      segmentDurationMs: undefined,
+      timeoutMs: undefined,
+      keyterms: ['未来线', '人生设计室'],
+      ffmpegPath: undefined,
+    });
   });
 });

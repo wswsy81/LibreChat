@@ -1154,9 +1154,25 @@ const sttAzureOpenAISchema = z.object({
   apiVersion: z.string(),
 });
 
+const sttVolcengineSchema = z.object({
+  apiKey: z.string(),
+  url: z.string().optional(),
+  resourceId: z.string().optional(),
+  model: z.string().optional(),
+  segmentDurationMs: z.number().int().min(50).max(1000).optional(),
+  timeoutMs: z.number().int().min(1000).max(120000).optional(),
+  ffmpegPath: z.string().optional(),
+  hints: z
+    .object({
+      keyterms: z.array(z.string().min(1).max(40)).max(20).optional(),
+    })
+    .optional(),
+});
+
 const sttSchema = z.object({
   openai: sttOpenaiSchema.optional(),
   azureOpenAI: sttAzureOpenAISchema.optional(),
+  volcengine: sttVolcengineSchema.optional(),
 });
 
 const speechTab = z
@@ -1168,8 +1184,8 @@ const speechTab = z
       .optional()
       .or(
         z.object({
-          /** Keep in sync with STTProviders enum (defined below — cannot reference due to eval order) */
-          engineSTT: z.enum(['openai', 'azureOpenAI']).optional(),
+          /** Client selects browser recognition or the configured external provider. */
+          engineSTT: z.enum(['browser', 'external']).optional(),
           languageSTT: z.string().optional(),
           autoTranscribeAudio: z.boolean().optional(),
           decibelValue: z.number().optional(),
@@ -2634,6 +2650,10 @@ export enum STTProviders {
    * Provider for Microsoft Azure STT
    */
   AZURE_OPENAI = 'azureOpenAI',
+  /**
+   * Provider for Doubao Streaming ASR 2.0 on Volcengine
+   */
+  VOLCENGINE = 'volcengine',
 }
 
 export enum TTSProviders {
