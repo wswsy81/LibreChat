@@ -150,7 +150,9 @@ function onboardingPrompt(dashboards) {
     entries[0],
   );
   const bars = entries.map((item) => `${item.name} ${item.value}`).join('、');
-  return `我的人生血条(0-10)：${bars}。最低的是「${lowest.name}」。`;
+  // system-tag(开场编排协议 §2):触发消息带 [trigger:*] 前缀,不伪装用户原话。
+  // 前端渲染剥前缀显示;engine 证据层与提示词按前缀排除,不得引用为用户说过的话。
+  return `[trigger:onboarding_completed] 我的人生血条(0-10)：${bars}。最低的是「${lowest.name}」。`;
 }
 
 function chatRoute(prompt) {
@@ -379,7 +381,7 @@ router.post('/resume', async (req, res) => {
           };
         }
         const prompt =
-          '我回来了。先读回我的人生存档，看看上次聊到哪、这段时间哪些变了，从那儿接着聊。';
+          '[trigger:session_resumed] 我回来了。先读回我的人生存档，看看上次聊到哪、这段时间哪些变了，从那儿接着聊。';
         return {
           action: 'new',
           conversationId: null,
