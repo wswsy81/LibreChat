@@ -174,6 +174,9 @@ test('onboarding accepts only explicitly answered bars and returns a one-time au
   expect(valid.body.route).toMatch(/^\/c\/new\?/);
   expect(valid.body.route).toContain('submit=true');
   expect(decodeURIComponent(valid.body.route)).toContain('最低的是「工作」');
+  // system-tag(开场编排协议 §2):触发消息带前缀,不伪装用户原话
+  const validPrompt = new URL(valid.body.route, 'https://yiweilife.test').searchParams.get('q');
+  expect(validPrompt).toContain('[trigger:onboarding_completed] 我的人生血条');
   // 生辰后移 S2(M4-A1):旧客户端就算传 birthOptIn 也不再进开场词,建档层零生辰
   expect(decodeURIComponent(valid.body.route)).not.toContain('出生时间');
 });
@@ -192,6 +195,8 @@ test('resume restores an existing conversation and only creates D-mode when none
   const created = await request(app).post('/api/life/resume').set('Idempotency-Key', 'resume-2');
   expect(created.body.action).toBe('new');
   expect(decodeURIComponent(created.body.route)).toContain('先读回我的人生存档');
+  const resumePrompt = new URL(created.body.route, 'https://yiweilife.test').searchParams.get('q');
+  expect(resumePrompt).toContain('[trigger:session_resumed] 我回来了');
 });
 
 test('same idempotency key with changed payload returns a non-retryable 409', async () => {

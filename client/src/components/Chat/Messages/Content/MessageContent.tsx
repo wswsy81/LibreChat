@@ -5,6 +5,7 @@ import type { TMessage } from 'librechat-data-provider';
 import type { TMessageContentProps, TDisplayProps } from '~/common';
 import Error from '~/components/Messages/Content/Error';
 import { useMessageContext } from '~/Providers';
+import { stripTriggerTag } from '~/utils/triggerTag';
 import MarkdownLite from './MarkdownLite';
 import EditMessage from './EditMessage';
 import Thinking from './Parts/Thinking';
@@ -104,10 +105,12 @@ const DisplayMessage = ({ text, isCreatedByUser, message, showCursor }: TDisplay
     if (!isCreatedByUser) {
       return <Markdown content={text} isLatestMessage={isLatestMessage} />;
     }
+    // system-tag 触发消息剥前缀显示(开场编排协议 §2):用户看到人话,证据层看到标记。
+    const displayText = stripTriggerTag(text);
     if (enableUserMsgMarkdown) {
-      return <MarkdownLite content={text} />;
+      return <MarkdownLite content={displayText} />;
     }
-    return <>{text}</>;
+    return <>{displayText}</>;
   }, [isCreatedByUser, enableUserMsgMarkdown, text, isLatestMessage]);
 
   return (
