@@ -4,6 +4,8 @@ import type { IUser } from '@librechat/data-schemas';
 import type { RequestBody } from '~/types';
 import { extractOpenIDTokenInfo, processOpenIDPlaceholders, isOpenIDTokenValid } from './oidc';
 import {
+  ADVISOR_GATEWAY_IDENTITY_PLACEHOLDER,
+  createAdvisorGatewayIdentityAssertion,
   createFutureEngineIdentityAssertion,
   FUTURE_ENGINE_IDENTITY_PLACEHOLDER,
 } from './identityAssertion';
@@ -280,6 +282,21 @@ function processSingleValue({
 
   if (dbSourced) {
     return value;
+  }
+
+  if (value.includes(ADVISOR_GATEWAY_IDENTITY_PLACEHOLDER)) {
+    const principalId = typeof user?.id === 'string' ? user.id : '';
+    const conversationId = typeof body?.conversationId === 'string' ? body.conversationId : '';
+    const turnId = typeof body?.messageId === 'string' ? body.messageId : '';
+    const userMessageId = typeof body?.parentMessageId === 'string' ? body.parentMessageId : '';
+    const assertion = createAdvisorGatewayIdentityAssertion({
+      principalId,
+      conversationId,
+      turnId,
+      userMessageId,
+      secret: process.env.FUTURE_ENGINE_IDENTITY_SECRET || '',
+    });
+    value = value.replace(new RegExp(ADVISOR_GATEWAY_IDENTITY_PLACEHOLDER, 'g'), assertion);
   }
 
   value = processUserPlaceholders(value, user, isHeader);

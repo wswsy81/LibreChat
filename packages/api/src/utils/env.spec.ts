@@ -9,6 +9,7 @@ import {
   createSafeUser,
   processMCPEnv,
 } from './env';
+import { advisorIdForPrincipal } from './identityAssertion';
 
 function isStdioOptions(options: MCPOptions): options is Extract<MCPOptions, { type?: 'stdio' }> {
   return !options.type || options.type === 'stdio';
@@ -530,6 +531,31 @@ describe('resolveHeaders', () => {
     const headers = { 'X-Conversation': '{{LIBRECHAT_BODY_CONVERSATIONID}}' };
     const result = resolveHeaders({ headers, body });
     expect(result['X-Conversation']).toBe('conv-123');
+  });
+
+  it('should sign advisor gateway identity from trusted user and live turn metadata', () => {
+    process.env.FUTURE_ENGINE_IDENTITY_SECRET = 's'.repeat(32);
+    const result = resolveHeaders({
+      headers: { 'X-Advisor': '{{LIBRECHAT_ADVISOR_GATEWAY_IDENTITY}}' },
+      user: { id: 'user-123' },
+      body: {
+        conversationId: 'conv-123',
+        parentMessageId: 'user-msg-456',
+        messageId: 'assistant-turn-789',
+      },
+    });
+    const parts = result['X-Advisor'].split('.');
+    expect(parts).toHaveLength(3);
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    expect(payload).toMatchObject({
+      sub: 'user-123',
+      scope: 'advisor-gateway',
+      advisorId: advisorIdForPrincipal('user-123'),
+      conversationId: 'conv-123',
+      turnId: 'assistant-turn-789',
+      userMessageId: 'user-msg-456',
+    });
+    delete process.env.FUTURE_ENGINE_IDENTITY_SECRET;
   });
 
   it('should not resolve env vars introduced via LIBRECHAT_BODY placeholders', () => {

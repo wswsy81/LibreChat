@@ -40,6 +40,11 @@ services:
       - CHAT_URL=https://${DOMAIN} # 报告链接 APP_BASE 用它,必须是公网 https 域名
       - FUTURE_ENGINE_INTERNAL_TOKEN=${FUTURE_ENGINE_INTERNAL_TOKEN}
       - FUTURE_ENGINE_IDENTITY_SECRET=${FUTURE_ENGINE_IDENTITY_SECRET}
+      - ADVISOR_GATEWAY_ENABLED=on
+      - ADVISOR_GATEWAY_API_KEY=${ADVISOR_GATEWAY_API_KEY}
+      - ADVISOR_MAIN_MODEL=gpt-5.6-sol
+      - ADVISOR_OBSERVER_MODEL=gpt-5.6-sol
+      - ADVISOR_EMERGENCY_RESOURCES_JSON=${ADVISOR_EMERGENCY_RESOURCES_JSON:-[]}
       - MONGO_URI=mongodb://librechat:${MONGO_APP_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat
       - POLARIS_URL=http://host.docker.internal:3000/v1 # 宿主 new-api
       - POLARIS_KEY=${POLARIS_KEY}
@@ -79,6 +84,7 @@ services:
       - FUTURE_ENGINE_URL=http://future-engine:8899
       - FUTURE_ENGINE_INTERNAL_TOKEN=${FUTURE_ENGINE_INTERNAL_TOKEN}
       - FUTURE_ENGINE_IDENTITY_SECRET=${FUTURE_ENGINE_IDENTITY_SECRET}
+      - ADVISOR_GATEWAY_API_KEY=${ADVISOR_GATEWAY_API_KEY}
       - MONGO_URI=mongodb://librechat:${MONGO_APP_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat
     volumes:
       # 只保留用户产生的可写数据；代码/config/dist 不再从宿主覆盖。
