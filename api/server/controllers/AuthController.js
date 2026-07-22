@@ -1,10 +1,12 @@
 const cookies = require('cookie');
+const { createHash } = require('crypto');
 const jwt = require('jsonwebtoken');
 const openIdClient = require('openid-client');
 const { logger } = require('@librechat/data-schemas');
 const {
   math,
   isEnabled,
+  createLifeEngineClient,
   findOpenIDUser,
   getOpenIdIssuer,
   buildOpenIDRefreshParams,
@@ -44,12 +46,76 @@ const OPENID_REUSE_MAX_SESSION_AGE_MS = math(
   15 * 60 * 1000,
 );
 
+const REGISTRATION_BASIC_FIELDS = ['age', 'city', 'gender'];
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map((item) => stableJson(item)).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .filter((key) => value[key] !== undefined)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+const hashRegistrationPayload = (value) =>
+  createHash('sha256').update(stableJson(value)).digest('hex');
+
+const lifeEngineClient = () =>
+  createLifeEngineClient({
+    baseUrl: process.env.FUTURE_ENGINE_URL || 'http://future-engine:8899',
+    token: process.env.FUTURE_ENGINE_INTERNAL_TOKEN || 'future-lines-local-internal',
+    identitySecret: process.env.FUTURE_ENGINE_IDENTITY_SECRET || '',
+  });
+
+async function saveRegistrationBasics(userId, basics) {
+  const body = {};
+  for (const field of REGISTRATION_BASIC_FIELDS) {
+    if (basics?.[field]) body[field] = basics[field];
+  }
+  if (!Object.keys(body).length) return false;
+  await lifeEngineClient().json('/internal/basics', {
+    userId: String(userId),
+    method: 'POST',
+    body,
+    operation: {
+      id: `registration-basics:${userId}`,
+      name: 'basics-save',
+      requestHash: hashRegistrationPayload(body),
+    },
+  });
+  return true;
+}
+
+async function cleanupRegistrationBasics(userId) {
+  const body = { schemaVersion: 1 };
+  try {
+    await lifeEngineClient().json('/internal/account', {
+      userId: String(userId),
+      method: 'DELETE',
+      body,
+      operation: {
+        id: `registration-basics-cleanup:${userId}`,
+        name: 'account-delete',
+        requestHash: hashRegistrationPayload(body),
+      },
+    });
+  } catch (error) {
+    logger.error('[registrationController] Failed to clean registration basics', error);
+  }
+}
+
 const registrationController = async (req, res) => {
   const reserved = req.lifeInvitation;
   try {
     const invitation = reserved?.invitation;
     const registrationBody = { ...req.body };
     delete registrationBody.inviteCode;
+    const hasBasicFacts = REGISTRATION_BASIC_FIELDS.some(
+      (field) => typeof registrationBody[field] === 'string' && registrationBody[field].trim(),
+    );
     const response = await registerUser(
       registrationBody,
       invitation
@@ -59,15 +125,22 @@ const registrationController = async (req, res) => {
             invitationAcceptedAt: new Date(),
           }
         : {},
-      reserved
-        ? async (user) => {
-            const accepted = await finalizeLifeInvitation({
-              invitationId: reserved.invitation._id,
-              reservationId: reserved.reservationId,
-              acceptedByUserId: user._id,
-            });
-            if (!accepted) {
-              throw new Error('Invitation finalization did not match reservation');
+      reserved || hasBasicFacts
+        ? async (user, basics) => {
+            const basicsSaved = await saveRegistrationBasics(user._id, basics);
+            try {
+              if (!reserved) return;
+              const accepted = await finalizeLifeInvitation({
+                invitationId: reserved.invitation._id,
+                reservationId: reserved.reservationId,
+                acceptedByUserId: user._id,
+              });
+              if (!accepted) {
+                throw new Error('Invitation finalization did not match reservation');
+              }
+            } catch (error) {
+              if (basicsSaved) await cleanupRegistrationBasics(user._id);
+              throw error;
             }
           }
         : undefined,

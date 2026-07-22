@@ -156,6 +156,10 @@ test('renders registration form', () => {
   expect(getByRole('form', { name: /Registration form/i })).toBeVisible();
   expect(getByRole('textbox', { name: /Username/i })).toBeInTheDocument();
   expect(getByRole('textbox', { name: /Email/i })).toBeInTheDocument();
+  expect(getByRole('group', { name: /Basic details/i })).toBeInTheDocument();
+  expect(getByRole('textbox', { name: /Gender/i })).toBeInTheDocument();
+  expect(getByRole('textbox', { name: /Age or age range/i })).toBeInTheDocument();
+  expect(getByRole('textbox', { name: /Current city/i })).toBeInTheDocument();
   expect(getByTestId('password')).toBeInTheDocument();
   expect(getByTestId('confirm_password')).toBeInTheDocument();
   expect(getByRole('button', { name: /Submit registration/i })).toBeInTheDocument();
@@ -185,6 +189,35 @@ test('renders registration form', () => {
   expect(getByRole('link', { name: /Test SAML/i })).toHaveAttribute(
     'href',
     'mock-server/oauth/saml',
+  );
+});
+
+test('submits optional basic facts', async () => {
+  const mutate = jest.fn();
+  const { getByTestId, getByRole } = setup({
+    useRegisterUserMutationReturnValue: {
+      isLoading: false,
+      isError: false,
+      mutate,
+      data: {},
+      isSuccess: false,
+      error: null,
+    },
+  });
+
+  await userEvent.type(getByRole('textbox', { name: /Full name/i }), 'Basic Facts');
+  await userEvent.type(getByRole('textbox', { name: /Email/i }), 'basics@example.com');
+  await userEvent.type(getByRole('textbox', { name: /Gender/i }), '女');
+  await userEvent.type(getByRole('textbox', { name: /Age or age range/i }), '30多岁');
+  await userEvent.type(getByRole('textbox', { name: /Current city/i }), '厦门');
+  await userEvent.type(getByTestId('password'), 'password123');
+  await userEvent.type(getByTestId('confirm_password'), 'password123');
+  await userEvent.click(getByRole('button', { name: /Submit registration/i }));
+
+  await waitFor(() =>
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ gender: '女', age: '30多岁', city: '厦门' }),
+    ),
   );
 });
 

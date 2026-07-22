@@ -111,6 +111,25 @@ test('关于我允许用 null 明确清除已保存文本', () => {
   );
 });
 
+test('关于我可修改注册时填写的性别、年龄和城市', () => {
+  mockArchiveData = {
+    profile: { basics: { gender: '女', age: '30多岁', city: '厦门' } },
+  };
+  render(<BasicsForm />);
+
+  expect(screen.getByLabelText('com_auth_gender_optional')).toHaveValue('女');
+  expect(screen.getByLabelText('com_auth_age_optional')).toHaveValue('30多岁');
+  fireEvent.change(screen.getByLabelText('com_auth_age_optional'), {
+    target: { value: '38' },
+  });
+  fireEvent.change(screen.getByLabelText('com_life_basics_city'), {
+    target: { value: '杭州' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'com_life_basics_save' }));
+
+  expect(mockBasicsMutate).toHaveBeenCalledWith({ age: '38', city: '杭州' }, expect.any(Object));
+});
+
 test('关于我在前端拒绝不存在的公历日期', () => {
   render(<BasicsForm />);
 

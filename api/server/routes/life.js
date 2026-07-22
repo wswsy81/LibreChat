@@ -464,7 +464,7 @@ router.post('/basics', async (req, res) => {
   if (!key) {
     return;
   }
-  const allowed = ['nickname', 'occupation', 'city', 'education', 'marital'];
+  const allowed = ['nickname', 'gender', 'age', 'occupation', 'city', 'education', 'marital'];
   const body = {};
   for (const field of allowed) {
     const value = req.body?.[field];
@@ -783,7 +783,8 @@ admin.get('/invites', async (_req, res) => {
       : undefined;
     const status = inviteStatus(row, stats, now);
     // 待使用邀请回显完整码与链接(存了明文的新邀请才有;老数据只有末4位,无从恢复)
-    const displayCode = status === 'pending' && row.codePlain ? formatLifeInviteCode(row.codePlain) : null;
+    const displayCode =
+      status === 'pending' && row.codePlain ? formatLifeInviteCode(row.codePlain) : null;
     return {
       id: String(row._id),
       codeHint: row.codeHint,

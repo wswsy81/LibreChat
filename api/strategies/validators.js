@@ -30,6 +30,11 @@ const usernameSchema = z
     message: 'Potential injection attack detected',
   });
 
+const optionalBasicFact = z
+  .union([z.literal(''), z.string().max(60)])
+  .transform((value) => value.trim() || undefined)
+  .optional();
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z
@@ -50,6 +55,9 @@ const registerSchema = z
       .optional()
       .nullable(),
     email: z.string().email(),
+    gender: optionalBasicFact,
+    age: optionalBasicFact,
+    city: optionalBasicFact,
     password: z
       .string()
       .min(MIN_PASSWORD_LENGTH)

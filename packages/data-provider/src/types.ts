@@ -510,6 +510,9 @@ export type TRegisterUser = {
   name: string;
   email: string;
   username: string;
+  gender?: string;
+  age?: string;
+  city?: string;
   password: string;
   confirm_password?: string;
   token?: string;

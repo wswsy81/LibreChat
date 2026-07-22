@@ -325,7 +325,7 @@ const verifyEmail = async (req) => {
  * Register a new user.
  * @param {IUser} user <email, password, name, username>
  * @param {Partial<IUser>} [additionalData={}] Trusted server-provided fields, such as CLI overrides.
- * @param {(user: IUser) => Promise<void>} [onUserCreated] Final trusted write before success.
+ * @param {(user: IUser, basics: {gender?: string, age?: string, city?: string}) => Promise<void>} [onUserCreated] Final trusted write before success.
  * @returns {Promise<{status: number, message: string, user?: IUser}>}
  */
 const registerUser = async (user, additionalData = {}, onUserCreated) => {
@@ -341,7 +341,7 @@ const registerUser = async (user, additionalData = {}, onUserCreated) => {
     return { status: 404, message: errorMessage };
   }
 
-  const { email, password, name, username } = result.data;
+  const { email, password, name, username, gender, age, city } = result.data;
   const { provider, ...trustedAdditionalData } = additionalData ?? {};
 
   let newUserId;
@@ -400,7 +400,11 @@ const registerUser = async (user, additionalData = {}, onUserCreated) => {
       await updateUser(newUserId, { emailVerified: true });
     }
     if (onUserCreated) {
-      await onUserCreated(newUser);
+      await onUserCreated(newUser, {
+        ...(gender ? { gender } : {}),
+        ...(age ? { age } : {}),
+        ...(city ? { city } : {}),
+      });
     }
 
     return { status: 200, message: genericVerificationMessage, user: newUser };

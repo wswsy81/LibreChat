@@ -99,6 +99,48 @@ describe('Zod Schemas', () => {
       expect(result.success).toBe(true);
     });
 
+    it('normalizes optional registration basics and allows all three to be skipped', () => {
+      const withBasics = registerSchema.safeParse({
+        name: 'John Doe',
+        email: 'john@example.com',
+        gender: '  女  ',
+        age: '  30多岁 ',
+        city: ' 厦门 ',
+        password: 'password123',
+        confirm_password: 'password123',
+      });
+      const skipped = registerSchema.safeParse({
+        name: 'John Doe',
+        email: 'john@example.com',
+        gender: '',
+        age: '   ',
+        city: '',
+        password: 'password123',
+        confirm_password: 'password123',
+      });
+
+      expect(withBasics.success).toBe(true);
+      expect(withBasics.data).toEqual(
+        expect.objectContaining({ gender: '女', age: '30多岁', city: '厦门' }),
+      );
+      expect(skipped.success).toBe(true);
+      expect(skipped.data).toEqual(
+        expect.objectContaining({ gender: undefined, age: undefined, city: undefined }),
+      );
+    });
+
+    it('rejects optional registration basics longer than 60 characters', () => {
+      const result = registerSchema.safeParse({
+        name: 'John Doe',
+        email: 'john@example.com',
+        city: 'x'.repeat(61),
+        password: 'password123',
+        confirm_password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+    });
+
     it('should invalidate a short name', () => {
       const result = registerSchema.safeParse({
         name: 'J',

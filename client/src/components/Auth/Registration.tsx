@@ -109,15 +109,16 @@ const Registration: React.FC = () => {
   });
 
   const renderInput = (
-    id: keyof TRegisterUser,
+    id: Extract<keyof TRegisterUser, string>,
     label: TranslationKeys,
     type: string,
     validation: object,
   ) => {
     const fieldLabel = localize(label);
     const field = register(id, validation);
-    const autoComplete =
-      id === 'inviteCode' ? 'off' : type === 'password' ? 'new-password' : id;
+    let autoComplete = String(id);
+    if (id === 'inviteCode') autoComplete = 'off';
+    else if (type === 'password') autoComplete = 'new-password';
 
     return (
       <div className="mb-4">
@@ -165,6 +166,13 @@ const Registration: React.FC = () => {
     );
   };
 
+  const optionalBasicsValidation = {
+    maxLength: {
+      value: 60,
+      message: localize('com_auth_basic_profile_max_length'),
+    },
+  };
+
   return (
     <>
       {errorMessage && (
@@ -202,8 +210,18 @@ const Registration: React.FC = () => {
             method="POST"
             onSubmit={handleSubmit((data: TRegisterUser) => {
               const inviteCode = data.inviteCode?.trim() || undefined;
+              const gender = data.gender?.trim() || undefined;
+              const age = data.age?.trim() || undefined;
+              const city = data.city?.trim() || undefined;
               track('register_submit', { invited: Boolean(inviteCode || token) });
-              registerUser.mutate({ ...data, inviteCode, token: token ?? undefined });
+              registerUser.mutate({
+                ...data,
+                gender,
+                age,
+                city,
+                inviteCode,
+                token: token ?? undefined,
+              });
             })}
           >
             {renderInput('name', 'com_auth_full_name', 'text', {
@@ -249,6 +267,17 @@ const Registration: React.FC = () => {
                 Boolean(formatLifeInviteCode(value)) ||
                 localize('com_auth_invite_code_invalid'),
             })}
+            <fieldset className="mb-4 rounded-[4px] border border-border-light px-3.5 pb-1 pt-3">
+              <legend className="px-1 font-life-sans text-sm text-text-primary">
+                {localize('com_auth_basic_profile_title')}
+              </legend>
+              <p className="mb-4 text-left text-xs leading-5 text-text-secondary-alt">
+                {localize('com_auth_basic_profile_description')}
+              </p>
+              {renderInput('gender', 'com_auth_gender_optional', 'text', optionalBasicsValidation)}
+              {renderInput('age', 'com_auth_age_optional', 'text', optionalBasicsValidation)}
+              {renderInput('city', 'com_auth_city_optional', 'text', optionalBasicsValidation)}
+            </fieldset>
             {renderInput('password', 'com_auth_password', 'password', {
               required: localize('com_auth_password_required'),
               minLength: {

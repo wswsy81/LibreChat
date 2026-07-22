@@ -91,6 +91,8 @@ export interface LifeBirthInfo {
 
 export interface LifeBasics {
   nickname?: string;
+  gender?: string;
+  age?: string;
   occupation?: string;
   city?: string;
   education?: string;

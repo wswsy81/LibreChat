@@ -63,6 +63,9 @@ jest.mock('~/strategies/validators', () => ({
         name: user.name,
         username: user.username,
         email: user.email,
+        gender: user.gender?.trim() || undefined,
+        age: user.age?.trim() || undefined,
+        city: user.city?.trim() || undefined,
         password: user.password,
         confirm_password: user.confirm_password,
       },
@@ -484,13 +487,40 @@ describe('registerUser', () => {
       onUserCreated,
     );
 
-    expect(onUserCreated).toHaveBeenCalledWith(createdUser);
+    expect(onUserCreated).toHaveBeenCalledWith(createdUser, {});
     expect(result).toEqual(
       expect.objectContaining({
         status: 200,
         user: createdUser,
       }),
     );
+  });
+
+  it('passes normalized registration basics to the trusted callback without duplicating them in Mongo', async () => {
+    const createdUser = { _id: 'new-user-id', email: registrationPayload.email };
+    createUser.mockResolvedValue(createdUser);
+    const onUserCreated = jest.fn().mockResolvedValue(undefined);
+
+    const result = await registerUser(
+      {
+        ...registrationPayload,
+        gender: ' 女 ',
+        age: ' 30多岁 ',
+        city: ' 厦门 ',
+      },
+      {},
+      onUserCreated,
+    );
+
+    expect(result.status).toBe(200);
+    expect(createUser.mock.calls[0][0].gender).toBeUndefined();
+    expect(createUser.mock.calls[0][0].age).toBeUndefined();
+    expect(createUser.mock.calls[0][0].city).toBeUndefined();
+    expect(onUserCreated).toHaveBeenCalledWith(createdUser, {
+      gender: '女',
+      age: '30多岁',
+      city: '厦门',
+    });
   });
 
   it('deletes the new user when the final trusted write fails', async () => {

@@ -234,6 +234,24 @@ test('basics preserves explicit null clears across the API boundary', async () =
   );
 });
 
+test('basics forwards editable registration facts across the API boundary', async () => {
+  mockEngine.json.mockResolvedValue({ ok: true, basics: {} });
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' }))
+    .post('/api/life/basics')
+    .set('Idempotency-Key', 'registration-facts')
+    .send({ gender: '女', age: '38', city: '杭州' });
+
+  expect(response.status).toBe(200);
+  expect(mockEngine.json).toHaveBeenCalledWith(
+    '/internal/basics',
+    expect.objectContaining({ body: { gender: '女', age: '38', city: '杭州' } }),
+  );
+  expect(mockRunLifeOperation).toHaveBeenCalledWith(
+    expect.objectContaining({ requestPayload: { gender: '女', age: '38', city: '杭州' } }),
+  );
+});
+
 test('inbox trims captures, proxies the trusted user, and rejects empty text', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
 

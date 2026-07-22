@@ -4,11 +4,21 @@ import type { LifeBasics, LifeBasicsRequest, LifeBirthInfo } from 'librechat-dat
 import { useLifeArchiveQuery, useLifeBasicsMutation, useLifeBirthMutation } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 
-const TEXT_FIELDS = ['nickname', 'occupation', 'city', 'education', 'marital'] as const;
+const TEXT_FIELDS = [
+  'nickname',
+  'gender',
+  'age',
+  'occupation',
+  'city',
+  'education',
+  'marital',
+] as const;
 type TextField = (typeof TEXT_FIELDS)[number];
 
 const FIELD_LABELS = {
   nickname: 'com_life_basics_nickname',
+  gender: 'com_auth_gender_optional',
+  age: 'com_auth_age_optional',
   occupation: 'com_life_basics_occupation',
   city: 'com_life_basics_city',
   education: 'com_life_basics_education',
@@ -68,6 +78,8 @@ export default function BasicsForm() {
   const stored: LifeBasics = useMemo(() => archive.data?.profile?.basics ?? {}, [archive.data]);
   const [text, setText] = useState<Record<TextField, string>>({
     nickname: '',
+    gender: '',
+    age: '',
     occupation: '',
     city: '',
     education: '',
@@ -89,6 +101,8 @@ export default function BasicsForm() {
     if (hydrated || !archive.data) return;
     setText({
       nickname: stored.nickname ?? '',
+      gender: stored.gender ?? '',
+      age: stored.age ?? '',
       occupation: stored.occupation ?? '',
       city: stored.city ?? '',
       education: stored.education ?? '',
