@@ -285,18 +285,30 @@ function processSingleValue({
   }
 
   if (value.includes(ADVISOR_GATEWAY_IDENTITY_PLACEHOLDER)) {
+    /**
+     * P2-3 (2026-07-22 review): missing body fields (e.g. title/first-turn edge flows)
+     * or a missing secret must NOT throw and 500 the whole request — leave the
+     * placeholder untouched so the shim rejects with a clean 401 (fail-closed).
+     */
     const principalId = typeof user?.id === 'string' ? user.id : '';
     const conversationId = typeof body?.conversationId === 'string' ? body.conversationId : '';
     const turnId = typeof body?.messageId === 'string' ? body.messageId : '';
     const userMessageId = typeof body?.parentMessageId === 'string' ? body.parentMessageId : '';
-    const assertion = createAdvisorGatewayIdentityAssertion({
-      principalId,
-      conversationId,
-      turnId,
-      userMessageId,
-      secret: process.env.FUTURE_ENGINE_IDENTITY_SECRET || '',
-    });
-    value = value.replace(new RegExp(ADVISOR_GATEWAY_IDENTITY_PLACEHOLDER, 'g'), assertion);
+    const secret = process.env.FUTURE_ENGINE_IDENTITY_SECRET || '';
+    if (principalId && conversationId && turnId && userMessageId && secret) {
+      try {
+        const assertion = createAdvisorGatewayIdentityAssertion({
+          principalId,
+          conversationId,
+          turnId,
+          userMessageId,
+          secret,
+        });
+        value = value.replace(new RegExp(ADVISOR_GATEWAY_IDENTITY_PLACEHOLDER, 'g'), assertion);
+      } catch {
+        /* keep placeholder — shim fail-closes with 401 */
+      }
+    }
   }
 
   value = processUserPlaceholders(value, user, isHeader);
