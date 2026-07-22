@@ -127,6 +127,10 @@ const ContentRender = memo(function ContentRender({
   const maximizeChatSpace = useRecoilValue(store.maximizeChatSpace);
 
   const handleRegenerateMessage = useCallback(() => regenerateMessage(), [regenerateMessage]);
+  const hasVisibleContent =
+    Boolean(msg?.text?.trim()) ||
+    Boolean(Array.isArray(msg?.content) && msg.content.some((part) => part != null));
+  const showResponseProgress = Boolean(isSubmitting && !msg?.isCreatedByUser && !hasVisibleContent);
   const isLast = useMemo(
     () => !(msg?.children?.length ?? 0) && (msg?.depth === latestMessageDepth || msg?.depth === -1),
     [msg?.children, msg?.depth, latestMessageDepth],
@@ -233,7 +237,7 @@ const ContentRender = memo(function ContentRender({
             />
           </div>
           {hasNoChildren && isSubmitting ? (
-            <PlaceholderRow />
+            <PlaceholderRow showProgress={showResponseProgress} />
           ) : (
             <SubRow classes="text-xs">
               <SiblingSwitch

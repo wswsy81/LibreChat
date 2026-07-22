@@ -124,6 +124,9 @@ const MessageRender = memo(function MessageRender({
 
   const handleRegenerateMessage = useCallback(() => regenerateMessage(), [regenerateMessage]);
   const hasNoChildren = !(msg?.children?.length ?? 0);
+  const showResponseProgress = Boolean(
+    isSubmitting && !msg?.isCreatedByUser && !(msg?.text ?? '').trim(),
+  );
   const isLast = useMemo(
     () => hasNoChildren && (msg?.depth === latestMessageDepth || msg?.depth === -1),
     [hasNoChildren, msg?.depth, latestMessageDepth],
@@ -242,7 +245,7 @@ const MessageRender = memo(function MessageRender({
             </MessageContext.Provider>
           </div>
           {hasNoChildren && isSubmitting ? (
-            <PlaceholderRow />
+            <PlaceholderRow showProgress={showResponseProgress} />
           ) : (
             <SubRow classes="text-xs">
               <SiblingSwitch
