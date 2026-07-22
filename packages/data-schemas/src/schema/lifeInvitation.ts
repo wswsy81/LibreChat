@@ -5,6 +5,8 @@ const lifeInvitationSchema: Schema<ILifeInvitation> = new Schema<ILifeInvitation
   {
     codeHash: { type: String, required: true },
     codeHint: { type: String, required: true },
+    /** 邀请制封测:明文码仅用于待使用邀请的后台回显/补发,核销仍走 codeHash */
+    codePlain: { type: String },
     inviterUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     status: {
       type: String,

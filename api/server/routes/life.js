@@ -703,6 +703,8 @@ admin.post('/invites', async (req, res) => {
       invitation = await createLifeInvitation({
         codeHash: await hashToken(code),
         codeHint: code.slice(-4),
+        // 明文码仅供后台回显/补发(待使用状态);核销校验仍走 codeHash
+        codePlain: code,
         inviterUserId: userId(req),
         expiresAt,
       });
@@ -772,18 +774,24 @@ admin.get('/invites', async (_req, res) => {
   const byId = new Map(users.map((user) => [String(user._id), user]));
   const byAcceptedUser = new Map(activity.map((row) => [String(row._id), row]));
   const now = new Date();
+  const linkBase = (process.env.DOMAIN_CLIENT || 'http://localhost:3080').replace(/\/+$/, '');
   const durableInvites = rows.map((row) => {
     const inviter = byId.get(String(row.inviterUserId));
     const acceptedUser = row.acceptedByUserId ? byId.get(String(row.acceptedByUserId)) : undefined;
     const stats = row.acceptedByUserId
       ? byAcceptedUser.get(String(row.acceptedByUserId))
       : undefined;
+    const status = inviteStatus(row, stats, now);
+    // 待使用邀请回显完整码与链接(存了明文的新邀请才有;老数据只有末4位,无从恢复)
+    const displayCode = status === 'pending' && row.codePlain ? formatLifeInviteCode(row.codePlain) : null;
     return {
       id: String(row._id),
       codeHint: row.codeHint,
+      code: displayCode,
+      url: displayCode ? `${linkBase}/home#invite=${encodeURIComponent(displayCode)}` : null,
       createdAt: row.createdAt,
       expiresAt: row.expiresAt,
-      status: inviteStatus(row, stats, now),
+      status,
       inviter: inviter
         ? { id: String(inviter._id), name: inviter.name, email: inviter.email }
         : null,

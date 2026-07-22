@@ -98,12 +98,16 @@ export default memo(function AudioRecorder({
   const wasSubmittingRef = useRef(isSubmitting);
   useEffect(() => {
     if (isSubmitting && !wasSubmittingRef.current) {
-      stopRecording();
+      /** 只有真的在听时才停:外部 STT 的 stop 在未录音时会弹
+       *  "Not currently recording" 警告,曾导致每条消息提交都误报。 */
+      if (isListening) {
+        stopRecording();
+      }
       resetAfterSubmitRef.current();
       existingTextRef.current = '';
     }
     wasSubmittingRef.current = isSubmitting;
-  }, [isSubmitting, stopRecording]);
+  }, [isSubmitting, isListening, stopRecording]);
 
   const handleStartRecording = async () => {
     existingTextRef.current = getValues('text') || '';

@@ -6,6 +6,7 @@ export interface ILifeInvitation extends Document {
   _id: Types.ObjectId;
   codeHash: string;
   codeHint: string;
+  codePlain?: string;
   inviterUserId: Types.ObjectId;
   status: LifeInvitationStatus;
   expiresAt: Date;
@@ -23,6 +24,7 @@ export interface ILifeInvitation extends Document {
 export interface CreateLifeInvitationInput {
   codeHash: string;
   codeHint: string;
+  codePlain?: string;
   inviterUserId: Types.ObjectId | string;
   expiresAt: Date;
 }

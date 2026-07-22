@@ -11,6 +11,8 @@ type InvitePerson = { id: string; name?: string; email?: string };
 type InviteRow = {
   id: string;
   codeHint: string | null;
+  code?: string | null;
+  url?: string | null;
   createdAt: string;
   expiresAt: string | null;
   status: InviteStatus;
@@ -57,7 +59,7 @@ export default function InvitesPanel() {
   const localize = useLocalize();
   const queryClient = useQueryClient();
   const [latest, setLatest] = useState<CreateInviteResponse | null>(null);
-  const [copied, setCopied] = useState<'code' | 'url' | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
   const list = useQuery<{ invites: InviteRow[] }>(['lifeAdminInvites'], () =>
     request.get<{ invites: InviteRow[] }>('/api/life/admin/invites'),
@@ -73,7 +75,7 @@ export default function InvitesPanel() {
     },
   );
 
-  const copyValue = async (value: string, kind: 'code' | 'url') => {
+  const copyValue = async (value: string, kind: string) => {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(kind);
@@ -182,6 +184,45 @@ export default function InvitesPanel() {
                 <p className="mt-1 font-life-mono text-life-meta text-life-muted">
                   {dateText(invite.createdAt)}
                 </p>
+                {invite.code && (
+                  <div className="mt-2 space-y-1.5">
+                    <code className="block break-all font-life-mono text-life-meta font-semibold text-life-ink">
+                      {invite.code}
+                    </code>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyValue(invite.code as string, `row-code-${invite.id}`)}
+                        className="rounded-[4px] border-life-ink/20"
+                      >
+                        <Copy className="mr-1 h-3 w-3" />
+                        {localize(
+                          copied === `row-code-${invite.id}`
+                            ? 'com_life_admin_invite_copied'
+                            : 'com_life_admin_invite_copy_code',
+                        )}
+                      </Button>
+                      {invite.url && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyValue(invite.url as string, `row-url-${invite.id}`)}
+                          className="rounded-[4px] border-life-ink/20"
+                        >
+                          <Copy className="mr-1 h-3 w-3" />
+                          {localize(
+                            copied === `row-url-${invite.id}`
+                              ? 'com_life_admin_invite_copied'
+                              : 'com_life_admin_invite_copy_link',
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
                 <div>
