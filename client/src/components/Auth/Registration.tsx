@@ -116,6 +116,8 @@ const Registration: React.FC = () => {
   ) => {
     const fieldLabel = localize(label);
     const field = register(id, validation);
+    const autoComplete =
+      id === 'inviteCode' ? 'off' : type === 'password' ? 'new-password' : id;
 
     return (
       <div className="mb-4">
@@ -123,7 +125,7 @@ const Registration: React.FC = () => {
           {type === 'password' ? (
             <SecretInput
               id={id}
-              autoComplete={id === 'inviteCode' ? 'off' : id}
+              autoComplete={autoComplete}
               aria-label={fieldLabel}
               {...field}
               aria-invalid={!!errors[id]}
@@ -140,7 +142,7 @@ const Registration: React.FC = () => {
               <input
                 id={id}
                 type={type}
-                autoComplete={id === 'inviteCode' ? 'off' : id}
+                autoComplete={autoComplete}
                 aria-label={fieldLabel}
                 {...field}
                 aria-invalid={!!errors[id]}
