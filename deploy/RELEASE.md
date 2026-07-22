@@ -38,3 +38,9 @@ bash deploy/apply-release.sh .releases/B5-20260719.rollback.env
 ```
 
 `.release.env`、`.releases/*.env` 权限固定为 0600，不提交 Git。manifest 只记录 release ID、两个 Git revision、构建时间、image ID 和本地 tag，不含密钥。
+
+## 话术库热更新(2026-07-22 起)
+
+bank 文案与代码发布解耦:生产 compose 把 `../future-engine-shim/banks-live` 只读挂进引擎(`ADVISOR_BANKS_DIR=/app/banks-live`),`bank-loader` 按 mtime 失效缓存、坏文件回落上一版。改文案=本地改 `banks/*.json` 过 lint+拍板 → `bash scripts/deploy-banks.sh`,秒级生效,不重建镜像不重启容器。镜像内 `banks/` 仍是兜底(热目录缺该文件时用)。
+
+⚠️ 同步源码时 rsync `future-engine-shim/` 必须加 `--exclude 'banks-live/'`(与 `data/` 同级纪律),否则 --delete 会清掉服务器热更新目录。

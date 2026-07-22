@@ -48,10 +48,12 @@ services:
       - MONGO_URI=mongodb://librechat:${MONGO_APP_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat
       - POLARIS_URL=http://host.docker.internal:3000/v1 # 宿主 new-api
       - POLARIS_KEY=${POLARIS_KEY}
+      - ADVISOR_BANKS_DIR=/app/banks-live # 话术库热更新目录,scripts/deploy-banks.sh 推送,改文案不重建镜像
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
       - ../future-engine-shim/data:/app/data # 画像/报告/邀请码,持久化,务必进备份
+      - ../future-engine-shim/banks-live:/app/banks-live:ro # 话术库热更新(只读),bank-loader 按 mtime 失效
     networks:
       trusted-data: {}
       engine-egress:
