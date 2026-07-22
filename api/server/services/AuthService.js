@@ -364,9 +364,10 @@ const registerUser = async (user, additionalData = {}, onUserCreated) => {
         { name: 'Existing user:', value: existingUser },
       );
 
-      // Sleep for 1 second
+      // 邀请制封测:注册必须持有效邀请码,邮箱枚举风险可忽略;上游的"假装成功"反枚举设计
+      // 在这里会让重复邮箱静默滑进旧账号(假成功→自动登录→浏览器填旧密码),故明示拒绝。
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      return { status: 200, message: genericVerificationMessage };
+      return { status: 409, message: '这个邮箱已经注册过——直接登录,或换一个邮箱。' };
     }
 
     //determine if this is the first registered user (not counting anonymous_user)
