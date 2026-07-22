@@ -7,11 +7,49 @@ ENGINE_DIR=$(cd -- "$APP_DIR/../future-engine-shim" && pwd)
 PROJECT_DIR=$(cd -- "$ENGINE_DIR/.." && pwd)
 RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
 RELEASE_ID=${1:-"$(date -u +%Y%m%dT%H%M%SZ)"}
+CORPUS_SCHEMA_REL=library/corpora/schemas/bank-item.schema.json
+CORPUS_SCHEMA_IN_CONTEXT="$PROJECT_DIR/$CORPUS_SCHEMA_REL"
+GENERATED_CORPUS_SCHEMA=false
 
 [[ "$RELEASE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || {
   echo "release id may contain only letters, numbers, dot, underscore, and dash" >&2
   exit 1
 }
+
+# future-engine 的发布测试会对比 runtime schema 与仓库根 library/ 权威副本。
+# 生产 staging 把它放在 PROJECT_DIR/library；本地则从仓库根临时注入构建上下文，
+# 构建结束后删除临时副本，不在产品目录维护第三份 schema。
+if [[ -z "${CORPUS_SCHEMA_SOURCE:-}" ]]; then
+  if [[ -f "$CORPUS_SCHEMA_IN_CONTEXT" ]]; then
+    CORPUS_SCHEMA_SOURCE=$CORPUS_SCHEMA_IN_CONTEXT
+  elif [[ -f "$PROJECT_DIR/../../$CORPUS_SCHEMA_REL" ]]; then
+    CORPUS_SCHEMA_SOURCE="$PROJECT_DIR/../../$CORPUS_SCHEMA_REL"
+  else
+    echo "authoritative corpus schema is missing: $CORPUS_SCHEMA_REL" >&2
+    exit 1
+  fi
+fi
+[[ -f "$CORPUS_SCHEMA_SOURCE" ]] || {
+  echo "authoritative corpus schema is missing: $CORPUS_SCHEMA_SOURCE" >&2
+  exit 1
+}
+if [[ "$CORPUS_SCHEMA_SOURCE" != "$CORPUS_SCHEMA_IN_CONTEXT" ]]; then
+  [[ ! -e "$CORPUS_SCHEMA_IN_CONTEXT" ]] || {
+    echo "refusing to overwrite existing corpus schema in build context" >&2
+    exit 1
+  }
+  install -d -m 755 "$(dirname -- "$CORPUS_SCHEMA_IN_CONTEXT")"
+  install -m 644 "$CORPUS_SCHEMA_SOURCE" "$CORPUS_SCHEMA_IN_CONTEXT"
+  GENERATED_CORPUS_SCHEMA=true
+fi
+
+cleanup_build_context() {
+  if [[ "$GENERATED_CORPUS_SCHEMA" == true ]]; then
+    rm -f -- "$CORPUS_SCHEMA_IN_CONTEXT"
+    rmdir -- "$PROJECT_DIR/library/corpora/schemas" "$PROJECT_DIR/library/corpora" "$PROJECT_DIR/library" 2>/dev/null || true
+  fi
+}
+trap cleanup_build_context EXIT
 
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
