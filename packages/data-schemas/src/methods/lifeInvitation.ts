@@ -11,6 +11,7 @@ export function createLifeInvitationMethods(mongoose: typeof import('mongoose'))
   reserveLifeInvitation: (input: ReserveLifeInvitationInput) => Promise<ILifeInvitation | null>;
   finalizeLifeInvitation: (input: FinalizeLifeInvitationInput) => Promise<ILifeInvitation | null>;
   releaseLifeInvitation: (input: ReleaseLifeInvitationInput) => Promise<ILifeInvitation | null>;
+  redactExpiredLifeInvitationPlaintexts: () => Promise<number>;
 } {
   const getModel = () => mongoose.models.LifeInvitation;
 
@@ -54,10 +55,18 @@ export function createLifeInvitationMethods(mongoose: typeof import('mongoose'))
           acceptedByUserId: input.acceptedByUserId,
           acceptedAt: new Date(),
         },
-        $unset: { reservationId: '', reservedAt: '', reservationExpiresAt: '' },
+        $unset: { codePlain: '', reservationId: '', reservedAt: '', reservationExpiresAt: '' },
       },
       { new: true },
     );
+
+  const redactExpiredLifeInvitationPlaintexts = async (): Promise<number> => {
+    const result = await getModel().updateMany(
+      { expiresAt: { $lte: new Date() }, codePlain: { $exists: true } },
+      { $unset: { codePlain: '' } },
+    );
+    return result.modifiedCount ?? 0;
+  };
 
   const releaseLifeInvitation = async (
     input: ReleaseLifeInvitationInput,
@@ -80,6 +89,7 @@ export function createLifeInvitationMethods(mongoose: typeof import('mongoose'))
     reserveLifeInvitation,
     finalizeLifeInvitation,
     releaseLifeInvitation,
+    redactExpiredLifeInvitationPlaintexts,
   };
 }
 

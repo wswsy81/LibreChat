@@ -200,6 +200,7 @@ const useSpeechToTextExternal = (
 
   const stopRecording = () => {
     if (!mediaRecorderRef.current) {
+      setIsListening(false);
       return;
     }
 
@@ -216,7 +217,9 @@ const useSpeechToTextExternal = (
 
       setIsListening(false);
     } else {
-      showToast({ message: 'MediaRecorder is not recording', status: 'error' });
+      // stop 是清理原语，必须幂等。MediaRecorder 的 stop 事件、静音检测和
+      // 消息提交清理可能同时到达，重复 stop 不应把内部竞态暴露成用户警告。
+      setIsListening(false);
     }
   };
 
@@ -231,10 +234,6 @@ const useSpeechToTextExternal = (
 
   const externalStopRecording = () => {
     if (!isListening) {
-      showToast({
-        message: 'Not currently recording. Please start recording first.',
-        status: 'warning',
-      });
       return;
     }
 

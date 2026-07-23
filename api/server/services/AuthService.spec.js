@@ -448,6 +448,18 @@ describe('registerUser', () => {
     updateUser.mockResolvedValue({ _id: 'new-user-id' });
   });
 
+  it('returns 409 for a duplicate registration email and never creates another user', async () => {
+    findUser.mockResolvedValue({ _id: 'existing-user-id', email: registrationPayload.email });
+
+    const result = await registerUser(registrationPayload);
+
+    expect(result).toEqual({
+      status: 409,
+      message: '这个邮箱已经注册过——直接登录,或换一个邮箱。',
+    });
+    expect(createUser).not.toHaveBeenCalled();
+  });
+
   it('ignores provider values from the public registration payload', async () => {
     const result = await registerUser({ ...registrationPayload, provider: 'google' });
 

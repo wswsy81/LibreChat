@@ -118,7 +118,13 @@ test('releases only the matching reservation', async () => {
 });
 
 test('accepts once and records the invited user', async () => {
-  const invitation = await createInvitation();
+  const invitation = await methods.createLifeInvitation({
+    codeHash: 'hash-1',
+    codeHint: '2M8Q',
+    codePlain: 'ABCD2M8Q',
+    inviterUserId,
+    expiresAt: new Date(Date.now() + 60_000),
+  });
   await methods.reserveLifeInvitation({
     codeHash: 'hash-1',
     reservationId: 'reservation-a',
@@ -139,5 +145,29 @@ test('accepts once and records the invited user', async () => {
   expect(accepted?.status).toBe('accepted');
   expect(String(accepted?.acceptedByUserId)).toBe(String(acceptedByUserId));
   expect(accepted?.acceptedAt).toBeInstanceOf(Date);
+  expect(accepted?.codePlain).toBeUndefined();
   expect(duplicate).toBeNull();
+});
+
+test('redacts plaintext codes after invitations expire', async () => {
+  const expired = await methods.createLifeInvitation({
+    codeHash: 'expired-plain',
+    codeHint: 'OLD1',
+    codePlain: 'EXPIREDOLD1',
+    inviterUserId,
+    expiresAt: new Date(Date.now() - 1_000),
+  });
+  await methods.createLifeInvitation({
+    codeHash: 'pending-plain',
+    codeHint: 'NEW1',
+    codePlain: 'PENDINGNEW1',
+    inviterUserId,
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+
+  expect(await methods.redactExpiredLifeInvitationPlaintexts()).toBe(1);
+  expect((await LifeInvitation.findById(expired._id).lean())?.codePlain).toBeUndefined();
+  expect((await LifeInvitation.findOne({ codeHash: 'pending-plain' }).lean())?.codePlain).toBe(
+    'PENDINGNEW1',
+  );
 });

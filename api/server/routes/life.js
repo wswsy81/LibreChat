@@ -17,7 +17,7 @@ const {
   LifeOperationPendingError,
   LifeOperationConflictError,
 } = require('~/server/services/lifeOperations');
-const { createLifeInvitation } = require('~/models');
+const { createLifeInvitation, redactExpiredLifeInvitationPlaintexts } = require('~/models');
 
 const router = express.Router();
 const engine = createLifeEngineClient({
@@ -728,6 +728,11 @@ admin.post('/invites', async (req, res) => {
 admin.get('/invites', async (_req, res) => {
   const Token = mongoose.models.Token;
   const LifeInvitation = mongoose.models.LifeInvitation;
+  if (LifeInvitation) {
+    // 明文只在“待使用且未过期”窗口内保留；已核销在 finalize 时立即清，
+    // 过期码在管理列表读取前批量清，同时保留 hash/审计记录。
+    await redactExpiredLifeInvitationPlaintexts();
+  }
   const [rows, legacyRows] = await Promise.all([
     LifeInvitation
       ? LifeInvitation.find({}).sort({ createdAt: -1 }).limit(100).lean()

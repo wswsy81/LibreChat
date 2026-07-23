@@ -32,9 +32,10 @@ jest.mock('~/server/services/lifeOperations', () => ({
 
 jest.mock('~/models', () => ({
   createLifeInvitation: jest.fn(),
+  redactExpiredLifeInvitationPlaintexts: jest.fn(async () => 0),
 }));
 
-const { createLifeInvitation } = require('~/models');
+const { createLifeInvitation, redactExpiredLifeInvitationPlaintexts } = require('~/models');
 const lifeRouter = require('./life');
 
 const chain = (value) => ({
@@ -138,6 +139,7 @@ test('maps invitation ownership, acceptance, and conversation activity for the a
   const response = await request(app).get('/admin/invites');
 
   expect(response.status).toBe(200);
+  expect(redactExpiredLifeInvitationPlaintexts).toHaveBeenCalledTimes(1);
   expect(response.body.invites[0]).toEqual(
     expect.objectContaining({
       codeHint: '2M8Q',
