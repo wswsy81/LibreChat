@@ -75,6 +75,24 @@ describe('LifeWheel component', () => {
     expect(screen.getAllByText('家与根')).toHaveLength(2);
   });
 
+  test('390px h6 提灯与两行域名保留明确水平间隔（Q10）', () => {
+    const { container } = render(<LifeWheel mode="interactive" lanternHouse="h6" />);
+    const lantern = container.querySelector('[data-life-wheel-lantern="true"]');
+    const label = container.querySelector('[data-life-wheel-mobile-label="h6"]');
+    const transform = lantern?.getAttribute('transform') ?? '';
+    const lanternX = Number(/^translate\(([^,]+),/.exec(transform)?.[1]);
+    const labelX = Number(label?.getAttribute('x'));
+
+    const conservativeLabelHalfWidth = 36;
+    const lanternRightExtent = 17;
+    const displacementAllowance = 3;
+    const gap =
+      labelX - conservativeLabelHalfWidth - (lanternX + lanternRightExtent + displacementAllowance);
+
+    expect(Number.isFinite(gap)).toBe(true);
+    expect(gap).toBeGreaterThanOrEqual(12);
+  });
+
   test('无 onSelectHouse → 扇区只读（role img，不可点）', () => {
     render(<LifeWheel mode="public" />);
     expect(screen.getAllByRole('img')).toHaveLength(12);

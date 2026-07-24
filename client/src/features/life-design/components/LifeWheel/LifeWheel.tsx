@@ -31,8 +31,8 @@ const OUTER_R = 196;
 const INNER_R = 104;
 const LABEL_R = (OUTER_R + INNER_R) / 2;
 const MARKER_R = OUTER_R - 15;
-/** 提灯站在扇区内侧、靠近圆心的一环，避免与域名文字（LABEL_R）和状态标记（MARKER_R）重叠——盲态 Q10 修单。 */
-const LANTERN_R = INNER_R + 26;
+/** 提灯站在圆心区边缘，沿精确停点方向落位，与扇区域名和外圈状态标记彻底分层。 */
+const LANTERN_R = INNER_R - 32;
 
 const RECOGNITION_FILL: Record<Recognition, string> = {
   unknown: 'rgba(23,32,26,0.015)',
@@ -111,7 +111,7 @@ function houseLabelLines(name: string): string[] {
 
 function Lantern({ x, y }: { x: number; y: number }) {
   return (
-    <g transform={`translate(${x},${y})`} aria-hidden="true">
+    <g data-life-wheel-lantern="true" transform={`translate(${x},${y})`} aria-hidden="true">
       <circle cx="0" cy="-14" r="5" fill="none" stroke="#17201A" strokeWidth="1.6" />
       <path
         d="M 0,-9 L 0,6 M 0,-4 L -7,2 M 0,-4 L 8,-1 M 0,6 L -6,16 M 0,6 L 6,16"
@@ -220,6 +220,7 @@ export default function LifeWheel({
                 strokeDasharray={isFog && mode === 'interactive' ? '3 5' : undefined}
               />
               <text
+                data-life-wheel-mobile-label={house.id}
                 x={label.x}
                 y={label.y - (labelLines.length > 1 ? 7 : -4)}
                 textAnchor="middle"
