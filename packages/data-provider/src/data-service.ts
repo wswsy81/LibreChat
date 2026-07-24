@@ -27,12 +27,6 @@ export function createLifeOnboarding(
   return request.post(endpoints.lifeOnboarding(), payload, idempotencyHeaders());
 }
 
-export function createLifeDiagnostic(
-  payload: t.LifeDiagnosticRequest,
-): Promise<t.LifeDiagnosticResponse> {
-  return request.post(endpoints.lifeDiagnostic(), payload, idempotencyHeaders());
-}
-
 export function resumeLifeConversation(): Promise<t.LifeResumeResponse> {
   return request.post(endpoints.lifeResume(), undefined, idempotencyHeaders());
 }

@@ -118,41 +118,25 @@ function engineError(res, error) {
   });
 }
 
-const LIFE_DASHBOARD_KEYS = ['health', 'work', 'play', 'love'];
+const LIFE_HOUSE_PATTERN = /^h(?:[1-9]|1[0-2])$/;
+const LIFE_VISIT_MODES = new Set(['first_entry', 'return_entry', 'continue']);
 
-function answeredDashboardKeys(dashboards) {
-  if (!dashboards || typeof dashboards !== 'object' || Array.isArray(dashboards)) {
-    return [];
-  }
-  const keys = Object.keys(dashboards);
-  if (
-    !keys.length ||
-    keys.some((key) => !LIFE_DASHBOARD_KEYS.includes(key)) ||
-    keys.some(
-      (key) => !Number.isInteger(dashboards[key]) || dashboards[key] < 0 || dashboards[key] > 10,
-    )
-  ) {
-    return [];
-  }
-  return LIFE_DASHBOARD_KEYS.filter((key) => Object.hasOwn(dashboards, key));
-}
-
-// 生辰后移 S2(2026-07-16 M4-A1):建档层零生辰,邀请只发生在 S2 卡壳后、由阶段卡唯一话术触发。
-function onboardingPrompt(dashboards) {
-  const names = { health: '健康', work: '工作', play: '玩', love: '爱' };
-  const entries = answeredDashboardKeys(dashboards).map((key) => ({
-    key,
-    name: names[key],
-    value: dashboards[key],
-  }));
-  const lowest = entries.reduce(
-    (best, item) => (item.value < best.value ? item : best),
-    entries[0],
-  );
-  const bars = entries.map((item) => `${item.name} ${item.value}`).join('、');
+function houseEntryPrompt(entryHouse, visitMode) {
   // system-tag(开场编排协议 §2):触发消息带 [trigger:*] 前缀,不伪装用户原话。
   // 前端渲染剥前缀显示;engine 证据层与提示词按前缀排除,不得引用为用户说过的话。
-  return `[trigger:onboarding_completed] 我的人生血条(0-10)：${bars}。最低的是「${lowest.name}」。`;
+  return `[trigger:house_entered] entryHouse=${entryHouse};visitMode=${visitMode}`;
+}
+
+function validEntryEvent(value, requestedHouse) {
+  return (
+    value &&
+    value.kind === 'house_entered' &&
+    value.entryHouse === requestedHouse &&
+    LIFE_HOUSE_PATTERN.test(value.entryHouse) &&
+    LIFE_VISIT_MODES.has(value.visitMode) &&
+    typeof value.at === 'string' &&
+    Number.isFinite(Date.parse(value.at))
+  );
 }
 
 function chatRoute(prompt) {
@@ -280,19 +264,24 @@ router.get('/shares/:token', lifeShareLimiter, async (req, res) => {
 router.use(requireJwtAuth);
 
 router.post('/onboarding', async (req, res) => {
-  const dashboards = req.body?.dashboards || {};
-  if (!answeredDashboardKeys(dashboards).length) {
+  const rawBody =
+    req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const extra = Object.keys(rawBody).filter(
+    (field) => !['archiveName', 'entryHouse'].includes(field),
+  );
+  const entryHouse = String(rawBody.entryHouse || '').trim();
+  if (extra.length || !LIFE_HOUSE_PATTERN.test(entryHouse)) {
     return res
       .status(422)
-      .json({ error: { code: 'INVALID_DASHBOARDS', message: '至少回答一条 0–10 的人生血条' } });
+      .json({ error: { code: 'INVALID_ENTRY_HOUSE', message: '请选择一个有效的人生领域' } });
   }
   const key = idempotencyKeyOf(req, res);
   if (!key) {
     return;
   }
   const body = {
-    archiveName: String(req.body?.archiveName || req.user.name || '朋友').slice(0, 40),
-    dashboards,
+    archiveName: String(rawBody.archiveName || req.user.name || '朋友').slice(0, 40),
+    entryHouse,
   };
   try {
     const outcome = await runLifeOperation({
@@ -308,40 +297,18 @@ router.post('/onboarding', async (req, res) => {
           body,
           operation: { id: operationId, name: 'onboarding', requestHash },
         });
-        const prompt = onboardingPrompt(dashboards);
+        if (!validEntryEvent(result?.entryEvent, entryHouse)) {
+          throw new LifeEngineError(502, 'future-engine 返回无效 house_entered 事件', {
+            error: {
+              code: 'INVALID_ENTRY_EVENT',
+              message: '人生领域入口暂时不可用',
+              retryable: true,
+            },
+          });
+        }
+        const prompt = houseEntryPrompt(result.entryEvent.entryHouse, result.entryEvent.visitMode);
         return { ...result, prompt, route: chatRoute(prompt), operationId };
       },
-    });
-    return res.json(outcome);
-  } catch (error) {
-    return engineError(res, error);
-  }
-});
-
-router.post('/diagnostics/blood-bars', async (req, res) => {
-  const dashboards = req.body?.dashboards || {};
-  if (!answeredDashboardKeys(dashboards).length) {
-    return res
-      .status(422)
-      .json({ error: { code: 'INVALID_DASHBOARDS', message: '至少回答一条 0–10 的人生血条' } });
-  }
-  const key = idempotencyKeyOf(req, res);
-  if (!key) {
-    return;
-  }
-  try {
-    const outcome = await runLifeOperation({
-      userId: userId(req),
-      operation: 'blood-bars',
-      idempotencyKey: key,
-      requestPayload: { dashboards },
-      executor: ({ operationId, requestHash }) =>
-        engine.json('/internal/diagnostics/blood-bars', {
-          userId: userId(req),
-          method: 'POST',
-          body: { dashboards },
-          operation: { id: operationId, name: 'blood-bars', requestHash },
-        }),
     });
     return res.json(outcome);
   } catch (error) {

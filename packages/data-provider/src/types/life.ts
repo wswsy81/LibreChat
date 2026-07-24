@@ -7,11 +7,68 @@ export interface LifeDashboards {
   love?: number;
 }
 
+export type LifeHouseId =
+  | 'h1'
+  | 'h2'
+  | 'h3'
+  | 'h4'
+  | 'h5'
+  | 'h6'
+  | 'h7'
+  | 'h8'
+  | 'h9'
+  | 'h10'
+  | 'h11'
+  | 'h12';
+
+export type LifeVisitMode = 'first_entry' | 'return_entry' | 'continue';
+export type LifeRecognitionState = 'unknown' | 'draft' | 'owned' | 'dismissed';
+export type LifeConditionLevel =
+  | 'unknown'
+  | 'depleted'
+  | 'strained'
+  | 'mixed'
+  | 'steady'
+  | 'energizing';
+export type LifeConditionTrend = 'unknown' | 'improving' | 'stable' | 'worsening';
+
+export interface LifeWheelHouseState {
+  id: LifeHouseId;
+  publicName: string;
+  startAngleDeg: number;
+  endAngleDeg: number;
+  centerAngleDeg: number;
+  sweepDeg: -30;
+  axisBoundary: boolean;
+  recognition: LifeRecognitionState;
+  condition: {
+    currentSnapshotId: string | null;
+    level: LifeConditionLevel;
+    status: 'user_stated' | 'dialog_inferred' | 'user_confirmed' | 'user_corrected' | null;
+    trend: LifeConditionTrend;
+    asOf: string | null;
+    evidenceSummary: string | null;
+  };
+}
+
+export interface LifeWheelView {
+  schemaVersion: 1;
+  lanternHouse: LifeHouseId | null;
+  houses: LifeWheelHouseState[];
+}
+
+export interface LifeHouseEntryEvent {
+  kind: 'house_entered';
+  entryHouse: LifeHouseId;
+  visitMode: LifeVisitMode;
+  at: string;
+}
+
 export interface LifeBootstrapSummary {
   alias?: string | null;
   lastSurface?: string | null;
   nextStep?: string | null;
-  dashboards?: LifeDashboards;
+  lifeWheel?: LifeWheelView;
 }
 
 export interface LifeBootstrapResponse {
@@ -31,27 +88,18 @@ export interface LifeBootstrapResponse {
 
 export interface LifeOnboardingRequest {
   archiveName: string;
-  dashboards: LifeDashboards;
+  entryHouse: LifeHouseId;
 }
 
 export interface LifeOnboardingResponse {
   ok: boolean;
   profileVersion: string;
   applied: number;
+  entryEvent: LifeHouseEntryEvent;
   prompt: string;
   route: string;
   operationId?: string;
   replayed?: boolean;
-}
-
-export interface LifeDiagnosticRequest {
-  dashboards: LifeDashboards;
-}
-
-export interface LifeDiagnosticResponse {
-  ok: boolean;
-  profileVersion: string;
-  dashboards: LifeDashboards;
 }
 
 export interface LifeResumeResponse {

@@ -133,52 +133,57 @@ test('authenticated bootstrap merges archive state with the latest valid convers
   );
 });
 
-test('onboarding accepts only explicitly answered bars and returns a one-time auto-submit route', async () => {
+test('onboarding accepts archiveName + entryHouse and returns a one-time house trigger route', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
-  const missingKey = await request(app)
-    .post('/api/life/onboarding')
-    .send({
-      archiveName: '张东',
-      dashboards: { health: 5 },
-    });
+  const missingKey = await request(app).post('/api/life/onboarding').send({
+    archiveName: '张东',
+    entryHouse: 'h10',
+  });
   expect(missingKey.status).toBe(400);
   expect(missingKey.body.error.code).toBe('MISSING_IDEMPOTENCY_KEY');
 
-  mockEngine.json.mockResolvedValue({ ok: true, profileVersion: 'v1', applied: 2 });
-  const partial = await request(app)
-    .post('/api/life/onboarding')
-    .set('Idempotency-Key', 'onboarding-partial-1')
-    .send({
-      archiveName: '张东',
-      dashboards: { health: 5 },
-    });
-  expect(partial.status).toBe(200);
-  const partialPrompt = new URL(partial.body.route, 'https://yiweilife.test').searchParams.get('q');
-  expect(partialPrompt).toContain('健康 5');
-  expect(partialPrompt).not.toContain('工作');
-  expect(mockEngine.json).toHaveBeenCalledWith(
-    '/internal/onboarding',
-    expect.objectContaining({ body: { archiveName: '张东', dashboards: { health: 5 } } }),
-  );
-
-  mockEngine.json.mockResolvedValue({ ok: true, profileVersion: 'v1', applied: 5 });
+  mockEngine.json.mockResolvedValue({
+    ok: true,
+    profileVersion: 'v1',
+    applied: 1,
+    entryEvent: {
+      kind: 'house_entered',
+      entryHouse: 'h10',
+      visitMode: 'first_entry',
+      at: '2026-07-24T12:00:00.000Z',
+    },
+  });
   const valid = await request(app)
     .post('/api/life/onboarding')
     .set('Idempotency-Key', 'onboarding-1')
     .send({
       archiveName: '张东',
-      dashboards: { health: 6, work: 3, play: 7, love: 5 },
-      birthOptIn: true,
+      entryHouse: 'h10',
     });
   expect(valid.status).toBe(200);
-  expect(valid.body.route).toMatch(/^\/c\/new\?/);
-  expect(valid.body.route).toContain('submit=true');
-  expect(decodeURIComponent(valid.body.route)).toContain('最低的是「工作」');
-  // system-tag(开场编排协议 §2):触发消息带前缀,不伪装用户原话
-  const validPrompt = new URL(valid.body.route, 'https://yiweilife.test').searchParams.get('q');
-  expect(validPrompt).toContain('[trigger:onboarding_completed] 我的人生血条');
-  // 生辰后移 S2(M4-A1):旧客户端就算传 birthOptIn 也不再进开场词,建档层零生辰
-  expect(decodeURIComponent(valid.body.route)).not.toContain('出生时间');
+  const prompt = new URL(valid.body.route, 'https://yiweilife.test').searchParams.get('q');
+  expect(prompt).toBe('[trigger:house_entered] entryHouse=h10;visitMode=first_entry');
+  expect(valid.body.entryEvent.entryHouse).toBe('h10');
+  expect(mockEngine.json).toHaveBeenCalledWith(
+    '/internal/onboarding',
+    expect.objectContaining({ body: { archiveName: '张东', entryHouse: 'h10' } }),
+  );
+
+  const legacy = await request(app)
+    .post('/api/life/onboarding')
+    .set('Idempotency-Key', 'onboarding-legacy')
+    .send({
+      archiveName: '张东',
+      dashboards: { health: 6, work: 3, play: 7, love: 5 },
+    });
+  expect(legacy.status).toBe(422);
+  expect(legacy.body.error.code).toBe('INVALID_ENTRY_HOUSE');
+
+  const retired = await request(app)
+    .post('/api/life/diagnostics/blood-bars')
+    .set('Idempotency-Key', 'diagnostic-retired')
+    .send({ dashboards: { work: 3 } });
+  expect(retired.status).toBe(404);
 });
 
 test('resume restores an existing conversation and only creates D-mode when none exists', async () => {
