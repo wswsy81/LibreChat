@@ -11,8 +11,6 @@ import type {
   LifeDossierAnnotateRequest,
   LifeDossierAnnotateResponse,
   LifeInboxCreateResponse,
-  LifeDiagnosticRequest,
-  LifeDiagnosticResponse,
   LifeOnboardingRequest,
   LifeOnboardingResponse,
   LifeResumeResponse,
@@ -26,20 +24,6 @@ export const useLifeOnboardingMutation = (): UseMutationResult<
 > => {
   const queryClient = useQueryClient();
   return useMutation(dataService.createLifeOnboarding, {
-    onSuccess: () => {
-      queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
-      queryClient.invalidateQueries([QueryKeys.lifeArchive]);
-    },
-  });
-};
-
-export const useLifeDiagnosticMutation = (): UseMutationResult<
-  LifeDiagnosticResponse,
-  Error,
-  LifeDiagnosticRequest
-> => {
-  const queryClient = useQueryClient();
-  return useMutation(dataService.createLifeDiagnostic, {
     onSuccess: () => {
       queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
       queryClient.invalidateQueries([QueryKeys.lifeArchive]);

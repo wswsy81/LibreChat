@@ -277,8 +277,27 @@ test('prefills the invite code saved by the home invitation link', () => {
   expect(getByRole('textbox', { name: '邀请码' })).toHaveValue('YW-7K9P-2M8Q');
 });
 
+test('preserves a valid entryHouse from the registration URL', async () => {
+  window.history.replaceState({}, '', '/register?entryHouse=h6');
+
+  setup();
+
+  await waitFor(() => {
+    expect(sessionStorage.getItem('life_entry_house')).toBe('h6');
+  });
+});
+
+test('rejects an invalid entryHouse instead of storing it', () => {
+  window.history.replaceState({}, '', '/register?entryHouse=h99');
+
+  setup();
+
+  expect(sessionStorage.getItem('life_entry_house')).toBeNull();
+});
+
 test('logs in immediately after registration when email verification is disabled', () => {
   sessionStorage.setItem('life_invite_code', 'YW-7K9P-2M8Q');
+  sessionStorage.setItem('life_entry_house', 'h10');
   const login = jest.fn();
   const { getRegisterMutationOptions } = setup({
     useGetStartupConfigReturnValue: {
@@ -319,6 +338,7 @@ test('logs in immediately after registration when email verification is disabled
     password: registration.password,
   });
   expect(sessionStorage.getItem('life_invite_code')).toBeNull();
+  expect(sessionStorage.getItem('life_entry_house')).toBe('h10');
 });
 
 // test('calls registerUser.mutate on registration', async () => {

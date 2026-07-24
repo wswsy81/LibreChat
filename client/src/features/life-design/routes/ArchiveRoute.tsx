@@ -1,12 +1,12 @@
 import { ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@librechat/client';
-import { useLifeArchiveQuery } from '~/data-provider';
+import { useLifeArchiveQuery, useLifeBootstrapQuery } from '~/data-provider';
 import { useLocalize } from '~/hooks';
-import DashboardBars from '../components/DashboardBars';
 import ArchiveDossier from '../components/ArchiveDossier';
 import ArchiveMap from '../components/ArchiveMap';
 import BasicsForm from '../components/BasicsForm';
+import { Explorer } from '../components/LifeWheel';
 import { LifeError, LifeLoading } from '../components/PageState';
 import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
 
@@ -83,6 +83,7 @@ export default function ArchiveRoute() {
   const localize = useLocalize();
   const navigate = useNavigate();
   const archive = useLifeArchiveQuery();
+  const bootstrap = useLifeBootstrapQuery();
 
   if (archive.isLoading) {
     return <LifeLoading />;
@@ -198,7 +199,10 @@ export default function ArchiveRoute() {
               )}
 
               <div className="mt-9">
-                <DashboardBars values={profile.dashboards} />
+                <Explorer
+                  wheel={bootstrap.data?.summary?.lifeWheel}
+                  archiveName={profile.alias || localize('com_life_friend')}
+                />
               </div>
 
               <dl className="mt-8 grid border-y border-life-rule dark:border-white/10 sm:grid-cols-2">

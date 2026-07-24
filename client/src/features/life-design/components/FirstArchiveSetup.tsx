@@ -1,19 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import type { LifeDashboards } from 'librechat-data-provider';
+import type { LifeHouseId } from 'librechat-data-provider';
 import { Button } from '@librechat/client';
-import { useLifeDiagnosticMutation, useLifeOnboardingMutation } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import { track } from '~/utils/track';
-import { isConsumed, markConsumed } from '../oneShot';
-
-const fields = [
-  { key: 'health', label: 'com_life_health', hint: 'com_life_health_hint' },
-  { key: 'work', label: 'com_life_work', hint: 'com_life_work_hint' },
-  { key: 'play', label: 'com_life_play', hint: 'com_life_play_hint' },
-  { key: 'love', label: 'com_life_love', hint: 'com_life_love_hint' },
-] as const;
+import useHouseEntry from '../hooks/useEntry';
+import { HOUSES, LifeWheel } from './LifeWheel';
 
 const readError = (error: Error | null) => {
   const response = (error as Error & { response?: { data?: { error?: { message?: string } } } })
@@ -23,238 +15,115 @@ const readError = (error: Error | null) => {
 
 export default function FirstArchiveSetup({
   initialName,
-  initialDashboards = {},
-  diagnostic = false,
-  onSaved,
+  initialEntryHouse = null,
 }: {
   initialName: string;
-  initialDashboards?: LifeDashboards;
-  diagnostic?: boolean;
-  onSaved?: () => void;
+  initialEntryHouse?: LifeHouseId | null;
 }) {
   const localize = useLocalize();
-  const navigate = useNavigate();
-  const onboarding = useLifeOnboardingMutation();
-  const diagnostics = useLifeDiagnosticMutation();
+  const { enterHouse, error, isLoading } = useHouseEntry();
   const [archiveName, setArchiveName] = useState(initialName);
-  const [values, setValues] = useState<Required<LifeDashboards>>({
-    health: initialDashboards.health ?? 5,
-    work: initialDashboards.work ?? 5,
-    play: initialDashboards.play ?? 5,
-    love: initialDashboards.love ?? 5,
-  });
-  const [touched, setTouched] = useState<Set<keyof LifeDashboards>>(
-    diagnostic
-      ? new Set(
-          fields
-            .filter((field) => typeof initialDashboards[field.key] === 'number')
-            .map((field) => field.key),
-        )
-      : new Set(),
-  );
-
-  const pending = onboarding.isLoading || diagnostics.isLoading;
-  const error = readError(onboarding.error || diagnostics.error);
-  const isNameValid =
-    diagnostic || (archiveName.trim().length >= 2 && archiveName.trim().length <= 40);
-  // 只要明确回答过至少一条血条就放行；已有值算已回答，展示用默认值不算证据。
-  const isComplete = touched.size >= 1 && isNameValid;
-  const answeredDashboards = useMemo<LifeDashboards>(
-    () =>
-      Object.fromEntries(
-        fields
-          .filter((field) => touched.has(field.key))
-          .map((field) => [field.key, values[field.key]]),
-      ),
-    [touched, values],
-  );
-  const lowest = useMemo(() => {
-    const answered = fields.filter((field) => touched.has(field.key));
-    return answered.reduce(
-      (best, field) => (values[field.key] < values[best.key] ? field : best),
-      answered[0] ?? fields[0],
-    );
-  }, [touched, values]);
+  const [selectedHouse, setSelectedHouse] = useState<LifeHouseId | null>(initialEntryHouse);
+  const isNameValid = archiveName.trim().length >= 2 && archiveName.trim().length <= 40;
+  const selectedName = HOUSES.find((house) => house.id === selectedHouse)?.publicName;
+  const isComplete = isNameValid && selectedHouse != null;
 
   useEffect(() => {
-    track(diagnostic ? 'recheck_view' : 'onboarding_view');
-  }, [diagnostic]);
+    track('onboarding_view');
+  }, []);
 
-  const markTouched = (key: keyof LifeDashboards) => {
-    setTouched((current) => {
-      if (current.has(key)) {
-        return current;
-      }
-      const next = new Set(current).add(key);
-      // 首次拨动某条血条:只记类别,不记分值
-      track('onboarding_bar_touched', { bar: key });
-      if (next.size === fields.length) {
-        track('onboarding_all_touched');
-      }
-      return next;
-    });
-  };
-
-  const updateValue = (key: keyof LifeDashboards, value: number) => {
-    setValues((current) => ({ ...current, [key]: value }));
-    markTouched(key);
+  const selectHouse = (entryHouse: LifeHouseId) => {
+    setSelectedHouse(entryHouse);
+    track('house_selected', { house: entryHouse });
   };
 
   const submit = () => {
-    if (!isComplete || pending) {
+    if (!isComplete || isLoading || !selectedHouse) {
       return;
     }
-    // 只记最低那条血条的类别,不记具体分值(生辰后移 S2,建档层零生辰)
-    track(diagnostic ? 'recheck_submit' : 'onboarding_submit', {
-      lowest_bar: lowest.key,
-    });
-    if (diagnostic) {
-      diagnostics.mutate({ dashboards: answeredDashboards }, { onSuccess: () => onSaved?.() });
-      return;
-    }
-    onboarding.mutate(
-      { archiveName: archiveName.trim(), dashboards: answeredDashboards },
-      {
-        onSuccess: (result) => {
-          if (result.operationId) {
-            const marker = `life:onboarding:${result.operationId}`;
-            if (isConsumed(marker)) {
-              navigate('/', { replace: true });
-              return;
-            }
-            markConsumed(marker);
-          }
-          navigate(result.route, { replace: true });
-        },
-      },
-    );
+    track('onboarding_submit', { entryHouse: selectedHouse });
+    enterHouse({ archiveName: archiveName.trim(), entryHouse: selectedHouse });
   };
 
   return (
-    <section className="mx-auto w-full max-w-3xl" aria-labelledby="life-setup-title">
+    <section className="mx-auto w-full max-w-4xl" aria-labelledby="life-setup-title">
       <div className="mb-8">
-        {!diagnostic && (
-          <p className="mb-3 flex items-baseline justify-between gap-4 border-b border-life-ink/20 pb-3 font-life-mono text-life-meta tracking-[0.16em] text-life-cinnabar dark:border-white/20 dark:text-[#D98A76]">
-            <span>{localize('com_life_setup_chapter_kicker')}</span>
-            <span className="text-life-muted dark:text-gray-500">
-              {localize('com_life_setup_chapter_number')}
-            </span>
-          </p>
-        )}
-        <p className="mb-3 text-life-sm font-medium tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
-          {localize(diagnostic ? 'com_life_recheck_eyebrow' : 'com_life_setup_eyebrow')}
+        <p className="mb-3 flex items-baseline justify-between gap-4 border-b border-life-ink/20 pb-3 font-life-mono text-life-meta tracking-[0.16em] text-life-cinnabar">
+          <span>{localize('com_life_setup_chapter_kicker')}</span>
+          <span className="text-life-muted">{localize('com_life_setup_chapter_number')}</span>
+        </p>
+        <p className="mb-3 text-life-sm font-medium tracking-[0.18em] text-life-cinnabar">
+          {localize('com_life_setup_eyebrow')}
         </p>
         <h1
           id="life-setup-title"
-          className="text-life-title font-semibold tracking-tight text-text-primary sm:text-life-display"
+          className="font-life-serif text-life-title font-semibold tracking-tight text-life-ink sm:text-life-display"
         >
-          {localize(diagnostic ? 'com_life_recheck_title' : 'com_life_setup_title')}
+          {localize('com_life_setup_title')}
         </h1>
-        <p className="mt-3 max-w-2xl text-life-body leading-7 text-text-secondary">
-          {localize(diagnostic ? 'com_life_recheck_description' : 'com_life_setup_description')}
+        <p className="mt-3 max-w-[34em] text-life-body leading-8 text-life-muted">
+          {localize('com_life_setup_description')}
         </p>
       </div>
 
-      <div className="space-y-6 rounded-[28px] border border-border-light bg-surface-primary p-5 shadow-sm sm:p-8">
-        {!diagnostic && (
-          <label className="block">
-            <span className="mb-2 block text-life-sm font-medium text-text-primary">
-              {localize('com_life_archive_name')}
-            </span>
-            <input
-              value={archiveName}
-              maxLength={40}
-              onChange={(event) => setArchiveName(event.target.value)}
-              aria-invalid={!isNameValid}
-              className="h-12 w-full rounded-2xl border border-border-light bg-surface-secondary px-4 text-text-primary outline-none transition focus:border-life-moss focus:ring-2 focus:ring-life-moss/15"
-              aria-describedby="archive-name-help"
-            />
-            <span
-              id="archive-name-help"
-              className="mt-1.5 block text-life-meta text-text-secondary"
-            >
-              {localize('com_life_archive_name_help')}
-            </span>
-          </label>
-        )}
+      <div className="border border-life-rule bg-[#F7F4EB] p-5 sm:p-8">
+        <label className="block">
+          <span className="mb-2 block text-life-sm font-medium text-life-ink">
+            {localize('com_life_archive_name')}
+          </span>
+          <input
+            value={archiveName}
+            maxLength={40}
+            onChange={(event) => setArchiveName(event.target.value)}
+            aria-invalid={!isNameValid}
+            className="h-12 w-full rounded-[4px] border border-life-rule bg-life-paper px-4 text-life-ink outline-none transition focus:border-life-moss focus:ring-2 focus:ring-life-moss/15"
+            aria-describedby="archive-name-help"
+          />
+          <span id="archive-name-help" className="mt-2 block text-life-meta text-life-muted">
+            {localize('com_life_archive_name_help')}
+          </span>
+        </label>
 
-        <div className="space-y-5">
-          {fields.map((field) => (
-            <label key={field.key} className="block rounded-2xl bg-surface-secondary p-4">
-              <span className="flex items-start justify-between gap-4">
-                <span>
-                  <span className="block font-medium text-text-primary">
-                    {localize(field.label)}
-                  </span>
-                  <span className="mt-1 block text-life-sm text-text-secondary">
-                    {localize(field.hint)}
-                  </span>
-                </span>
-                <output
-                  className={`min-w-14 rounded-xl px-3 py-1.5 text-center font-semibold tabular-nums ${
-                    touched.has(field.key)
-                      ? 'bg-surface-primary text-text-primary'
-                      : 'bg-transparent text-text-secondary'
-                  }`}
-                >
-                  {touched.has(field.key)
-                    ? localize('com_life_bar_value', { 0: values[field.key] })
-                    : localize('com_life_bar_unset')}
-                </output>
-              </span>
-              <input
-                type="range"
-                min="0"
-                max="10"
-                step="1"
-                value={values[field.key]}
-                onChange={(event) => updateValue(field.key, Number(event.target.value))}
-                onPointerUp={() => markTouched(field.key)}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter' && event.key !== ' ') {
-                    return;
-                  }
-                  event.preventDefault();
-                  markTouched(field.key);
-                }}
-                className="mt-4 h-3 w-full cursor-pointer accent-life-moss"
-                aria-label={localize(field.label)}
-                aria-valuetext={
-                  touched.has(field.key)
-                    ? localize('com_life_bar_value', { 0: values[field.key] })
-                    : localize('com_life_bar_unset')
-                }
-              />
-              <span className="mt-2 flex justify-between text-life-meta text-text-secondary">
-                <span>{localize('com_life_bar_scale_low')}</span>
-                <span>{localize('com_life_bar_scale_high')}</span>
-              </span>
-            </label>
-          ))}
+        <div className="mt-8 border-t border-life-rule pt-7">
+          <div className="mb-5">
+            <h2 className="font-life-serif text-life-lead font-semibold text-life-ink">
+              {localize('com_life_choose_house')}
+            </h2>
+            <p className="mt-2 max-w-[34em] text-life-sm leading-7 text-life-muted">
+              {localize('com_life_choose_house_help')}
+            </p>
+          </div>
+          <LifeWheel
+            mode="interactive"
+            selectedHouse={selectedHouse}
+            onSelectHouse={selectHouse}
+            title={localize('com_life_wheel_select_aria')}
+            className="mx-auto block w-full max-w-[520px]"
+          />
+          <p
+            className="mt-4 min-h-6 text-center font-life-mono text-life-meta text-life-brass"
+            aria-live="polite"
+          >
+            {selectedName
+              ? localize('com_life_house_selected', { 0: selectedName })
+              : localize('com_life_house_not_selected')}
+          </p>
         </div>
 
-        <div className="rounded-2xl bg-surface-secondary px-4 py-3 text-life-sm text-text-secondary">
-          {touched.size >= 1
-            ? localize('com_life_lowest_bar', { 0: localize(lowest.label) })
-            : localize('com_life_touch_all_bars')}
-        </div>
-
-        {error && (
-          <p role="alert" className="text-life-sm text-red-600 dark:text-red-400">
-            {error}
+        {readError(error) && (
+          <p role="alert" className="mt-5 text-life-sm text-red-600">
+            {readError(error)}
           </p>
         )}
 
         <Button
           type="button"
-          disabled={!isComplete || pending}
+          disabled={!isComplete || isLoading}
           onClick={submit}
-          className="min-h-12 w-full rounded-2xl bg-life-moss text-life-paper hover:bg-life-moss-deep"
+          className="mt-6 min-h-12 w-full rounded-[4px] bg-life-moss text-life-paper hover:bg-life-moss-deep"
         >
-          {pending
-            ? localize('com_life_saving')
-            : localize(diagnostic ? 'com_life_save_snapshot' : 'com_life_enter_studio')}
-          {!pending && <ArrowRight className="ml-2 h-4 w-4" />}
+          {isLoading ? localize('com_life_saving') : localize('com_life_enter_studio')}
+          {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
         </Button>
       </div>
     </section>

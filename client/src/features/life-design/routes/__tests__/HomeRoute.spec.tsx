@@ -59,7 +59,7 @@ describe('public registration policy', () => {
     expect(screen.getByText('com_life_invite_only_notice')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /com_life_start_first/ })).toHaveAttribute(
       'href',
-      '/register',
+      '/register?entryHouse=h6',
     );
   });
 
@@ -69,19 +69,27 @@ describe('public registration policy', () => {
 
     expect(screen.getByRole('link', { name: /com_life_start_first/ })).toHaveAttribute(
       'href',
-      '/register',
+      '/register?entryHouse=h6',
     );
   });
 
-  it('explains the product, shows the mist map, and renders all three steps', () => {
+  it('keeps the selected house on the registration action', async () => {
+    renderHome();
+
+    await userEvent.click(screen.getAllByRole('button', { name: /自我呈现/ })[0]);
+
+    expect(screen.getByRole('link', { name: /com_life_start_first/ })).toHaveAttribute(
+      'href',
+      '/register?entryHouse=h1',
+    );
+  });
+
+  it('explains the product and shows the mist map', () => {
     renderHome();
 
     expect(screen.getByText('com_life_public_title')).toBeInTheDocument();
     expect(screen.getByText('com_life_public_description')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'com_life_public_map_aria' })).toBeInTheDocument();
-    expect(screen.getByText('com_life_public_step_one')).toBeInTheDocument();
-    expect(screen.getByText('com_life_public_step_two')).toBeInTheDocument();
-    expect(screen.getByText('com_life_public_step_three')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'com_life_public_map_aria' })).toBeInTheDocument();
     expect(screen.getByText('com_life_public_private')).toBeInTheDocument();
   });
 

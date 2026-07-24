@@ -8,6 +8,12 @@ import { loginPage } from 'librechat-data-provider';
 import type { TRegisterUser, TError } from 'librechat-data-provider';
 import type { TLoginLayoutContext } from '~/common';
 import { useLoginUserMutation } from '~/data-provider/Auth/mutations';
+import {
+  getEntryHouseFromSearch,
+  getStoredEntryHouse,
+  homePathForEntryHouse,
+  storeEntryHouse,
+} from '~/features/life-design/entry';
 import { useLocalize, TranslationKeys } from '~/hooks';
 import { clearStoredInviteCode, formatLifeInviteCode, getStoredInviteCode } from '~/utils/invite';
 import { track } from '~/utils/track';
@@ -22,6 +28,9 @@ const Registration: React.FC = () => {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const token = queryParams.get('token');
+  const requestedEntryHouse = getEntryHouseFromSearch(location.search);
+  const entryHouse = requestedEntryHouse ?? getStoredEntryHouse();
+  const homePath = homePathForEntryHouse(entryHouse);
 
   const {
     watch,
@@ -46,6 +55,12 @@ const Registration: React.FC = () => {
     setHeaderText(inviteRequired ? 'com_auth_invite_only_title' : 'com_auth_create_account');
   }, [inviteRequired, setHeaderText]);
 
+  useEffect(() => {
+    if (requestedEntryHouse) {
+      storeEntryHouse(requestedEntryHouse);
+    }
+  }, [requestedEntryHouse]);
+
   // only require captcha if we have a siteKey
   const requireCaptcha = Boolean(startupConfig?.turnstile?.siteKey);
   const authInputClassName =
@@ -63,11 +78,11 @@ const Registration: React.FC = () => {
         navigate(`/login/2fa?tempToken=${data.tempToken}`, { replace: true });
         return;
       }
-      navigate('/home', { replace: true });
+      navigate(homePath, { replace: true });
     },
     onError: () => {
       setIsSubmitting(false);
-      navigate('/login?redirect_to=%2Fhome', { replace: true });
+      navigate(`/login?redirect_to=${encodeURIComponent(homePath)}`, { replace: true });
     },
   });
 
@@ -92,7 +107,7 @@ const Registration: React.FC = () => {
         setCountdown((prevCountdown) => {
           if (prevCountdown <= 1) {
             clearInterval(timer);
-            navigate('/login?redirect_to=%2Fhome', { replace: true });
+            navigate(`/login?redirect_to=${encodeURIComponent(homePath)}`, { replace: true });
             return 0;
           } else {
             return prevCountdown - 1;

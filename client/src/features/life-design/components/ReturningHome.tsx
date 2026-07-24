@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { ArrowRight, LogOut, RotateCcw } from 'lucide-react';
+import { ArrowRight, LogOut } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { LifeBootstrapResponse } from 'librechat-data-provider';
 import { Button } from '@librechat/client';
 import { useLifeArchiveQuery, useLifeInboxMutation } from '~/data-provider';
 import { useAuthContext, useLocalize } from '~/hooks';
-import DashboardBars from './DashboardBars';
-import FirstArchiveSetup from './FirstArchiveSetup';
+import { Explorer } from './LifeWheel';
 import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
 
 const dateText = (value?: string | null) =>
@@ -19,24 +18,10 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
   const localize = useLocalize();
   const navigate = useNavigate();
   const { logout } = useAuthContext();
-  const [diagnostic, setDiagnostic] = useState(false);
   const [note, setNote] = useState('');
   const archive = useLifeArchiveQuery({ retry: 0, refetchOnWindowFocus: false });
   const capture = useLifeInboxMutation();
   const name = bootstrap.summary?.alias || bootstrap.user?.name || localize('com_life_friend');
-
-  if (diagnostic) {
-    return (
-      <div className="h-full overflow-y-auto bg-life-paper px-5 py-10 dark:bg-surface-secondary sm:px-8">
-        <FirstArchiveSetup
-          diagnostic
-          initialName={name}
-          initialDashboards={bootstrap.summary?.dashboards}
-          onSaved={() => setDiagnostic(false)}
-        />
-      </div>
-    );
-  }
 
   const signals = (archive.data?.profile.signals || [])
     .filter((signal) => signal.status !== 'resolved')
@@ -171,25 +156,19 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
           </section>
         </div>
 
-        {/* ④ 四条血条 */}
-        <section className="mt-12" aria-labelledby="bars-title">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <h2
-              id="bars-title"
-              className="font-life-serif text-life-lead font-semibold text-life-ink dark:text-gray-100"
-            >
-              {localize('com_life_four_bars')}
-            </h2>
-            <button
-              type="button"
-              className="inline-flex min-h-11 items-center gap-2 font-life-mono text-life-meta text-life-muted transition hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
-              onClick={() => setDiagnostic(true)}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              {localize('com_life_recheck_bars')}
-            </button>
+        <section className="mt-12" aria-labelledby="life-wheel-title">
+          <h2
+            id="life-wheel-title"
+            className="font-life-serif text-life-lead font-semibold text-life-ink dark:text-gray-100"
+          >
+            {localize('com_life_wheel_title')}
+          </h2>
+          <p className="mt-2 max-w-[34em] text-life-sm leading-7 text-life-muted dark:text-gray-400">
+            {localize('com_life_wheel_description')}
+          </p>
+          <div className="mt-5">
+            <Explorer wheel={bootstrap.summary?.lifeWheel} archiveName={name} />
           </div>
-          <DashboardBars values={bootstrap.summary?.dashboards} />
         </section>
 
         {/* ⑦ 最近存档变更 */}

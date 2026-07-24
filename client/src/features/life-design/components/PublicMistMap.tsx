@@ -1,136 +1,155 @@
 /* eslint-disable i18next/no-literal-string */
 import { useLocalize } from '~/hooks';
+import { HOUSES } from './LifeWheel';
+import type { HouseId } from './LifeWheel';
 
-type TerritoryState = 'dark' | 'dim' | 'lit';
+/**
+ * 公开首页手绘迷雾舆图：四大块（象限分组 1-3/4-6/7-9/10-12），每块里三小块。
+ * 大块名=生活语言导航壳；小块名逐字用十二域前台名（HOUSES 契约）。
+ * 4×3 分块降低选择压力：先扫四组，再在组里挑一块。
+ */
 
-const TERRITORIES: ReadonlyArray<{
-  label: string;
-  x: number;
-  y: number;
-  state: TerritoryState;
-}> = [
-  { label: '日常与身体', x: 150, y: 130, state: 'dim' },
-  { label: '独处与内心', x: 222, y: 210, state: 'dark' },
-  { label: '钱与资源', x: 512, y: 130, state: 'lit' },
-  { label: '事业与公众', x: 664, y: 168, state: 'dim' },
-  { label: '自我呈现', x: 560, y: 268, state: 'dark' },
-  { label: '创造与玩', x: 170, y: 470, state: 'dark' },
-  { label: '学习与同行', x: 258, y: 520, state: 'dim' },
-  { label: '家与根', x: 520, y: 470, state: 'dark' },
-  { label: '亲密与伙伴', x: 630, y: 500, state: 'lit' },
-  { label: '朋友与社群', x: 560, y: 600, state: 'dark' },
+interface ContinentDomain {
+  readonly id: HouseId;
+  readonly x: number;
+  readonly y: number;
+}
+
+export interface Continent {
+  readonly key: string;
+  readonly name: string;
+  readonly path: string;
+  readonly labelX: number;
+  readonly labelY: number;
+  readonly domains: readonly ContinentDomain[];
+}
+
+export const CONTINENTS: readonly Continent[] = [
+  {
+    key: 'self',
+    name: '发展',
+    path: 'M 60,120 Q 40,80 90,64 Q 150,40 226,58 Q 296,72 312,130 Q 326,190 282,236 Q 240,282 168,278 Q 92,274 66,214 Q 48,168 60,120 Z',
+    labelX: 88,
+    labelY: 96,
+    domains: [
+      { id: 'h1', x: 180, y: 122 },
+      { id: 'h2', x: 192, y: 172 },
+      { id: 'h3', x: 168, y: 222 },
+    ],
+  },
+  {
+    key: 'living',
+    name: '表达',
+    path: 'M 440,80 Q 492,32 584,42 Q 682,52 722,112 Q 756,170 734,244 Q 710,318 620,330 Q 524,340 470,284 Q 420,232 424,158 Q 428,106 440,80 Z',
+    labelX: 478,
+    labelY: 70,
+    domains: [
+      { id: 'h4', x: 566, y: 128 },
+      { id: 'h5', x: 592, y: 182 },
+      { id: 'h6', x: 556, y: 240 },
+    ],
+  },
+  {
+    key: 'bonds',
+    name: '扩张',
+    path: 'M 88,470 Q 60,420 116,398 Q 190,372 262,392 Q 330,410 336,478 Q 340,544 278,576 Q 208,608 136,580 Q 76,554 78,506 Q 78,486 88,470 Z',
+    labelX: 110,
+    labelY: 426,
+    domains: [
+      { id: 'h7', x: 196, y: 452 },
+      { id: 'h8', x: 214, y: 502 },
+      { id: 'h9', x: 178, y: 550 },
+    ],
+  },
+  {
+    key: 'world',
+    name: '超越',
+    path: 'M 430,430 Q 470,384 556,390 Q 650,396 700,450 Q 748,502 728,576 Q 706,652 616,668 Q 520,682 462,626 Q 408,574 412,500 Q 414,458 430,430 Z',
+    labelX: 456,
+    labelY: 420,
+    domains: [
+      { id: 'h10', x: 560, y: 462 },
+      { id: 'h11', x: 592, y: 516 },
+      { id: 'h12', x: 548, y: 572 },
+    ],
+  },
 ];
 
-const TERRITORY_STYLE: Record<TerritoryState, { fill: string; stroke: string; text: string }> = {
-  dark: { fill: 'rgba(23,32,26,0.01)', stroke: 'rgba(23,32,26,0.18)', text: '#847d6e' },
-  dim: { fill: 'rgba(128,96,45,0.11)', stroke: 'rgba(128,96,45,0.55)', text: '#80602D' },
-  lit: { fill: 'rgba(53,91,71,0.18)', stroke: '#355B47', text: '#17201A' },
-};
-
-const TERRITORY_STATE_LABEL: Record<TerritoryState, string> = {
-  dark: '还没聊到',
-  dim: '有一页草稿',
-  lit: '已认领',
-};
+function houseName(id: HouseId): string {
+  return HOUSES.find((house) => house.id === id)?.publicName ?? id;
+}
 
 function territoryPath(x: number, y: number) {
-  const r = 44;
-  return `M ${x - r},${y} Q ${x - r * 0.7},${y - r * 0.9} ${x},${y - r * 0.8} Q ${x + r * 0.9},${y - r * 0.6} ${x + r * 0.85},${y + r * 0.2} Q ${x + r * 0.6},${y + r * 0.9} ${x - r * 0.2},${y + r * 0.85} Q ${x - r * 0.95},${y + r * 0.7} ${x - r},${y} Z`;
+  const r = 46;
+  return `M ${x - r},${y} Q ${x - r * 0.7},${y - r * 0.55} ${x},${y - r * 0.48} Q ${x + r * 0.9},${y - r * 0.38} ${x + r * 0.85},${y + r * 0.12} Q ${x + r * 0.6},${y + r * 0.55} ${x - r * 0.2},${y + r * 0.5} Q ${x - r * 0.95},${y + r * 0.42} ${x - r},${y} Z`;
 }
 
-function Territory({ label, x, y, state }: (typeof TERRITORIES)[number]) {
-  const style = TERRITORY_STYLE[state];
-  return (
-    <g aria-label={`${label} · ${TERRITORY_STATE_LABEL[state]}`}>
-      {state === 'dark' && <ellipse cx={x} cy={y} rx="64" ry="42" fill="url(#public-map-fog)" />}
-      <path
-        d={territoryPath(x, y)}
-        fill={style.fill}
-        stroke={style.stroke}
-        strokeWidth="1.5"
-        strokeDasharray={state === 'dark' ? '3 5' : undefined}
-        filter="url(#public-map-wobble)"
-      />
-      <text
-        x={x}
-        y={y + 4}
-        textAnchor="middle"
-        fill={style.text}
-        className="font-life-serif text-[13px] font-semibold"
-      >
-        {label}
-      </text>
-    </g>
-  );
+interface PublicMistMapProps {
+  selectedIsland?: HouseId | null;
+  onSelectIsland?: (id: HouseId) => void;
 }
 
-export default function PublicMistMap() {
+export default function PublicMistMap({ selectedIsland, onSelectIsland }: PublicMistMapProps) {
   const localize = useLocalize();
+  const interactive = typeof onSelectIsland === 'function';
+  const selectedSpot = CONTINENTS.flatMap((continent) => continent.domains).find(
+    (domain) => domain.id === selectedIsland,
+  );
 
   return (
-    <figure className="relative overflow-hidden border border-life-ink/45 bg-[#F7F4EB] p-4 shadow-[0_18px_70px_rgba(23,32,26,0.08)] dark:border-white/20 sm:p-6">
+    <figure className="relative overflow-hidden border border-life-ink/45 bg-[#F7F4EB] p-4 shadow-[0_18px_70px_rgba(23,32,26,0.08)] dark:border-white/20 sm:p-5">
       <div className="flex items-baseline justify-between gap-4 border-b border-life-rule pb-3 font-life-mono text-[10px] tracking-[0.12em] text-life-muted">
         <strong className="font-semibold text-life-brass">
           {localize('com_life_public_map_kicker')}
         </strong>
         <span>ATLAS / 迷雾图</span>
       </div>
-      <div className="mt-4 flex items-end justify-between gap-4">
-        <div>
-          <h2 className="font-life-serif text-life-lead font-black">
-            {localize('com_life_public_map_title')}
-          </h2>
-          <p className="mt-1 max-w-[28em] font-life-kai text-life-sm leading-7 text-life-muted">
-            {localize('com_life_public_map_description')}
-          </p>
-        </div>
-        <span className="hidden flex-none font-life-mono text-[9px] tracking-[0.12em] text-life-cinnabar sm:block">
-          YOU ARE HERE
-        </span>
-      </div>
 
-      <div className="relative mt-5 grid grid-cols-2 gap-3 sm:hidden" aria-hidden="true">
-        <div className="min-h-[126px] rounded-[46%_54%_42%_58%/38%_48%_52%_62%] border border-life-ink/25 bg-[#E9E3D5]/65 px-4 py-5">
-          <p className="font-life-mono text-[9px] tracking-[0.15em] text-life-brass">健康大洲</p>
-          <p className="mt-3 font-life-serif text-[13px] font-semibold text-life-brass">
-            ◐ 日常与身体
-          </p>
-          <p className="mt-2 font-life-serif text-[12px] text-life-muted">○ 独处与内心</p>
-        </div>
-        <div className="relative min-h-[126px] rounded-[55%_45%_58%_42%/48%_38%_62%_52%] border border-life-moss/55 bg-life-moss/10 px-4 py-5">
-          <p className="font-life-mono text-[9px] tracking-[0.15em] text-life-brass">工作大洲</p>
-          <p className="mt-3 font-life-serif text-[13px] font-semibold text-life-moss">
-            ● 钱与资源
-          </p>
-          <p className="mt-2 font-life-serif text-[12px] text-life-brass">◐ 事业与公众</p>
-          <span className="absolute -bottom-2 right-2 bg-life-paper px-2 py-1 font-life-mono text-[8px] tracking-[0.08em] text-life-cinnabar">
-            ◇ 您在此处
-          </span>
-        </div>
-        <div className="min-h-[126px] rounded-[50%_50%_46%_54%/44%_56%_44%_56%] border border-life-ink/20 bg-[#E9E3D5]/55 px-4 py-5">
-          <p className="font-life-mono text-[9px] tracking-[0.15em] text-life-brass">玩之大洲</p>
-          <p className="mt-3 font-life-serif text-[12px] text-life-muted">○ 创造与玩</p>
-          <p className="mt-2 font-life-serif text-[13px] font-semibold text-life-brass">
-            ◐ 学习与同行
-          </p>
-        </div>
-        <div className="min-h-[126px] rounded-[42%_58%_52%_48%/56%_44%_58%_42%] border border-life-moss/45 bg-life-moss/10 px-4 py-5">
-          <p className="font-life-mono text-[9px] tracking-[0.15em] text-life-brass">爱之大洲</p>
-          <p className="mt-3 font-life-serif text-[13px] font-semibold text-life-moss">
-            ● 亲密与伙伴
-          </p>
-          <p className="mt-2 font-life-serif text-[12px] text-life-muted">○ 家与根</p>
-        </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:hidden">
+        {CONTINENTS.map((continent, index) => (
+          <div
+            key={continent.key}
+            className={`min-h-[132px] border px-4 py-4 ${
+              index % 3 === 1
+                ? 'rounded-[55%_45%_58%_42%/48%_38%_62%_52%] border-life-moss/45 bg-life-moss/10'
+                : 'rounded-[46%_54%_42%_58%/38%_48%_52%_62%] border-life-ink/25 bg-[#E9E3D5]/60'
+            }`}
+          >
+            <p className="font-life-mono text-[9px] tracking-[0.15em] text-life-brass">
+              {continent.name}
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {continent.domains.map((domain) => {
+                const active = domain.id === selectedIsland;
+                return (
+                  <li key={domain.id}>
+                    <button
+                      type="button"
+                      onClick={interactive ? () => onSelectIsland?.(domain.id) : undefined}
+                      className={`font-life-serif text-[13px] ${
+                        active
+                          ? 'font-semibold text-life-cinnabar underline decoration-life-cinnabar/50 underline-offset-4'
+                          : 'text-life-ink/75'
+                      }`}
+                    >
+                      {houseName(domain.id)}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </div>
 
       <svg
         viewBox="0 0 780 670"
-        role="img"
+        role="group"
         aria-label={localize('com_life_public_map_aria')}
         className="mt-3 hidden h-auto w-full sm:block"
       >
         <defs>
-          <filter id="public-map-wobble" x="-8%" y="-8%" width="116%" height="116%">
+          <filter id="mist-map-wobble" x="-8%" y="-8%" width="116%" height="116%">
             <feTurbulence
               type="fractalNoise"
               baseFrequency="0.014"
@@ -140,89 +159,136 @@ export default function PublicMistMap() {
             />
             <feDisplacementMap in="SourceGraphic" in2="noise" scale="4.5" />
           </filter>
-          <filter id="public-map-grain">
+          <filter id="mist-map-grain">
             <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" />
             <feColorMatrix
               type="matrix"
               values="0 0 0 0 0.55 0 0 0 0 0.5 0 0 0 0 0.4 0 0 0 0.045 0"
             />
           </filter>
-          <radialGradient id="public-map-fog">
-            <stop offset="0%" stopColor="#DAD3C2" stopOpacity="0.88" />
+          <radialGradient id="mist-map-fog">
+            <stop offset="0%" stopColor="#DAD3C2" stopOpacity="0.85" />
             <stop offset="100%" stopColor="#F2EFE6" stopOpacity="0" />
           </radialGradient>
-          <radialGradient id="public-map-glow">
-            <stop offset="0%" stopColor="#E8B84B" stopOpacity="0.62" />
+          <radialGradient id="mist-map-glow">
+            <stop offset="0%" stopColor="#E8B84B" stopOpacity="0.55" />
             <stop offset="100%" stopColor="#E8B84B" stopOpacity="0" />
           </radialGradient>
         </defs>
+
         <rect width="780" height="670" fill="#F2EFE6" />
-        <rect width="780" height="670" filter="url(#public-map-grain)" />
+        <rect width="780" height="670" filter="url(#mist-map-grain)" />
+
         <g
           fill="rgba(229,223,209,0.52)"
           stroke="#17201A"
           strokeWidth="1.6"
-          filter="url(#public-map-wobble)"
+          filter="url(#mist-map-wobble)"
         >
-          <path d="M 60,120 Q 40,80 90,64 Q 150,40 226,58 Q 296,72 312,130 Q 326,190 282,236 Q 240,282 168,278 Q 92,274 66,214 Q 48,168 60,120 Z" />
-          <path d="M 440,80 Q 492,32 584,42 Q 682,52 722,112 Q 756,170 734,244 Q 710,318 620,330 Q 524,340 470,284 Q 420,232 424,158 Q 428,106 440,80 Z" />
-          <path d="M 88,470 Q 60,420 116,398 Q 190,372 262,392 Q 330,410 336,478 Q 340,544 278,576 Q 208,608 136,580 Q 76,554 78,506 Q 78,486 88,470 Z" />
-          <path d="M 430,430 Q 470,384 556,390 Q 650,396 700,450 Q 748,502 728,576 Q 706,652 616,668 Q 520,682 462,626 Q 408,574 412,500 Q 414,458 430,430 Z" />
+          {CONTINENTS.map((continent) => (
+            <path key={continent.key} d={continent.path} />
+          ))}
         </g>
+
         <g fill="#80602D" className="font-life-mono text-[12px] tracking-[0.18em]">
-          <text x="88" y="96">
-            健康大洲
-          </text>
-          <text x="478" y="70">
-            工作大洲
-          </text>
-          <text x="110" y="426">
-            玩之大洲
-          </text>
-          <text x="456" y="420">
-            爱之大洲
-          </text>
+          {CONTINENTS.map((continent) => (
+            <text key={continent.key} x={continent.labelX} y={continent.labelY}>
+              {continent.name}
+            </text>
+          ))}
         </g>
+
+        <ellipse cx="390" cy="335" rx="88" ry="46" fill="url(#mist-map-fog)" />
+        <ellipse cx="72" cy="330" rx="48" ry="36" fill="url(#mist-map-fog)" />
+        <ellipse cx="712" cy="352" rx="52" ry="38" fill="url(#mist-map-fog)" />
+        <ellipse cx="380" cy="60" rx="70" ry="30" fill="url(#mist-map-fog)" />
+        <ellipse cx="370" cy="640" rx="80" ry="30" fill="url(#mist-map-fog)" />
+
         <g stroke="rgba(23,32,26,0.1)" strokeWidth="1" fill="none">
           <path d="M 350,330 q 14,-6 28,0 M 60,340 q 14,-6 28,0 M 660,340 q 14,-6 28,0 M 350,620 q 14,-6 28,0" />
           <path d="M 376,344 q 11,-5 22,0 M 96,354 q 11,-5 22,0 M 686,354 q 11,-5 22,0" />
+          <path d="M 356,42 q 14,-6 28,0 M 40,600 q 14,-6 28,0 M 700,620 q 14,-6 28,0 M 336,148 q 11,-5 22,0" />
+          <path d="M 60,52 q 11,-5 22,0 M 742,300 q 11,-5 22,0 M 36,250 q 11,-5 22,0" />
         </g>
-        {TERRITORIES.map((territory) => (
-          <Territory key={territory.label} {...territory} />
-        ))}
+
         <path
-          d="M 530,155 Q 574,186 612,188"
+          d="M 322,168 Q 372,210 430,180 M 250,300 Q 300,360 260,420 M 520,344 Q 560,380 540,420 M 340,520 Q 390,540 430,520"
           fill="none"
-          stroke="rgba(185,72,49,0.5)"
+          stroke="rgba(185,72,49,0.45)"
           strokeWidth="1"
           strokeDasharray="3 6"
         />
-        <g transform="translate(580,178)" aria-label="您在此处">
-          <circle cx="0" cy="-14" r="5.2" fill="none" stroke="#17201A" strokeWidth="1.6" />
-          <path
-            d="M 0,-9 L 0,6 M 0,-4 L -7,2 M 0,-4 L 8,-1 M 0,6 L -6,16 M 0,6 L 6,16"
-            fill="none"
-            stroke="#17201A"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-          />
-          <rect x="10" y="-4" width="7" height="9" rx="1.6" fill="#B94831" />
-          <circle cx="13.5" cy="0.5" r="22" fill="url(#public-map-glow)" />
-          <text
-            x="-2"
-            y="32"
-            className="font-life-mono text-[9px] tracking-[0.12em]"
-            fill="#B94831"
+
+        {CONTINENTS.map((continent) =>
+          continent.domains.map((domain) => {
+            const active = domain.id === selectedIsland;
+            const name = houseName(domain.id);
+            return (
+              <g
+                key={domain.id}
+                role={interactive ? 'button' : 'img'}
+                aria-label={`${name} · 从这里开始`}
+                tabIndex={interactive ? 0 : -1}
+                className={interactive ? 'cursor-pointer outline-none' : undefined}
+                onClick={interactive ? () => onSelectIsland?.(domain.id) : undefined}
+                onKeyDown={
+                  interactive
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onSelectIsland?.(domain.id);
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <path
+                  d={territoryPath(domain.x, domain.y - 4)}
+                  fill={active ? 'rgba(128,96,45,0.14)' : 'rgba(23,32,26,0.015)'}
+                  stroke={active ? '#B94831' : 'rgba(23,32,26,0.3)'}
+                  strokeWidth={active ? 1.8 : 1.2}
+                  strokeDasharray={active ? undefined : '3 5'}
+                  filter="url(#mist-map-wobble)"
+                />
+                <text
+                  x={domain.x}
+                  y={domain.y}
+                  textAnchor="middle"
+                  fill={active ? '#17201A' : '#5d5648'}
+                  className="font-life-serif text-[13px] font-semibold"
+                >
+                  {name}
+                </text>
+              </g>
+            );
+          }),
+        )}
+
+        {selectedSpot && (
+          <g
+            transform={`translate(${selectedSpot.x + 74},${selectedSpot.y + 10})`}
+            aria-label="你在这里"
           >
-            您在此处
-          </text>
-        </g>
+            <circle cx="0" cy="-14" r="5.2" fill="none" stroke="#17201A" strokeWidth="1.6" />
+            <path
+              d="M 0,-9 L 0,6 M 0,-4 L -7,2 M 0,-4 L 8,-1 M 0,6 L -6,16 M 0,6 L 6,16"
+              fill="none"
+              stroke="#17201A"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+            <rect x="10" y="-4" width="7" height="9" rx="1.6" fill="#B94831" />
+            <circle cx="13.5" cy="0.5" r="22" fill="url(#mist-map-glow)" />
+          </g>
+        )}
+
         <g
-          transform="translate(714,55)"
+          transform="translate(714,52)"
           stroke="#80602D"
           fill="none"
           strokeWidth="1"
           opacity="0.72"
+          aria-hidden="true"
         >
           <circle r="18" />
           <circle r="2.5" fill="#80602D" />
@@ -231,12 +297,7 @@ export default function PublicMistMap() {
         </g>
       </svg>
 
-      <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-life-rule pt-3 font-life-mono text-[9.5px] tracking-[0.06em] text-life-muted">
-        <span className="text-life-moss">● 亮 · 已认领</span>
-        <span className="text-life-brass">◐ 微光 · 有草稿</span>
-        <span>○ 暗 · 还没聊到</span>
-      </div>
-      <figcaption className="mt-3 font-life-kai text-life-sm leading-7 text-life-brass">
+      <figcaption className="mt-3 border-t border-life-rule pt-3 font-life-kai text-life-sm leading-7 text-life-brass">
         {localize('com_life_public_map_caption')}
       </figcaption>
     </figure>
