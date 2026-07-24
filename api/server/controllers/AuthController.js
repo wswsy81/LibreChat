@@ -1,5 +1,5 @@
 const cookies = require('cookie');
-const { createHash } = require('crypto');
+const { createHash, randomUUID } = require('crypto');
 const jwt = require('jsonwebtoken');
 const openIdClient = require('openid-client');
 const { logger } = require('@librechat/data-schemas');
@@ -81,7 +81,7 @@ async function saveRegistrationBasics(userId, basics) {
     method: 'POST',
     body,
     operation: {
-      id: `registration-basics:${userId}`,
+      id: randomUUID(),
       name: 'basics-save',
       requestHash: hashRegistrationPayload(body),
     },
@@ -97,7 +97,7 @@ async function cleanupRegistrationBasics(userId) {
       method: 'DELETE',
       body,
       operation: {
-        id: `registration-basics-cleanup:${userId}`,
+        id: randomUUID(),
         name: 'account-delete',
         requestHash: hashRegistrationPayload(body),
       },

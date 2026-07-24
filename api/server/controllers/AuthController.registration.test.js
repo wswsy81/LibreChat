@@ -116,7 +116,9 @@ test('stores optional registration basics before accepting the invitation', asyn
     method: 'POST',
     body: { age: '30多岁', city: '厦门', gender: '女' },
     operation: {
-      id: 'registration-basics:accepted-user-id',
+      id: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      ),
       name: 'basics-save',
       requestHash: expect.stringMatching(/^[a-f0-9]{64}$/),
     },
@@ -172,7 +174,12 @@ test('cleans stored basics when invitation finalization fails', async () => {
     expect.objectContaining({
       userId: 'rollback-user-id',
       method: 'DELETE',
-      operation: expect.objectContaining({ name: 'account-delete' }),
+      operation: expect.objectContaining({
+        id: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+        ),
+        name: 'account-delete',
+      }),
     }),
   );
   expect(releaseLifeInvitation).toHaveBeenCalled();
