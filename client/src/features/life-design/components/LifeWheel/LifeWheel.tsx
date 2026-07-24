@@ -31,6 +31,8 @@ const OUTER_R = 196;
 const INNER_R = 104;
 const LABEL_R = (OUTER_R + INNER_R) / 2;
 const MARKER_R = OUTER_R - 15;
+/** 提灯站在扇区内侧、靠近圆心的一环，避免与域名文字（LABEL_R）和状态标记（MARKER_R）重叠——盲态 Q10 修单。 */
+const LANTERN_R = INNER_R + 26;
 
 const RECOGNITION_FILL: Record<Recognition, string> = {
   unknown: 'rgba(23,32,26,0.015)',
@@ -159,7 +161,7 @@ export default function LifeWheel({
 
   const interactive = typeof onSelectHouse === 'function';
   const lantern = lanternHouse
-    ? polarPoint(CENTER, CENTER, LABEL_R, houseById(lanternHouse).centerAngleDeg)
+    ? polarPoint(CENTER, CENTER, LANTERN_R, houseById(lanternHouse).centerAngleDeg)
     : { x: CENTER, y: CENTER };
 
   return (

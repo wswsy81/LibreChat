@@ -2094,6 +2094,8 @@
   "com_life_condition_mixed": "有些拉扯",
   "com_life_condition_steady": "基本稳定",
   "com_life_condition_energizing": "明显供能",
+  "com_life_legend_lantern": "提灯＝上次停点",
+  "com_life_legend_marker": "外圈箭头＝和上次比，不是好坏",
   "com_life_trend_label": "和上次比",
   "com_life_trend_unknown": "暂时看不出",
   "com_life_trend_improving": "在变好",

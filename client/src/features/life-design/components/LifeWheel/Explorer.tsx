@@ -40,6 +40,40 @@ const readError = (error: Error | null) => {
   return response?.data?.error?.message || error?.message || '';
 };
 
+const TREND_GLYPHS: Partial<Record<Trend, string>> = {
+  improving: '↗',
+  stable: '→',
+  worsening: '↘',
+};
+
+const LEGEND_SWATCHES = [
+  {
+    key: 'com_life_recognition_unknown',
+    className: 'border border-dashed border-life-ink/30 bg-transparent',
+  },
+  { key: 'com_life_recognition_draft', className: 'border border-life-brass/55 bg-life-brass/15' },
+  { key: 'com_life_recognition_owned', className: 'border border-life-moss bg-life-moss/20' },
+] as const;
+
+function WheelLegend() {
+  const localize = useLocalize();
+  return (
+    <p className="mx-auto mt-2 flex max-w-[520px] flex-wrap items-center gap-x-4 gap-y-1.5 font-life-mono text-life-meta leading-6 text-life-muted">
+      {LEGEND_SWATCHES.map((swatch) => (
+        <span key={swatch.key} className="inline-flex items-center gap-1.5">
+          <i
+            aria-hidden="true"
+            className={`inline-block h-2.5 w-2.5 flex-none rounded-full ${swatch.className}`}
+          />
+          {localize(swatch.key)}
+        </span>
+      ))}
+      <span>{localize('com_life_legend_lantern')}</span>
+      <span>{localize('com_life_legend_marker')}</span>
+    </p>
+  );
+}
+
 function wheelStates(wheel?: LifeWheelView): Partial<Record<HouseId, HouseState>> {
   return (wheel?.houses ?? []).reduce<Partial<Record<HouseId, HouseState>>>(
     (states, house) => ({
@@ -81,15 +115,18 @@ export default function Explorer({
 
   return (
     <div className="grid gap-7 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)] lg:items-center">
-      <LifeWheel
-        mode="interactive"
-        houseStates={wheelStates(wheel)}
-        lanternHouse={wheel?.lanternHouse ?? null}
-        selectedHouse={selectedHouse}
-        onSelectHouse={selectHouse}
-        title={localize('com_life_wheel_home_aria')}
-        className="mx-auto block w-full max-w-[520px]"
-      />
+      <div>
+        <LifeWheel
+          mode="interactive"
+          houseStates={wheelStates(wheel)}
+          lanternHouse={wheel?.lanternHouse ?? null}
+          selectedHouse={selectedHouse}
+          onSelectHouse={selectHouse}
+          title={localize('com_life_wheel_home_aria')}
+          className="mx-auto block w-full max-w-[520px]"
+        />
+        <WheelLegend />
+      </div>
 
       <div className="min-h-[250px] border border-life-rule bg-[#F7F4EB] p-5 sm:p-6">
         {selectedHouse && selectedName ? (
@@ -122,6 +159,11 @@ export default function Explorer({
                   {localize('com_life_trend_label')}
                 </dt>
                 <dd className="text-life-sm text-life-ink">
+                  {TREND_GLYPHS[selected?.condition.trend ?? 'unknown'] ? (
+                    <span aria-hidden="true" className="mr-1 text-life-muted">
+                      {TREND_GLYPHS[selected?.condition.trend ?? 'unknown']}
+                    </span>
+                  ) : null}
                   {localize(TREND_KEYS[selected?.condition.trend ?? 'unknown'])}
                 </dd>
               </div>
