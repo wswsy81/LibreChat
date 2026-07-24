@@ -6,7 +6,9 @@ describe('triggerTag', () => {
       '我的人生血条(0-10)：工作 3。',
     );
     expect(stripTriggerTag('[trigger:session_resumed] 我回来了。')).toBe('我回来了。');
-    expect(stripTriggerTag('[trigger:chapter_continue] 继续,进入下一章。')).toBe('继续,进入下一章。');
+    expect(stripTriggerTag('[trigger:chapter_continue] 继续,进入下一章。')).toBe(
+      '继续,进入下一章。',
+    );
   });
 
   it('普通用户消息原样返回,不误剥', () => {

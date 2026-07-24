@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import type { FileConfigInput } from 'librechat-data-provider';
@@ -125,9 +125,11 @@ describe('UploadSkillDialog', () => {
     await user.upload(getFileInput(), file);
 
     expect(mockMutate).not.toHaveBeenCalled();
-    expect(mockShowToast).toHaveBeenCalledWith({
-      status: 'error',
-      message: 'Skill import must not exceed 1 MB',
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith({
+        status: 'error',
+        message: 'Skill import must not exceed 1 MB',
+      });
     });
   });
 
