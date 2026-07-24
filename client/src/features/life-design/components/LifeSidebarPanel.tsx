@@ -68,7 +68,7 @@ export default function LifeSidebarPanel() {
   return (
     <div className="flex h-full min-h-0 flex-col px-3 py-4">
       <div className="px-2 pb-5">
-        <p className="font-life-mono text-life-meta tracking-[0.24em] text-life-cinnabar dark:text-[#D98A76]">
+        <p className="font-life-mono text-life-meta tracking-[0.24em] text-life-moss dark:text-[#D98A76]">
           {localize('com_life_brand_eyebrow')}
         </p>
         <p className="mt-1 font-life-serif text-life-lead font-black text-text-primary">

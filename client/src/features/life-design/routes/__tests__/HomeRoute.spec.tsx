@@ -76,11 +76,19 @@ describe('public registration policy', () => {
   it('keeps the selected house on the registration action', async () => {
     renderHome();
 
-    await userEvent.click(screen.getAllByRole('button', { name: /自我呈现/ })[0]);
+    const selfPresentation = screen.getAllByRole('button', { name: /自我呈现/ });
+    expect(
+      selfPresentation.every((button) => button.getAttribute('aria-pressed') === 'false'),
+    ).toBe(true);
+
+    await userEvent.click(selfPresentation[0]);
 
     expect(screen.getByRole('link', { name: /com_life_start_first/ })).toHaveAttribute(
       'href',
       '/register?entryHouse=h1',
+    );
+    expect(selfPresentation.every((button) => button.getAttribute('aria-pressed') === 'true')).toBe(
+      true,
     );
   });
 
@@ -90,6 +98,7 @@ describe('public registration policy', () => {
     expect(screen.getByText('com_life_public_title')).toBeInTheDocument();
     expect(screen.getByText('com_life_public_description')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'com_life_public_map_aria' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '你在这里' })).toBeInTheDocument();
     expect(screen.getByText('com_life_public_private')).toBeInTheDocument();
   });
 

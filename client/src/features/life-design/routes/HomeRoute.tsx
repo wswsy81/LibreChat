@@ -27,7 +27,7 @@ function PublicHome() {
       <div className="mx-auto w-full max-w-7xl px-5 py-5 sm:px-8 sm:py-6 lg:px-12">
         <header className="flex items-center justify-between gap-3 border-b border-life-rule pb-4 dark:border-white/10 sm:gap-4 sm:pb-5">
           <div>
-            <p className="font-life-mono text-[9px] tracking-[0.23em] text-life-cinnabar sm:text-life-meta sm:tracking-[0.26em]">
+            <p className="font-life-mono text-life-meta tracking-[0.23em] text-life-cinnabar sm:tracking-[0.26em]">
               {localize('com_life_brand_eyebrow')}
             </p>
             <p className="mt-1 font-life-serif text-life-body font-black sm:text-life-lead">
@@ -37,13 +37,13 @@ function PublicHome() {
           <nav className="flex items-center gap-1.5 sm:gap-3">
             <Link
               to="/faq"
-              className="inline-flex min-h-11 items-center px-2 font-life-sans text-[13px] text-life-muted transition hover:text-life-ink dark:text-[#c8bdad] dark:hover:text-white sm:px-3 sm:text-life-sm"
+              className="inline-flex min-h-11 items-center px-2 font-life-sans text-life-sm text-life-muted transition hover:text-life-ink dark:text-[#c8bdad] dark:hover:text-white sm:px-3"
             >
               {localize('com_life_faq_nav')}
             </Link>
             <Link
               to="/login?redirect_to=%2Fhome"
-              className="inline-flex min-h-11 items-center border border-life-ink/20 px-3 font-life-sans text-[13px] transition hover:bg-life-ink/5 dark:border-white/15 dark:hover:bg-white/5 sm:px-5 sm:text-life-sm"
+              className="inline-flex min-h-11 items-center border border-life-ink/20 px-3 font-life-sans text-life-sm transition hover:bg-life-ink/5 dark:border-white/15 dark:hover:bg-white/5 sm:px-5"
             >
               {localize('com_life_login_archive')}
             </Link>

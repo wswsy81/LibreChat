@@ -95,6 +95,18 @@ function houseAriaLabel(name: string, state: HouseState): string {
   return parts.join(' · ');
 }
 
+function houseLabelLines(name: string): string[] {
+  if (name.length <= 3) {
+    return [name];
+  }
+  const conjunction = name.indexOf('与');
+  if (conjunction > 0) {
+    return [name.slice(0, conjunction + 1), name.slice(conjunction + 1)];
+  }
+  const midpoint = Math.ceil(name.length / 2);
+  return [name.slice(0, midpoint), name.slice(midpoint)];
+}
+
 function Lantern({ x, y }: { x: number; y: number }) {
   return (
     <g transform={`translate(${x},${y})`} aria-hidden="true">
@@ -173,6 +185,7 @@ export default function LifeWheel({
           const isFog = state.recognition === 'unknown' || state.recognition === 'dismissed';
           const active = house.id === selectedHouse || house.id === focusedHouse;
           const label = polarPoint(CENTER, CENTER, LABEL_R, house.centerAngleDeg);
+          const labelLines = houseLabelLines(house.publicName);
           const marker = polarPoint(CENTER, CENTER, MARKER_R, house.centerAngleDeg);
           const glyph = trendGlyph(state.trend);
           const hasSnapshot = state.conditionLevel !== 'unknown';
@@ -182,6 +195,7 @@ export default function LifeWheel({
               key={house.id}
               role={interactive ? 'button' : 'img'}
               aria-label={houseAriaLabel(house.publicName, state)}
+              aria-pressed={interactive ? house.id === selectedHouse : undefined}
               tabIndex={interactive ? 0 : -1}
               className={interactive ? 'cursor-pointer outline-none' : undefined}
               onClick={interactive ? () => onSelectHouse?.(house.id) : undefined}
@@ -205,10 +219,24 @@ export default function LifeWheel({
               />
               <text
                 x={label.x}
+                y={label.y - (labelLines.length > 1 ? 7 : -4)}
+                textAnchor="middle"
+                fill={RECOGNITION_TEXT[state.recognition]}
+                className="font-life-serif text-life-lead font-semibold sm:hidden"
+                pointerEvents="none"
+              >
+                {labelLines.map((line, index) => (
+                  <tspan key={line} x={label.x} dy={index === 0 ? 0 : 22}>
+                    {line}
+                  </tspan>
+                ))}
+              </text>
+              <text
+                x={label.x}
                 y={label.y + 4}
                 textAnchor="middle"
                 fill={RECOGNITION_TEXT[state.recognition]}
-                className="font-life-serif text-[12px] font-semibold"
+                className="hidden font-life-serif text-life-sm font-semibold sm:block"
                 pointerEvents="none"
               >
                 {house.publicName}

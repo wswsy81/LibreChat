@@ -2,7 +2,7 @@
  * @jest-environment @happy-dom/jest-environment
  */
 import userEvent from '@testing-library/user-event';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import LifeWheel from './LifeWheel';
 
 describe('LifeWheel component', () => {
@@ -49,6 +49,30 @@ describe('LifeWheel component', () => {
     render(<LifeWheel mode="public" onSelectHouse={onSelect} />);
     await userEvent.click(screen.getByRole('button', { name: /^事业与公众/ }));
     expect(onSelect).toHaveBeenCalledWith('h10');
+  });
+
+  test('选中扇区通过 aria-pressed 暴露，键盘 Enter 与空格都能激活', () => {
+    const onSelect = jest.fn();
+    render(<LifeWheel mode="interactive" selectedHouse="h6" onSelectHouse={onSelect} />);
+
+    const selected = screen.getByRole('button', { name: /^工作与健康/ });
+    const other = screen.getByRole('button', { name: /^事业与公众/ });
+    expect(selected).toHaveAttribute('aria-pressed', 'true');
+    expect(other).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.keyDown(other, { key: 'Enter' });
+    fireEvent.keyDown(other, { key: ' ' });
+    expect(onSelect).toHaveBeenNthCalledWith(1, 'h10');
+    expect(onSelect).toHaveBeenNthCalledWith(2, 'h10');
+  });
+
+  test('移动端长域名拆成两行，短域名保持单行', () => {
+    render(<LifeWheel mode="interactive" />);
+
+    expect(screen.getAllByText('工作与健康')).toHaveLength(1);
+    expect(screen.getByText('工作与')).toBeInTheDocument();
+    expect(screen.getByText('健康')).toBeInTheDocument();
+    expect(screen.getAllByText('家与根')).toHaveLength(2);
   });
 
   test('无 onSelectHouse → 扇区只读（role img，不可点）', () => {

@@ -40,7 +40,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
     <main className="h-full overflow-y-auto bg-life-paper text-life-ink dark:bg-surface-secondary dark:text-gray-100">
       <div className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 lg:py-14">
         {/* 眉标 + 欢迎 */}
-        <p className="font-life-mono text-[11.5px] tracking-[0.12em] text-life-muted dark:text-gray-500">
+        <p className="font-life-mono text-life-meta tracking-[0.12em] text-life-muted dark:text-gray-500">
           {localize('com_life_meta_observer')} ·{' '}
           {localize('com_life_updated_at', { 0: dateText(archive.data?.profile.updatedAt) || '—' })}
         </p>
@@ -139,7 +139,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
               className="mt-4 w-full resize-none border-b border-life-rule bg-transparent pb-2 font-life-kai text-life-body leading-8 text-[#3E4A40] outline-none placeholder:text-life-muted/60 focus:border-life-ink dark:text-gray-200 dark:placeholder:text-gray-600"
             />
             <div className="mt-3 flex items-center justify-between gap-3">
-              <span className="font-life-mono text-[10.5px] text-life-muted dark:text-gray-500">
+              <span className="font-life-mono text-life-meta text-life-muted dark:text-gray-500">
                 {localize('com_life_quick_capture_hint')}
               </span>
               <button
@@ -193,7 +193,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                     {entry.what}
                   </span>
                   {entry.source && (
-                    <span className="hidden flex-none font-life-mono text-[10.5px] text-life-brass sm:block">
+                    <span className="hidden flex-none font-life-mono text-life-meta text-life-brass sm:block">
                       {entry.source}
                     </span>
                   )}

@@ -1,4 +1,5 @@
 /* eslint-disable i18next/no-literal-string */
+import { useState } from 'react';
 import { useLocalize } from '~/hooks';
 import { HOUSES } from './LifeWheel';
 import type { HouseId } from './LifeWheel';
@@ -91,6 +92,7 @@ interface PublicMistMapProps {
 
 export default function PublicMistMap({ selectedIsland, onSelectIsland }: PublicMistMapProps) {
   const localize = useLocalize();
+  const [focusedIsland, setFocusedIsland] = useState<HouseId | null>(null);
   const interactive = typeof onSelectIsland === 'function';
   const selectedSpot = CONTINENTS.flatMap((continent) => continent.domains).find(
     (domain) => domain.id === selectedIsland,
@@ -98,7 +100,7 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
 
   return (
     <figure className="relative overflow-hidden border border-life-ink/45 bg-[#F7F4EB] p-4 shadow-[0_18px_70px_rgba(23,32,26,0.08)] dark:border-white/20 sm:p-5">
-      <div className="flex items-baseline justify-between gap-4 border-b border-life-rule pb-3 font-life-mono text-[10px] tracking-[0.12em] text-life-muted">
+      <div className="flex items-baseline justify-between gap-4 border-b border-life-rule pb-3 font-life-mono text-life-meta tracking-[0.12em] text-life-muted">
         <strong className="font-semibold text-life-brass">
           {localize('com_life_public_map_kicker')}
         </strong>
@@ -115,7 +117,7 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
                 : 'rounded-[46%_54%_42%_58%/38%_48%_52%_62%] border-life-ink/25 bg-[#E9E3D5]/60'
             }`}
           >
-            <p className="font-life-mono text-[9px] tracking-[0.15em] text-life-brass">
+            <p className="font-life-mono text-life-meta tracking-[0.15em] text-life-brass">
               {continent.name}
             </p>
             <ul className="mt-2 space-y-1.5">
@@ -126,9 +128,11 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
                     <button
                       type="button"
                       onClick={interactive ? () => onSelectIsland?.(domain.id) : undefined}
-                      className={`font-life-serif text-[13px] ${
+                      aria-label={`${houseName(domain.id)} · 从这里开始`}
+                      aria-pressed={interactive ? active : undefined}
+                      className={`min-h-11 w-full text-left font-life-serif text-life-sm ${
                         active
-                          ? 'font-semibold text-life-cinnabar underline decoration-life-cinnabar/50 underline-offset-4'
+                          ? 'font-semibold text-life-ink underline decoration-life-cinnabar underline-offset-4'
                           : 'text-life-ink/75'
                       }`}
                     >
@@ -190,7 +194,7 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
           ))}
         </g>
 
-        <g fill="#80602D" className="font-life-mono text-[12px] tracking-[0.18em]">
+        <g fill="#80602D" className="font-life-mono text-life-lead tracking-[0.18em]">
           {CONTINENTS.map((continent) => (
             <text key={continent.key} x={continent.labelX} y={continent.labelY}>
               {continent.name}
@@ -221,16 +225,25 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
 
         {CONTINENTS.map((continent) =>
           continent.domains.map((domain) => {
-            const active = domain.id === selectedIsland;
+            const selected = domain.id === selectedIsland;
+            const active = selected || domain.id === focusedIsland;
             const name = houseName(domain.id);
             return (
               <g
                 key={domain.id}
                 role={interactive ? 'button' : 'img'}
                 aria-label={`${name} · 从这里开始`}
+                aria-pressed={interactive ? selected : undefined}
                 tabIndex={interactive ? 0 : -1}
                 className={interactive ? 'cursor-pointer outline-none' : undefined}
                 onClick={interactive ? () => onSelectIsland?.(domain.id) : undefined}
+                onFocus={interactive ? () => setFocusedIsland(domain.id) : undefined}
+                onBlur={
+                  interactive
+                    ? () =>
+                        setFocusedIsland((previous) => (previous === domain.id ? null : previous))
+                    : undefined
+                }
                 onKeyDown={
                   interactive
                     ? (event) => {
@@ -255,7 +268,7 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
                   y={domain.y}
                   textAnchor="middle"
                   fill={active ? '#17201A' : '#5d5648'}
-                  className="font-life-serif text-[13px] font-semibold"
+                  className="font-life-serif text-life-lead font-semibold"
                 >
                   {name}
                 </text>
@@ -267,6 +280,7 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
         {selectedSpot && (
           <g
             transform={`translate(${selectedSpot.x + 74},${selectedSpot.y + 10})`}
+            role="img"
             aria-label="你在这里"
           >
             <circle cx="0" cy="-14" r="5.2" fill="none" stroke="#17201A" strokeWidth="1.6" />

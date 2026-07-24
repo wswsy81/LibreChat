@@ -101,10 +101,10 @@ export default function PublicHero({
   return (
     <div className="grid items-start gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:gap-14">
       <section className="min-w-0">
-        <p className="inline-flex border border-life-cinnabar/35 px-3 py-1.5 font-life-mono text-[10px] tracking-[0.13em] text-life-cinnabar sm:text-life-meta">
+        <p className="inline-flex border border-life-cinnabar/35 px-3 py-1.5 font-life-mono text-life-meta tracking-[0.13em] text-life-cinnabar">
           {localize('com_life_public_kicker')}
         </p>
-        <h1 className="mt-4 max-w-[15em] font-life-serif text-[28px] font-black leading-[1.3] sm:text-[36px] sm:leading-[1.25]">
+        <h1 className="mt-4 max-w-[15em] font-life-serif text-life-title font-black sm:text-life-display">
           {localize('com_life_public_title')}
         </h1>
         <p className="mt-4 max-w-[30em] font-life-sans text-life-sm leading-7 text-life-muted dark:text-[#c8bdad] sm:text-life-body sm:leading-8">
@@ -114,14 +114,14 @@ export default function PublicHero({
         <div className="mt-6 border border-life-ink/45 bg-[#F7F4EB] p-5 dark:border-white/20 dark:bg-white/5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-life-serif text-life-lead font-black">{selected.publicName}</h2>
-            <span className="flex-none border border-life-brass/50 px-2 py-0.5 font-life-mono text-[10px] tracking-[0.1em] text-life-brass">
+            <span className="flex-none border border-life-brass/50 px-2 py-0.5 font-life-mono text-life-meta tracking-[0.1em] text-life-brass">
               示例
             </span>
           </div>
           <ul className="mt-4 space-y-3">
             {sampleLines(selected.id).map((line) => (
               <li key={line.tag} className="flex gap-3">
-                <span className="mt-[3px] flex-none font-life-mono text-[10px] tracking-[0.08em] text-life-cinnabar">
+                <span className="mt-[3px] flex-none font-life-mono text-life-meta tracking-[0.08em] text-life-cinnabar">
                   {line.tag}
                 </span>
                 <span className="font-life-kai text-life-sm leading-7 text-life-ink dark:text-[#e7ddcf]">
@@ -131,7 +131,7 @@ export default function PublicHero({
             ))}
           </ul>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-life-rule pt-3 dark:border-white/10">
-            <p className="font-life-mono text-[10.5px] leading-6 text-life-muted dark:text-[#a99f92]">
+            <p className="font-life-mono text-life-meta leading-6 text-life-muted dark:text-[#a99f92]">
               示例仅示形态；你自己的三条线，从对话里长出来。
             </p>
             <Link

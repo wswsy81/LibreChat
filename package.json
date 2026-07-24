@@ -64,6 +64,8 @@
     "e2e:debug": "npm run e2e:prepare && cross-env PWDEBUG=1 playwright test --config=e2e/playwright.config.local.ts",
     "e2e:record": "npm run e2e:prepare && cross-env E2E_BASE_URL=http://localhost:3333 node e2e/setup/record.js",
     "e2e:record:local": "npm run e2e:prepare && node e2e/setup/record.js --profile=local",
+    "cl3:lint": "node scripts/life-wheel-cl3-lint.mjs",
+    "cl3:evidence": "node scripts/life-wheel-cl3-evidence.mjs",
     "e2e:codegen": "npx playwright codegen --target=playwright-test --test-id-attribute=data-testid --load-storage=e2e/storageState.json http://localhost:3080/c/new",
     "e2e:login": "npx playwright codegen --save-storage=e2e/storageState.json http://localhost:3080/login",
     "e2e:github": "act -W .github/workflows/playwright.yml --secret-file my.secrets",
