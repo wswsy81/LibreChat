@@ -20,7 +20,27 @@
    bash deploy/apply-release.sh .releases/B5-20260719.env
    ```
 
-`apply-release.sh` 会先保存当前两个容器的 image ID，再迁移 future-engine data 到非 root uid，校验 compose，单次重建 future-engine/API，并等待两个深健康端点。健康失败会自动切回旧 image ID；成功后才更新 `.release.env`。
+`apply-release.sh` 会先保存当前两个容器的 image ID，校验 compose，只重建候选中 image ID 真正变化的服务，并等待两个深健康端点。future-engine 变化时才迁移 data 到非 root uid。健康失败会自动切回发生变化服务的旧 image ID；成功后才更新 `.release.env`。完整候选中两个镜像都变化时，行为仍是双服务同批切换。
+
+## 小修快速发布
+
+只改一个服务时，不再重复构建和重启另一个服务。先照常运行与改动风险匹配的测试，再构建单服务候选：
+
+```bash
+# 只改 LibreChat API/前端
+bash deploy/build-hotfix-release.sh api API-HOTFIX-20260724T120000Z
+
+# 只改 future-engine
+bash deploy/build-hotfix-release.sh future-engine ENGINE-HOTFIX-20260724T120000Z
+```
+
+快速候选仍包含两个内容寻址 image ID：变化服务使用新镜像，未变化服务从当前 `.release.env` 复用。若在独立 staging 目录构建，可用 `ACTIVE_RELEASE_ENV=/home/ubuntu/app/librechat/.release.env` 明确指向生产当前版本。随后仍使用同一个应用脚本：
+
+```bash
+bash deploy/apply-release.sh .releases/ENGINE-HOTFIX-20260724T120000Z.env
+```
+
+这条路径只省掉未变化服务的构建、镜像检查和容器重建；不会跳过目标服务测试、不可变镜像、双健康、rollback manifest 或失败自动回滚。若同时改了两个服务，必须使用 `build-release.sh` 完整发布。
 
 ## 日常 compose 与回滚
 

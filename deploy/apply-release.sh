@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-APP_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
-ENGINE_DIR=$(cd -- "$APP_DIR/../future-engine-shim" && pwd)
+APP_DIR=${APP_DIR_OVERRIDE:-"$(cd -- "$SCRIPT_DIR/.." && pwd)"}
+ENGINE_DIR=${ENGINE_DIR_OVERRIDE:-"$(cd -- "$APP_DIR/../future-engine-shim" && pwd)"}
 RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
 CANDIDATE=${1:-}
 
@@ -55,6 +55,13 @@ IMAGE_ID_PATTERN='^sha256:[0-9a-f]{64}$'
 
 CURRENT_API=$("${DOCKER[@]}" inspect --format '{{.Image}}' LibreChat)
 CURRENT_ENGINE=$("${DOCKER[@]}" inspect --format '{{.Image}}' future-engine)
+CHANGED_SERVICES=()
+[[ "$ENGINE_IMAGE" == "$CURRENT_ENGINE" ]] || CHANGED_SERVICES+=(future-engine)
+[[ "$API_IMAGE" == "$CURRENT_API" ]] || CHANGED_SERVICES+=(api)
+[[ ${#CHANGED_SERVICES[@]} -gt 0 ]] || {
+  echo "candidate is identical to the running release; nothing to switch" >&2
+  exit 1
+}
 RELEASE_NAME=$(basename -- "$CANDIDATE" .env)
 ROLLBACK_ENV="$RELEASE_ROOT/$RELEASE_NAME.rollback.env"
 umask 077
@@ -64,13 +71,15 @@ umask 077
 } > "$ROLLBACK_ENV"
 chmod 600 "$ROLLBACK_ENV"
 
-# 历史 future-engine 以 root 写 data；镜像降权前一次性迁到固定 node uid/gid。
-"${DOCKER[@]}" run --rm \
-  --user 0:0 \
-  --volume "$ENGINE_DIR/data:/data" \
-  --entrypoint sh \
-  "$ENGINE_IMAGE" \
-  -c 'chown -R 1000:1000 /data'
+if [[ " ${CHANGED_SERVICES[*]} " == *" future-engine "* ]]; then
+  # 历史 future-engine 以 root 写 data；镜像降权前一次性迁到固定 node uid/gid。
+  "${DOCKER[@]}" run --rm \
+    --user 0:0 \
+    --volume "$ENGINE_DIR/data:/data" \
+    --entrypoint sh \
+    "$ENGINE_IMAGE" \
+    -c 'chown -R 1000:1000 /data'
+fi
 
 COMPOSE=(
   "${DOCKER[@]}" compose
@@ -80,11 +89,13 @@ COMPOSE=(
 )
 "${COMPOSE[@]}" config --quiet
 
-echo "Switching future-engine and LibreChat to one content-addressed release..."
-"${COMPOSE[@]}" up --detach --no-deps --force-recreate future-engine api
+echo "Switching content-addressed service(s): ${CHANGED_SERVICES[*]}"
+"${COMPOSE[@]}" up --detach --no-deps --force-recreate "${CHANGED_SERVICES[@]}"
 
 healthy=false
-for _attempt in $(seq 1 45); do
+HEALTH_ATTEMPTS=${HEALTH_ATTEMPTS:-45}
+HEALTH_SLEEP_SECONDS=${HEALTH_SLEEP_SECONDS:-2}
+for _attempt in $(seq 1 "$HEALTH_ATTEMPTS"); do
   if "${DOCKER[@]}" exec future-engine node -e \
       "fetch('http://127.0.0.1:8899/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" \
       >/dev/null 2>&1 \
@@ -94,18 +105,18 @@ for _attempt in $(seq 1 45); do
     healthy=true
     break
   fi
-  sleep 2
+  sleep "$HEALTH_SLEEP_SECONDS"
 done
 
 if [[ "$healthy" != true ]]; then
-  echo "release health check failed; rolling both services back" >&2
+  echo "release health check failed; rolling changed service(s) back: ${CHANGED_SERVICES[*]}" >&2
   ROLLBACK_COMPOSE=(
     "${DOCKER[@]}" compose
     --file "$APP_DIR/docker-compose.prod.yml"
     --env-file "$APP_DIR/.env"
     --env-file "$ROLLBACK_ENV"
   )
-  "${ROLLBACK_COMPOSE[@]}" up --detach --no-deps --force-recreate future-engine api
+  "${ROLLBACK_COMPOSE[@]}" up --detach --no-deps --force-recreate "${CHANGED_SERVICES[@]}"
   exit 1
 fi
 

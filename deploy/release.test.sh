@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+TEST_ROOT=$(mktemp -d)
+trap 'rm -rf -- "$TEST_ROOT"' EXIT
+
+APP_DIR="$TEST_ROOT/app"
+ENGINE_DIR="$TEST_ROOT/future-engine"
+RELEASE_ROOT="$TEST_ROOT/releases"
+FAKE_BIN="$TEST_ROOT/bin"
+FAKE_LOG="$TEST_ROOT/docker.log"
+mkdir -p "$APP_DIR" "$ENGINE_DIR/data" "$RELEASE_ROOT" "$FAKE_BIN" "$TEST_ROOT/library/corpora/schemas"
+touch "$APP_DIR/.env" "$APP_DIR/docker-compose.prod.yml" "$ENGINE_DIR/Dockerfile"
+printf '{}\n' > "$TEST_ROOT/library/corpora/schemas/bank-item.schema.json"
+
+CURRENT_API="sha256:$(printf 'a%.0s' {1..64})"
+CURRENT_ENGINE="sha256:$(printf 'b%.0s' {1..64})"
+NEW_API="sha256:$(printf 'c%.0s' {1..64})"
+NEW_ENGINE="sha256:$(printf 'd%.0s' {1..64})"
+cat > "$APP_DIR/.release.env" <<EOF
+LIBRECHAT_RELEASE_IMAGE=$CURRENT_API
+FUTURE_ENGINE_RELEASE_IMAGE=$CURRENT_ENGINE
+EOF
+
+cat > "$FAKE_BIN/docker" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
+case "${1:-}" in
+  info|build|run) exit 0 ;;
+  image)
+    if [[ "${2:-}" != inspect ]]; then exit 0; fi
+    if [[ " $* " != *" --format "* ]]; then exit 0; fi
+    format=${4:-}
+    target=${5:-}
+    if [[ "$format" == '{{.Id}}' ]]; then
+      if [[ "$target" == yiweilife/librechat:* ]]; then printf '%s\n' "$FAKE_NEW_API"; else printf '%s\n' "$FAKE_NEW_ENGINE"; fi
+    else
+      printf 'node\n'
+    fi
+    ;;
+  inspect)
+    target=${*: -1}
+    if [[ "$target" == LibreChat ]]; then printf '%s\n' "$FAKE_CURRENT_API"; else printf '%s\n' "$FAKE_CURRENT_ENGINE"; fi
+    ;;
+  compose) exit 0 ;;
+  exec)
+    [[ "${FAKE_HEALTH_FAIL:-0}" != 1 ]]
+    ;;
+  *) exit 0 ;;
+esac
+EOF
+chmod +x "$FAKE_BIN/docker"
+
+export PATH="$FAKE_BIN:$PATH"
+export FAKE_DOCKER_LOG="$FAKE_LOG"
+export FAKE_CURRENT_API="$CURRENT_API"
+export FAKE_CURRENT_ENGINE="$CURRENT_ENGINE"
+export FAKE_NEW_API="$NEW_API"
+export FAKE_NEW_ENGINE="$NEW_ENGINE"
+export APP_DIR_OVERRIDE="$APP_DIR"
+export ENGINE_DIR_OVERRIDE="$ENGINE_DIR"
+export RELEASE_ROOT
+export LIBRECHAT_REVISION=test-api-revision
+export ENGINE_REVISION=test-engine-revision
+
+RELEASE_SERVICE=api bash "$SCRIPT_DIR/build-release.sh" API-HOTFIX-TEST >/dev/null
+grep -qx "LIBRECHAT_RELEASE_IMAGE=$NEW_API" "$RELEASE_ROOT/API-HOTFIX-TEST.env"
+grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$CURRENT_ENGINE" "$RELEASE_ROOT/API-HOTFIX-TEST.env"
+grep -qx 'release_service=api' "$RELEASE_ROOT/API-HOTFIX-TEST.manifest"
+[[ $(grep -c '^build ' "$FAKE_LOG") -eq 1 ]]
+
+: > "$FAKE_LOG"
+RELEASE_SERVICE=future-engine bash "$SCRIPT_DIR/build-release.sh" ENGINE-HOTFIX-TEST >/dev/null
+grep -qx "LIBRECHAT_RELEASE_IMAGE=$CURRENT_API" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
+grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
+grep -qx 'release_service=future-engine' "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.manifest"
+[[ $(grep -c '^build ' "$FAKE_LOG") -eq 1 ]]
+
+: > "$FAKE_LOG"
+bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env" >/dev/null
+up_line=$(grep 'compose .* up --detach' "$FAKE_LOG")
+[[ "$up_line" == *'future-engine' && "$up_line" != *' api'* ]]
+grep -qx "LIBRECHAT_RELEASE_IMAGE=$CURRENT_API" "$APP_DIR/.release.env"
+grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$APP_DIR/.release.env"
+
+: > "$FAKE_LOG"
+set +e
+FAKE_HEALTH_FAIL=1 HEALTH_ATTEMPTS=1 HEALTH_SLEEP_SECONDS=0 \
+  bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/API-HOTFIX-TEST.env" >/dev/null 2>&1
+status=$?
+set -e
+[[ $status -ne 0 ]]
+[[ $(grep -c 'compose .* up --detach' "$FAKE_LOG") -eq 2 ]]
+while IFS= read -r line; do
+  [[ "$line" == *' api' && "$line" != *'future-engine'* ]]
+done < <(grep 'compose .* up --detach' "$FAKE_LOG")
+
+printf 'release tests passed\n'
