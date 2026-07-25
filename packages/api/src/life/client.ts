@@ -31,12 +31,17 @@ export interface LifeAccountDeletionReceipt {
   status: 'completed';
   planned: {
     profile: { files: number };
-    reports: { reports: number; reportFiles: number; shares: number };
+    reports: {
+      reports: number;
+      reportFiles: number;
+      shares: number;
+      stanceFeedbackEvents: number;
+    };
     analysisRows: number;
   };
   remaining: {
     profile: { files: 0 };
-    reports: { reports: 0; reportFiles: 0; shares: 0 };
+    reports: { reports: 0; reportFiles: 0; shares: 0; stanceFeedbackEvents: 0 };
     analysisRows: 0;
   };
   completedAt: string;
@@ -97,15 +102,21 @@ function parseInventory(
   const reportCount = Reflect.get(reports, 'reports');
   const reportFiles = Reflect.get(reports, 'reportFiles');
   const shares = Reflect.get(reports, 'shares');
+  const rawStanceFeedbackEvents = Reflect.get(reports, 'stanceFeedbackEvents');
+  const stanceFeedbackEvents =
+    rawStanceFeedbackEvents === undefined && !requireEmpty ? 0 : rawStanceFeedbackEvents;
   const analysisRows = Reflect.get(value, 'analysisRows');
   if (
     !isCount(files) ||
     !isCount(reportCount) ||
     !isCount(reportFiles) ||
     !isCount(shares) ||
+    !isCount(stanceFeedbackEvents) ||
     !isCount(analysisRows) ||
     (requireEmpty &&
-      [files, reportCount, reportFiles, shares, analysisRows].some((count) => count !== 0))
+      [files, reportCount, reportFiles, shares, stanceFeedbackEvents, analysisRows].some(
+        (count) => count !== 0,
+      ))
   ) {
     throw new LifeAccountDeletionReceiptError(
       requireEmpty
@@ -115,7 +126,7 @@ function parseInventory(
   }
   return {
     profile: { files },
-    reports: { reports: reportCount, reportFiles, shares },
+    reports: { reports: reportCount, reportFiles, shares, stanceFeedbackEvents },
     analysisRows,
   };
 }
@@ -149,7 +160,7 @@ function parseLifeAccountDeletionReceipt(value: unknown): LifeAccountDeletionRec
     planned,
     remaining: {
       profile: { files: 0 },
-      reports: { reports: 0, reportFiles: 0, shares: 0 },
+      reports: { reports: 0, reportFiles: 0, shares: 0, stanceFeedbackEvents: 0 },
       analysisRows: 0,
     },
     completedAt,

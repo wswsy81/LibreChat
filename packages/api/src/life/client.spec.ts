@@ -74,12 +74,12 @@ describe('LifeEngineClient trusted identity', () => {
           status: 'completed',
           planned: {
             profile: { files: 3 },
-            reports: { reports: 1, reportFiles: 1, shares: 1 },
+            reports: { reports: 1, reportFiles: 1, shares: 1, stanceFeedbackEvents: 2 },
             analysisRows: 1,
           },
           remaining: {
             profile: { files: 0 },
-            reports: { reports: 0, reportFiles: 0, shares: 0 },
+            reports: { reports: 0, reportFiles: 0, shares: 0, stanceFeedbackEvents: 0 },
             analysisRows: 0,
           },
           completedAt: '2026-07-18T00:00:00.000Z',
@@ -109,6 +109,44 @@ describe('LifeEngineClient trusted identity', () => {
     });
   });
 
+  it('accepts legacy planned inventory without stance feedback count when remaining is explicitly empty', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          schemaVersion: 1,
+          deletionId: 'del_legacy',
+          status: 'completed',
+          planned: {
+            profile: { files: 1 },
+            reports: { reports: 1, reportFiles: 1, shares: 0 },
+            analysisRows: 0,
+          },
+          remaining: {
+            profile: { files: 0 },
+            reports: { reports: 0, reportFiles: 0, shares: 0, stanceFeedbackEvents: 0 },
+            analysisRows: 0,
+          },
+          completedAt: '2026-07-18T00:00:00.000Z',
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(
+      deleteLifeAccountData({
+        userId: 'life-user-123',
+        operationId: '77777777-7777-4777-8777-777777777777',
+        requestHash: 'b'.repeat(64),
+        baseUrl: 'http://future-engine:8899',
+        token: 'internal-token',
+        identitySecret: 'sec001-test-secret-'.repeat(4),
+      }),
+    ).resolves.toMatchObject({
+      planned: { reports: { stanceFeedbackEvents: 0 } },
+      remaining: { reports: { stanceFeedbackEvents: 0 } },
+    });
+  });
+
   it.each([
     { status: 'prepared' },
     {
@@ -122,7 +160,23 @@ describe('LifeEngineClient trusted identity', () => {
       },
       remaining: {
         profile: { files: 1 },
-        reports: { reports: 0, reportFiles: 0, shares: 0 },
+        reports: { reports: 0, reportFiles: 0, shares: 0, stanceFeedbackEvents: 0 },
+        analysisRows: 0,
+      },
+      completedAt: '2026-07-18T00:00:00.000Z',
+    },
+    {
+      schemaVersion: 1,
+      deletionId: 'del_123',
+      status: 'completed',
+      planned: {
+        profile: { files: 1 },
+        reports: { reports: 1, reportFiles: 1, shares: 0, stanceFeedbackEvents: 1 },
+        analysisRows: 0,
+      },
+      remaining: {
+        profile: { files: 0 },
+        reports: { reports: 0, reportFiles: 0, shares: 0, stanceFeedbackEvents: 1 },
         analysisRows: 0,
       },
       completedAt: '2026-07-18T00:00:00.000Z',
