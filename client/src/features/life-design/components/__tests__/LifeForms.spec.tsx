@@ -40,13 +40,19 @@ jest.mock('~/hooks', () => ({
 jest.mock('~/utils/track', () => ({ track: jest.fn() }));
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date(2026, 6, 25, 14, 36));
   mockArchiveData = { profile: { basics: {} } };
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 test('首次建档未选领域时不能继续', () => {
   render(
     <MemoryRouter>
-      <FirstArchiveSetup initialName="张东" />
+      <FirstArchiveSetup />
     </MemoryRouter>,
   );
 
@@ -54,30 +60,48 @@ test('首次建档未选领域时不能继续', () => {
   expect(screen.queryByRole('slider')).not.toBeInTheDocument();
 });
 
-test('首次建档只提交存档名和一个 entryHouse', () => {
+test('首次进入只选领域，不显示存档名输入框', () => {
   render(
     <MemoryRouter>
-      <FirstArchiveSetup initialName="张东东" />
+      <FirstArchiveSetup />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('com_life_choose_house')).toBeInTheDocument();
+  expect(screen.queryByText('com_life_archive_name')).not.toBeInTheDocument();
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+});
+
+test('首次建档按所选领域和本地分钟自动命名', () => {
+  render(
+    <MemoryRouter>
+      <FirstArchiveSetup />
     </MemoryRouter>,
   );
 
   fireEvent.click(screen.getByRole('button', { name: /工作与健康/ }));
   fireEvent.click(screen.getByRole('button', { name: /com_life_enter_studio/ }));
 
-  expect(mockEnterHouse).toHaveBeenCalledWith({ archiveName: '张东东', entryHouse: 'h6' });
+  expect(mockEnterHouse).toHaveBeenCalledWith({
+    archiveName: '工作与健康 · 2026-07-25 14:36',
+    entryHouse: 'h6',
+  });
 });
 
 test('公开页带来的 entryHouse 会预选但仍由用户确认提交', () => {
   render(
     <MemoryRouter>
-      <FirstArchiveSetup initialName="张东" initialEntryHouse="h10" />
+      <FirstArchiveSetup initialEntryHouse="h10" />
     </MemoryRouter>,
   );
 
   expect(screen.getByRole('button', { name: /com_life_enter_studio/ })).toBeEnabled();
   fireEvent.click(screen.getByRole('button', { name: /com_life_enter_studio/ }));
 
-  expect(mockEnterHouse).toHaveBeenCalledWith({ archiveName: '张东', entryHouse: 'h10' });
+  expect(mockEnterHouse).toHaveBeenCalledWith({
+    archiveName: '事业与公众 · 2026-07-25 14:36',
+    entryHouse: 'h10',
+  });
 });
 
 test('关于我允许用 null 明确清除已保存文本', () => {

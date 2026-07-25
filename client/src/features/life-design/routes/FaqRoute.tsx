@@ -4,7 +4,7 @@ import { useLocalize } from '~/hooks';
 import type { TranslationKeys } from '~/hooks';
 
 const FAQ_GROUPS = [
-  { label: 'com_life_faq_group_product', items: [1, 2, 3, 4, 5] },
+  { label: 'com_life_faq_group_product', items: [1, 20, 2, 3, 4, 5, 21] },
   { label: 'com_life_faq_group_limits', items: [6, 7, 8, 9] },
   { label: 'com_life_faq_group_data', items: [10, 11, 12, 13, 14, 15] },
   { label: 'com_life_faq_group_trust', items: [18, 19] },

@@ -13,20 +13,21 @@ const readError = (error: Error | null) => {
   return response?.data?.error?.message || error?.message || '';
 };
 
+const padTimestampPart = (value: number) => String(value).padStart(2, '0');
+
+export const createAutomaticArchiveName = (houseName: string, now = new Date()) =>
+  `${houseName} · ${now.getFullYear()}-${padTimestampPart(now.getMonth() + 1)}-${padTimestampPart(now.getDate())} ${padTimestampPart(now.getHours())}:${padTimestampPart(now.getMinutes())}`;
+
 export default function FirstArchiveSetup({
-  initialName,
   initialEntryHouse = null,
 }: {
-  initialName: string;
   initialEntryHouse?: LifeHouseId | null;
 }) {
   const localize = useLocalize();
   const { enterHouse, error, isLoading } = useHouseEntry();
-  const [archiveName, setArchiveName] = useState(initialName);
   const [selectedHouse, setSelectedHouse] = useState<LifeHouseId | null>(initialEntryHouse);
-  const isNameValid = archiveName.trim().length >= 2 && archiveName.trim().length <= 40;
   const selectedName = HOUSES.find((house) => house.id === selectedHouse)?.publicName;
-  const isComplete = isNameValid && selectedHouse != null;
+  const isComplete = selectedHouse != null && selectedName != null;
 
   useEffect(() => {
     track('onboarding_view');
@@ -38,11 +39,14 @@ export default function FirstArchiveSetup({
   };
 
   const submit = () => {
-    if (!isComplete || isLoading || !selectedHouse) {
+    if (!isComplete || isLoading || !selectedHouse || !selectedName) {
       return;
     }
     track('onboarding_submit', { entryHouse: selectedHouse });
-    enterHouse({ archiveName: archiveName.trim(), entryHouse: selectedHouse });
+    enterHouse({
+      archiveName: createAutomaticArchiveName(selectedName),
+      entryHouse: selectedHouse,
+    });
   };
 
   return (
@@ -67,24 +71,7 @@ export default function FirstArchiveSetup({
       </div>
 
       <div className="border border-life-rule bg-[#F7F4EB] p-5 sm:p-8">
-        <label className="block">
-          <span className="mb-2 block text-life-sm font-medium text-life-ink">
-            {localize('com_life_archive_name')}
-          </span>
-          <input
-            value={archiveName}
-            maxLength={40}
-            onChange={(event) => setArchiveName(event.target.value)}
-            aria-invalid={!isNameValid}
-            className="h-12 w-full rounded-[4px] border border-life-rule bg-life-paper px-4 text-life-ink outline-none transition focus:border-life-moss focus:ring-2 focus:ring-life-moss/15"
-            aria-describedby="archive-name-help"
-          />
-          <span id="archive-name-help" className="mt-2 block text-life-meta text-life-muted">
-            {localize('com_life_archive_name_help')}
-          </span>
-        </label>
-
-        <div className="mt-8 border-t border-life-rule pt-7">
+        <div>
           <div className="mb-5">
             <h2 className="font-life-serif text-life-lead font-semibold text-life-ink">
               {localize('com_life_choose_house')}

@@ -1,4 +1,12 @@
-import { useCallback, useState, useEffect, useRef, memo, startTransition } from 'react';
+import {
+  useCallback,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  memo,
+  startTransition,
+} from 'react';
 import type { ReactNode } from 'react';
 import { useRecoilState } from 'recoil';
 import { useForm } from 'react-hook-form';
@@ -40,7 +48,7 @@ function SidebarChatProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function UnifiedSidebar() {
+export function UnifiedSidebar() {
   const localize = useLocalize();
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
   const [expanded, setExpanded] = useRecoilState(store.sidebarExpanded);
@@ -61,6 +69,12 @@ function UnifiedSidebar() {
       setExpanded(true);
     });
   }, [setExpanded]);
+
+  useLayoutEffect(() => {
+    if (isSmallScreen) {
+      setExpanded(false);
+    }
+  }, [isSmallScreen, setExpanded]);
 
   const handleResizeStart = useCallback(() => {
     setIsResizing(true);

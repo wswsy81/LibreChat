@@ -99,7 +99,7 @@ export default function HomeRoute() {
   const localize = useLocalize();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAuthenticated, isAuthReady } = useAuthContext();
+  const { isAuthenticated, isAuthReady } = useAuthContext();
   const bootstrap = useLifeBootstrapQuery({ enabled: isAuthReady && isAuthenticated });
   const requestedEntryHouse = getEntryHouseFromSearch(location.search);
   const initialEntryHouse = requestedEntryHouse ?? getStoredEntryHouse();
@@ -144,7 +144,7 @@ export default function HomeRoute() {
   } else {
     content = (
       <div className="h-full overflow-y-auto bg-life-paper px-5 py-10 dark:bg-surface-secondary sm:px-8">
-        <FirstArchiveSetup initialName={user?.name || ''} initialEntryHouse={initialEntryHouse} />
+        <FirstArchiveSetup initialEntryHouse={initialEntryHouse} />
       </div>
     );
   }
