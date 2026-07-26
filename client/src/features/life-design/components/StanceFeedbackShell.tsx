@@ -46,6 +46,7 @@ export default function StanceFeedbackShell({
         status={feedback.status}
         selection={feedback.selection}
         retryable={feedback.retryable}
+        errorCode={feedback.errorCode}
         onRetry={feedback.retry}
       />
     </div>

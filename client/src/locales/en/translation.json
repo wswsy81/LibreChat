@@ -2325,6 +2325,7 @@
   "com_life_signal": "一件正在验证的事",
   "com_life_signals_and_milestones": "正在验证",
   "com_life_stance_feedback_failed": "没记上，可能是网络断了。",
+  "com_life_stance_feedback_rejected": "这次反馈没能记下。",
   "com_life_stance_feedback_saved": "已记下：{{0}}。想改就再点一次。",
   "com_life_stance_feedback_saving": "正在记下…",
   "com_life_stance_feedback_stale": "这份报告已经更新了，刷新页面后再选一次。",

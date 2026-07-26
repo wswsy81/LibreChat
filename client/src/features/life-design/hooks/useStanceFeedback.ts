@@ -1,9 +1,5 @@
-import { useCallback, useState } from 'react';
-import type {
-  LifeStanceFeedbackCurrent,
-  LifeStanceFeedbackRequest,
-  LifeStanceSelection,
-} from 'librechat-data-provider';
+import { useCallback, useRef, useState } from 'react';
+import type { LifeStanceFeedbackCurrent, LifeStanceSelection } from 'librechat-data-provider';
 import type { LifeStanceFeedbackVariables } from '~/data-provider/Life/mutations';
 import type { StanceFeedbackMessage } from '../utils/stanceFeedback';
 import { createIdempotencyKey, stanceFeedbackErrorOf } from '../utils/stanceFeedback';
@@ -15,6 +11,7 @@ export interface StanceFeedbackState {
   status: StanceFeedbackStatus;
   selection: LifeStanceSelection | null;
   retryable: boolean;
+  errorCode: string | null;
   submit: (message: StanceFeedbackMessage) => void;
   retry: () => void;
 }
@@ -24,7 +21,7 @@ const attemptOf = (
   idempotencyKey: string,
 ): LifeStanceFeedbackVariables => ({
   reportId: message.reportId,
-  payload: message.payload as LifeStanceFeedbackRequest,
+  payload: message.payload,
   idempotencyKey,
 });
 
@@ -42,20 +39,29 @@ export default function useStanceFeedback(
     initial?.selection ?? null,
   );
   const [retryable, setRetryable] = useState(true);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  /** 连点两次会有两个请求在飞;先发的后回来时不能把后发的结果盖掉。 */
+  const latestKeyRef = useRef<string | null>(null);
 
   const send = useCallback(
     (variables: LifeStanceFeedbackVariables) => {
+      const isLatest = () => latestKeyRef.current === variables.idempotencyKey;
+      latestKeyRef.current = variables.idempotencyKey;
       setAttempt(variables);
       setStatus('saving');
       setSelection(variables.payload.selection);
       mutation.mutate(variables, {
         onSuccess: (result) => {
+          if (!isLatest()) return;
           setStatus('saved');
           setSelection(result.selection);
         },
         onError: (error) => {
+          if (!isLatest()) return;
+          const failure = stanceFeedbackErrorOf(error);
           setStatus('failed');
-          setRetryable(stanceFeedbackErrorOf(error).retryable);
+          setRetryable(failure.retryable);
+          setErrorCode(failure.code);
         },
       });
     },
@@ -66,10 +72,16 @@ export default function useStanceFeedback(
     (message: StanceFeedbackMessage) => {
       // 再点一次同一个选项不是改选,不该多记一条历史;想改的人会点另一个。
       if (status === 'saved' && message.payload.selection === selection) return;
+      // 失败后点回同一个选项就是重试:必须复用原 key,否则上一发其实写成功了就会记两条。
+      if (status === 'failed' && attempt && message.payload.selection === selection) {
+        send(attempt);
+        return;
+      }
       setRetryable(true);
+      setErrorCode(null);
       send(attemptOf(message, createIdempotencyKey()));
     },
-    [selection, send, status],
+    [attempt, selection, send, status],
   );
 
   const retry = useCallback(() => {
@@ -78,5 +90,5 @@ export default function useStanceFeedback(
     }
   }, [attempt, send]);
 
-  return { status, selection, retryable, submit, retry };
+  return { status, selection, retryable, errorCode, submit, retry };
 }

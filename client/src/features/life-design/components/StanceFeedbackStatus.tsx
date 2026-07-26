@@ -9,19 +9,31 @@ const SELECTION_KEYS: Record<LifeStanceSelection, TranslationKeys> = {
   less_direct: 'com_life_stance_less_direct',
 };
 
+/** 只有这两个码是"报告已经变了",其余不可重试的失败不能冒充成版本问题。 */
+const STALE_CODES = new Set(['REPORT_VERSION_MISMATCH', 'STANCE_METADATA_MISMATCH']);
+
+const failureKey = (retryable: boolean, errorCode: string | null): TranslationKeys => {
+  if (retryable) return 'com_life_stance_feedback_failed';
+  return STALE_CODES.has(errorCode ?? '')
+    ? 'com_life_stance_feedback_stale'
+    : 'com_life_stance_feedback_rejected';
+};
+
 export default function StanceFeedbackStatus({
   status,
   selection,
   retryable,
+  errorCode,
   onRetry,
 }: {
   status: Status;
   selection: LifeStanceSelection | null;
   retryable: boolean;
+  errorCode: string | null;
   onRetry: () => void;
 }) {
   const localize = useLocalize();
-  if (status === 'idle') {
+  if (status === 'idle' || (status === 'saved' && !selection)) {
     return null;
   }
 
@@ -34,9 +46,7 @@ export default function StanceFeedbackStatus({
         data-testid="life-stance-feedback-status"
         className={`${line} text-life-cinnabar dark:text-[#D98A76]`}
       >
-        {retryable
-          ? localize('com_life_stance_feedback_failed')
-          : localize('com_life_stance_feedback_stale')}
+        {localize(failureKey(retryable, errorCode))}
         {retryable && (
           <button
             type="button"
@@ -57,11 +67,9 @@ export default function StanceFeedbackStatus({
       data-testid="life-stance-feedback-status"
       className={`${line} text-life-muted dark:text-gray-400`}
     >
-      {status === 'saving'
+      {status === 'saving' || !selection
         ? localize('com_life_stance_feedback_saving')
-        : localize('com_life_stance_feedback_saved', {
-            0: localize(SELECTION_KEYS[selection ?? 'just_right']),
-          })}
+        : localize('com_life_stance_feedback_saved', { 0: localize(SELECTION_KEYS[selection]) })}
     </p>
   );
 }

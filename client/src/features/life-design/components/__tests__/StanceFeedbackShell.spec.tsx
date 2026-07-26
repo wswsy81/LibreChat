@@ -165,6 +165,54 @@ test('offers no retry when the report moved on', () => {
   expect(screen.queryByTestId('life-stance-feedback-retry')).not.toBeInTheDocument();
 });
 
+test('a slow first answer cannot overwrite a newer selection', () => {
+  const { frame } = renderShell();
+  postFromFrame(frame, { type: 'life-reveal-stance-feedback', payload: payloadOf() });
+  const [, firstOptions] = lastCall();
+  postFromFrame(frame, {
+    type: 'life-reveal-stance-feedback',
+    payload: payloadOf('less_direct'),
+  });
+  const [, secondOptions] = lastCall();
+
+  act(() => secondOptions.onSuccess?.({ ...recordedResponse, selection: 'less_direct' }));
+  act(() => firstOptions.onSuccess?.(recordedResponse));
+
+  expect(
+    screen.getByText('com_life_stance_feedback_saved|com_life_stance_less_direct'),
+  ).toBeInTheDocument();
+});
+
+test('clicking the same option after a failure retries instead of writing twice', () => {
+  const { frame } = renderShell();
+  postFromFrame(frame, { type: 'life-reveal-stance-feedback', payload: payloadOf() });
+  const [first, options] = lastCall();
+  act(() => options.onError?.(new Error('offline')));
+
+  postFromFrame(frame, { type: 'life-reveal-stance-feedback', payload: payloadOf() });
+
+  const [retried] = lastCall();
+  expect(retried.idempotencyKey).toBe(first.idempotencyKey);
+});
+
+test('a rejected request is not dressed up as a stale report', () => {
+  const { frame } = renderShell();
+  postFromFrame(frame, { type: 'life-reveal-stance-feedback', payload: payloadOf() });
+  const [, options] = lastCall();
+  act(() =>
+    options.onError?.({
+      response: {
+        data: {
+          error: { code: 'STANCE_FEEDBACK_INVALID', message: '反馈无效', retryable: false },
+        },
+      },
+    }),
+  );
+
+  expect(screen.getByRole('alert')).toHaveTextContent('com_life_stance_feedback_rejected');
+  expect(screen.queryByTestId('life-stance-feedback-retry')).not.toBeInTheDocument();
+});
+
 test('shows the selection already recorded for this report', () => {
   renderShell({
     selection: 'just_right',
