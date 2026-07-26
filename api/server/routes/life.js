@@ -76,6 +76,49 @@ function idempotencyKeyOf(req, res) {
   return key;
 }
 
+const STANCE_FEEDBACK_FIELDS = [
+  'reportVersion',
+  'selection',
+  'effectiveLevel',
+  'stancePolicyVersion',
+];
+const STANCE_SELECTIONS = new Set(['more_direct', 'just_right', 'less_direct']);
+const STANCE_LEVELS = new Set(['restrained', 'direct', 'decisive']);
+const STANCE_POLICY_VERSION_PATTERN = /^[a-z0-9-]{1,64}$/;
+
+/**
+ * 只做类型边界:枚举、整数版本、字段白名单与 engine 的
+ * `assertStanceFeedbackBody` 逐条对齐。归属、报告版本与冻结力度的真相在 future-engine。
+ * 返回的是 canonical 五字段(含 reportId),幂等 hash 与 engine body 必须用同一个对象——
+ * 只 hash 公开四字段会让同一个 key 跨两份报告错误重放。
+ */
+function stanceFeedbackBodyOf(req, res, reportId) {
+  const raw = req.body;
+  const isObject = Boolean(raw) && typeof raw === 'object' && !Array.isArray(raw);
+  const invalid =
+    !isObject ||
+    Object.keys(raw).some((field) => !STANCE_FEEDBACK_FIELDS.includes(field)) ||
+    !Number.isInteger(raw.reportVersion) ||
+    raw.reportVersion < 1 ||
+    !STANCE_SELECTIONS.has(raw.selection) ||
+    !STANCE_LEVELS.has(raw.effectiveLevel) ||
+    typeof raw.stancePolicyVersion !== 'string' ||
+    !STANCE_POLICY_VERSION_PATTERN.test(raw.stancePolicyVersion);
+  if (invalid) {
+    res.status(422).json({
+      error: { code: 'STANCE_FEEDBACK_INVALID', message: '这次反馈的内容无效', retryable: false },
+    });
+    return null;
+  }
+  return {
+    reportId,
+    reportVersion: raw.reportVersion,
+    selection: raw.selection,
+    effectiveLevel: raw.effectiveLevel,
+    stancePolicyVersion: raw.stancePolicyVersion,
+  };
+}
+
 function shareTokenFor({ id, reportId, idempotencyKey }) {
   return createHmac('sha256', SHARE_TOKEN_SECRET)
     .update(JSON.stringify([id, reportId, idempotencyKey]))
@@ -605,6 +648,36 @@ router.post('/reports/:id/shares', async (req, res) => {
       expiresAt: result.expiresAt,
       shareUrl: `/s/archive/${encodeURIComponent(result.token)}`,
     });
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+router.post('/reports/:id/stance-feedback', async (req, res) => {
+  const key = idempotencyKeyOf(req, res);
+  if (!key) {
+    return;
+  }
+  const reportId = String(req.params.id);
+  const body = stanceFeedbackBodyOf(req, res, reportId);
+  if (!body) {
+    return;
+  }
+  try {
+    const result = await runLifeOperation({
+      userId: userId(req),
+      operation: 'reveal-stance-feedback',
+      idempotencyKey: key,
+      requestPayload: body,
+      executor: ({ operationId, requestHash }) =>
+        engine.json(`/internal/reports/${encodeURIComponent(reportId)}/stance-feedback`, {
+          userId: userId(req),
+          method: 'POST',
+          body,
+          operation: { id: operationId, name: 'reveal-stance-feedback', requestHash },
+        }),
+    });
+    return res.json(result);
   } catch (error) {
     return engineError(res, error);
   }

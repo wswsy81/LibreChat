@@ -54,6 +54,7 @@ export const lifeReport = (id: string) => `${lifeReports()}/${encodeURIComponent
 export const lifeReportHtml = (id: string) => `${lifeReport(id)}/html`;
 export const lifeReportPrint = (id: string) => `${lifeReport(id)}/print.html`;
 export const lifeReportShares = (id: string) => `${lifeReport(id)}/shares`;
+export const lifeReportStanceFeedback = (id: string) => `${lifeReport(id)}/stance-feedback`;
 export const lifeReportShare = (id: string, shareId: string) =>
   `${lifeReportShares(id)}/${encodeURIComponent(shareId)}`;
 export const lifeShare = (token: string) => `${lifeRoot}/shares/${encodeURIComponent(token)}`;

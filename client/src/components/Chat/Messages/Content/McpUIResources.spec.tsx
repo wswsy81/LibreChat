@@ -14,7 +14,16 @@ jest.mock('~/Providers', () => ({
 }));
 
 jest.mock('~/utils', () => ({
+  ...jest.requireActual('~/utils'),
   handleUIAction: jest.fn(),
+}));
+
+jest.mock('~/data-provider', () => ({
+  useLifeStanceFeedbackMutation: () => ({ mutate: jest.fn() }),
+}));
+
+jest.mock('~/hooks', () => ({
+  useLocalize: () => (key: string) => key,
 }));
 
 jest.mock('@mcp-ui/client', () => ({

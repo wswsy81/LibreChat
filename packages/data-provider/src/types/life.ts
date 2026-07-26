@@ -186,11 +186,46 @@ export interface LifeProfileView {
   updatedAt?: string | null;
 }
 
+export type LifeStanceSelection = 'more_direct' | 'just_right' | 'less_direct';
+
+export type LifeStanceLevel = 'restrained' | 'direct' | 'decisive';
+
+export interface LifeStanceFeedbackRequest {
+  reportVersion: number;
+  selection: LifeStanceSelection;
+  effectiveLevel: LifeStanceLevel;
+  stancePolicyVersion: string;
+}
+
+export interface LifeStanceFeedbackResponse {
+  ok: boolean;
+  reportId: string;
+  reportVersion: number;
+  selection: LifeStanceSelection;
+  effectiveLevel: LifeStanceLevel;
+  stancePolicyVersion: string;
+  recordedAt: string;
+  replayed: boolean;
+}
+
+export interface LifeStanceFeedbackCurrent {
+  selection: LifeStanceSelection;
+  effectiveLevel: LifeStanceLevel;
+  stancePolicyVersion: string;
+  recordedAt: string;
+}
+
+export interface LifeStanceFeedbackState {
+  current: LifeStanceFeedbackCurrent | null;
+  historyCount: number;
+}
+
 export interface LifeReportSummary {
   id: string;
   title: string;
   mode: 'discovery' | 'decision';
   createdAt: string | null;
+  stanceFeedback?: LifeStanceFeedbackState | null;
 }
 
 export interface LifeArchiveResponse {

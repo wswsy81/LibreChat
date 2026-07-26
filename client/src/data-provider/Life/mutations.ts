@@ -15,7 +15,15 @@ import type {
   LifeOnboardingResponse,
   LifeResumeResponse,
   LifeShareResponse,
+  LifeStanceFeedbackRequest,
+  LifeStanceFeedbackResponse,
 } from 'librechat-data-provider';
+
+export interface LifeStanceFeedbackVariables {
+  reportId: string;
+  payload: LifeStanceFeedbackRequest;
+  idempotencyKey: string;
+}
 
 export const useLifeOnboardingMutation = (): UseMutationResult<
   LifeOnboardingResponse,
@@ -52,6 +60,23 @@ export const useLifeShareMutation = (): UseMutationResult<
   Error,
   { reportId: string; expiresAt: string | null }
 > => useMutation(({ reportId, expiresAt }) => dataService.createLifeShare(reportId, expiresAt));
+
+export const useLifeStanceFeedbackMutation = (): UseMutationResult<
+  LifeStanceFeedbackResponse,
+  Error,
+  LifeStanceFeedbackVariables
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    ({ reportId, payload, idempotencyKey }: LifeStanceFeedbackVariables) =>
+      dataService.submitLifeStanceFeedback(reportId, payload, idempotencyKey),
+    {
+      onSuccess: (_result, { reportId }) => {
+        queryClient.invalidateQueries([QueryKeys.lifeReport, reportId]);
+      },
+    },
+  );
+};
 
 export const useLifeHtmlExportMutation = (): UseMutationResult<string, Error, string> =>
   useMutation((reportId) => dataService.getLifeReportHtml(reportId));

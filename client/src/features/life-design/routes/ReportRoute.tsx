@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ThemeContext, useMediaQuery } from '@librechat/client';
 import { useLifeReportHtmlQuery, useLifeReportQuery } from '~/data-provider';
 import { useLocalize } from '~/hooks';
+import StanceFeedbackShell from '../components/StanceFeedbackShell';
 import ReportActions from '../components/ReportActions';
 import { track } from '~/utils/track';
 import { LifeError, LifeLoading } from '../components/PageState';
@@ -113,17 +114,23 @@ export default function ReportRoute() {
           </div>
         </header>
 
-        <section className="mt-8 border-y border-life-rule dark:border-white/10">
-          <iframe
-            ref={frameRef}
-            data-testid="life-report-frame"
-            title={reportMeta.title}
-            sandbox="allow-scripts"
-            srcDoc={themedHtml}
-            style={{ height: frameHeight }}
-            className="block w-full border-0 bg-transparent"
-          />
-        </section>
+        <StanceFeedbackShell
+          className="mt-8"
+          reportId={reportId}
+          initial={reportMeta.stanceFeedback?.current ?? null}
+        >
+          <section className="border-y border-life-rule dark:border-white/10">
+            <iframe
+              ref={frameRef}
+              data-testid="life-report-frame"
+              title={reportMeta.title}
+              sandbox="allow-scripts"
+              srcDoc={themedHtml}
+              style={{ height: frameHeight }}
+              className="block w-full border-0 bg-transparent"
+            />
+          </section>
+        </StanceFeedbackShell>
       </div>
     </main>
   );

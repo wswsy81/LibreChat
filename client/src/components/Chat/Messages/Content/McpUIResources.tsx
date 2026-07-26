@@ -3,6 +3,7 @@ import { Tools } from 'librechat-data-provider';
 import { UIResourceRenderer } from '@mcp-ui/client';
 import type { UIActionResult } from '@mcp-ui/client';
 import type { TAttachment, UIResource } from 'librechat-data-provider';
+import StanceFeedbackShell from '~/features/life-design/components/StanceFeedbackShell';
 import { shouldRenderUIResource } from '~/components/MCPUIResource/lifecycle';
 import { useMessageContext, useOptionalMessagesOperations } from '~/Providers';
 import UIResourceCarousel from './UIResourceCarousel';
@@ -60,8 +61,9 @@ export default function McpUIResources({
     return null;
   }
 
+  // 内嵌报告的顾问力度反馈也走父壳:iframe 只 postMessage,联网与状态在这里。
   return (
-    <div className="w-full px-3 py-2">
+    <StanceFeedbackShell className="w-full px-3 py-2">
       {uiResources.length > 1 ? (
         <UIResourceCarousel uiResources={uiResources} />
       ) : (
@@ -71,6 +73,6 @@ export default function McpUIResources({
           htmlProps={{ autoResizeIframe: { width: true, height: true } }}
         />
       )}
-    </div>
+    </StanceFeedbackShell>
   );
 }

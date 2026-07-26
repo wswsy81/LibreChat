@@ -19,7 +19,10 @@ export function getLifeBootstrap(): Promise<t.LifeBootstrapResponse> {
   return request.get(endpoints.lifeBootstrap());
 }
 
-const idempotencyHeaders = () => ({ headers: { 'Idempotency-Key': crypto.randomUUID() } });
+/** 显式传 key 才能重试同一次提交:重试必须复用原 key,改选必须换新 key。 */
+const idempotencyHeaders = (key?: string) => ({
+  headers: { 'Idempotency-Key': key ?? crypto.randomUUID() },
+});
 
 export function createLifeOnboarding(
   payload: t.LifeOnboardingRequest,
@@ -64,6 +67,18 @@ export function createLifeShare(
   expiresAt: string | null,
 ): Promise<t.LifeShareResponse> {
   return request.post(endpoints.lifeReportShares(id), { expiresAt }, idempotencyHeaders());
+}
+
+export function submitLifeStanceFeedback(
+  id: string,
+  payload: t.LifeStanceFeedbackRequest,
+  idempotencyKey: string,
+): Promise<t.LifeStanceFeedbackResponse> {
+  return request.post(
+    endpoints.lifeReportStanceFeedback(id),
+    payload,
+    idempotencyHeaders(idempotencyKey),
+  );
 }
 
 export function revokeLifeShare(id: string, shareId: string): Promise<{ ok: boolean }> {
