@@ -49,12 +49,13 @@ describe('FaqRoute', () => {
     expect(numbers).toEqual(numbers.map((_, index) => String(index + 1).padStart(2, '0')));
   });
 
-  it('三条未来线与邀请码收在「了解产品」组', () => {
+  it('三条未来线、力度反馈与邀请码收在「了解产品」组', () => {
     const { container } = renderFaq();
     const productList = container.querySelector('dl');
     expect(productList).not.toBeNull();
     const group = within(productList as HTMLElement);
     expect(group.getByText(mockTranslation.com_life_faq_q20)).toBeInTheDocument();
+    expect(group.getByText(mockTranslation.com_life_faq_q22)).toBeInTheDocument();
     expect(group.getByText(mockTranslation.com_life_faq_q21)).toBeInTheDocument();
   });
 
@@ -62,6 +63,7 @@ describe('FaqRoute', () => {
     renderFaq();
     expect(screen.getByText(mockTranslation.com_life_faq_a3)).toHaveTextContent('人生地图上点一块');
     expect(screen.getByText(mockTranslation.com_life_faq_a20)).toHaveTextContent('不是预测');
+    expect(screen.getByText(mockTranslation.com_life_faq_a22)).toHaveTextContent('不会自动改变');
     expect(screen.getByText(mockTranslation.com_life_faq_a13)).toHaveTextContent('只记类别编号');
   });
 });

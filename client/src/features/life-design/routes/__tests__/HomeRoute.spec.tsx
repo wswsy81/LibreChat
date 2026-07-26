@@ -97,6 +97,10 @@ describe('public registration policy', () => {
 
     expect(screen.getByText('com_life_public_title')).toBeInTheDocument();
     expect(screen.getByText('com_life_public_description')).toBeInTheDocument();
+    expect(screen.getByText('com_life_line_inertia')).toBeInTheDocument();
+    expect(screen.getByText('com_life_line_intervention')).toBeInTheDocument();
+    expect(screen.getByText('com_life_line_rupture')).toBeInTheDocument();
+    expect(screen.getByText('com_life_line_sample_note')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'com_life_public_map_aria' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: '你在这里' })).toBeInTheDocument();
     expect(screen.getByText('com_life_public_private')).toBeInTheDocument();
