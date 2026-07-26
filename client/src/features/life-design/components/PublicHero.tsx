@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLocalize } from '~/hooks';
+import type { TranslationKeys } from '~/hooks';
 import PublicMistMap from './PublicMistMap';
 import { HOUSES } from './LifeWheel';
 import type { HouseId } from './LifeWheel';
@@ -14,11 +15,6 @@ import type { HouseId } from './LifeWheel';
  */
 
 const DEFAULT_ISLAND: HouseId = 'h6';
-
-interface SampleLine {
-  readonly tag: string;
-  readonly text: string;
-}
 
 const SAMPLE_LINES: Record<HouseId, readonly [string, string, string]> = {
   h1: [
@@ -83,11 +79,12 @@ const SAMPLE_LINES: Record<HouseId, readonly [string, string, string]> = {
   ],
 };
 
-const LINE_TAGS = ['惯性线', '干预线', '断裂线'] as const;
-
-function sampleLines(id: HouseId): readonly SampleLine[] {
-  return SAMPLE_LINES[id].map((text, index) => ({ tag: LINE_TAGS[index], text }));
-}
+/** 前台名必须与报告里的三条线一字不差:惯性/干预/断裂是内部术语,不上前台。 */
+const LINE_TAG_KEYS = [
+  'com_life_line_inertia',
+  'com_life_line_intervention',
+  'com_life_line_rupture',
+] as const satisfies readonly TranslationKeys[];
 
 export default function PublicHero({
   children,
@@ -119,20 +116,20 @@ export default function PublicHero({
             </span>
           </div>
           <ul className="mt-4 space-y-3">
-            {sampleLines(selected.id).map((line) => (
-              <li key={line.tag} className="flex gap-3">
+            {SAMPLE_LINES[selected.id].map((text, index) => (
+              <li key={LINE_TAG_KEYS[index]} className="flex gap-3">
                 <span className="mt-[3px] flex-none font-life-mono text-life-meta tracking-[0.08em] text-life-cinnabar">
-                  {line.tag}
+                  {localize(LINE_TAG_KEYS[index])}
                 </span>
                 <span className="font-life-kai text-life-sm leading-7 text-life-ink dark:text-[#e7ddcf]">
-                  {line.text}
+                  {text}
                 </span>
               </li>
             ))}
           </ul>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-life-rule pt-3 dark:border-white/10">
             <p className="font-life-mono text-life-meta leading-6 text-life-muted dark:text-[#a99f92]">
-              示例仅示形态；你自己的三条线，从对话里长出来。
+              {localize('com_life_line_sample_note')}
             </p>
             <Link
               to={`/register?entryHouse=${selected.id}`}
