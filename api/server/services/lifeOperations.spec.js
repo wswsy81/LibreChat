@@ -4,6 +4,14 @@ const mockDeleteLifeAccountData = jest.fn();
 
 jest.mock('@librechat/api', () => ({
   deleteLifeAccountData: (...args) => mockDeleteLifeAccountData(...args),
+  // 2026-07-27:租约与轮询从写死改成运行策略配置(runtime policy)。
+  // 这里复刻 runtimeConfig.ts 的默认值:并发用例依赖真实轮询节奏,调快会把
+  // 「等锁持有者结算」测成 PENDING。测的是并发/幂等语义,不测配置加载。
+  runtimeApiPolicy: () => ({
+    operationLeaseMs: 15_000,
+    operationPollIntervalMs: 250,
+    operationPollAttempts: 10,
+  }),
 }));
 
 const {

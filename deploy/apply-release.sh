@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
+APPLY_STARTED_EPOCH=$(date +%s)
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_DIR=${APP_DIR_OVERRIDE:-"$(cd -- "$SCRIPT_DIR/.." && pwd)"}
 ENGINE_DIR=${ENGINE_DIR_OVERRIDE:-"$(cd -- "$APP_DIR/../future-engine-shim" && pwd)"}
 RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
+RUNTIME_CONFIG_DIR=${RUNTIME_CONFIG_DIR:-"$APP_DIR/runtime-config"}
 CANDIDATE=${1:-}
 
 [[ -n "$CANDIDATE" ]] || {
@@ -15,6 +17,13 @@ CANDIDATE=${1:-}
   echo "production .env is missing" >&2
   exit 1
 }
+
+install -d -m 700 "$RUNTIME_CONFIG_DIR"
+for file in runtime-policy.v1.json security-contract.v1.json; do
+  if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
+    install -m 600 "$ENGINE_DIR/../config/$file" "$RUNTIME_CONFIG_DIR/$file"
+  fi
+done
 
 if [[ "$CANDIDATE" != /* ]]; then
   CANDIDATE="$APP_DIR/$CANDIDATE"
@@ -117,12 +126,22 @@ if [[ "$healthy" != true ]]; then
     --env-file "$ROLLBACK_ENV"
   )
   "${ROLLBACK_COMPOSE[@]}" up --detach --no-deps --force-recreate "${CHANGED_SERVICES[@]}"
+  MANIFEST_FILE="${CANDIDATE%.env}.manifest"
+  if [[ -f "$MANIFEST_FILE" ]]; then
+    printf 'apply_result=rolled_back\napply_seconds=%s\n' "$(( $(date +%s) - APPLY_STARTED_EPOCH ))" >> "$MANIFEST_FILE"
+  fi
   exit 1
 fi
 
 ACTIVE_TMP="$APP_DIR/.release.env.next"
 install -m 600 "$CANDIDATE" "$ACTIVE_TMP"
 mv "$ACTIVE_TMP" "$APP_DIR/.release.env"
+
+MANIFEST_FILE="${CANDIDATE%.env}.manifest"
+if [[ -f "$MANIFEST_FILE" ]]; then
+  printf 'apply_result=healthy\napply_seconds=%s\nchanged_services=%s\n' \
+    "$(( $(date +%s) - APPLY_STARTED_EPOCH ))" "${CHANGED_SERVICES[*]}" >> "$MANIFEST_FILE"
+fi
 
 echo "Release healthy and active: $RELEASE_NAME"
 echo "Rollback manifest: $ROLLBACK_ENV"

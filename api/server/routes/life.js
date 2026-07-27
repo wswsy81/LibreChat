@@ -1,11 +1,16 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const { createHmac } = require('crypto');
+const path = require('path');
 const {
+  applyRuntimeConfig,
   createLifeEngineClient,
   LifeEngineError,
   formatLifeInviteCode,
   generateLifeInviteCode,
+  readRedactedPolicyBundle,
+  runtimeApiPolicy,
+  runtimeSecurityContracts,
 } = require('@librechat/api');
 const { logger, hashToken } = require('@librechat/data-schemas');
 const checkAdmin = require('~/server/middleware/roles/admin');
@@ -25,6 +30,7 @@ const engine = createLifeEngineClient({
   token: process.env.FUTURE_ENGINE_INTERNAL_TOKEN || 'future-lines-local-internal',
   identitySecret: process.env.FUTURE_ENGINE_IDENTITY_SECRET || '',
 });
+const runtimeConfigDir = process.env.RUNTIME_CONFIG_DIR || path.resolve('/app/runtime-config');
 
 const noStore = (_req, res, next) => {
   res.set({
@@ -58,7 +64,6 @@ async function latestLifeConversation(id) {
     .lean();
 }
 
-const RESUME_REPLAY_WINDOW_MS = 10 * 60 * 1000;
 const SHARE_TOKEN_SECRET =
   process.env.LIFE_SHARE_TOKEN_SECRET ||
   process.env.JWT_SECRET ||
@@ -82,9 +87,6 @@ const STANCE_FEEDBACK_FIELDS = [
   'effectiveLevel',
   'stancePolicyVersion',
 ];
-const STANCE_SELECTIONS = new Set(['more_direct', 'just_right', 'less_direct']);
-const STANCE_LEVELS = new Set(['restrained', 'direct', 'decisive']);
-const STANCE_POLICY_VERSION_PATTERN = /^[a-z0-9-]{1,64}$/;
 
 /**
  * 只做类型边界:枚举、整数版本、字段白名单与 engine 的
@@ -93,6 +95,10 @@ const STANCE_POLICY_VERSION_PATTERN = /^[a-z0-9-]{1,64}$/;
  * 只 hash 公开四字段会让同一个 key 跨两份报告错误重放。
  */
 function stanceFeedbackBodyOf(req, res, reportId) {
+  const contracts = runtimeSecurityContracts();
+  const stanceSelections = new Set(contracts.stanceSelections);
+  const stanceLevels = new Set(contracts.stanceLevels);
+  const stancePolicyVersionPattern = new RegExp(contracts.policyVersionPattern);
   const raw = req.body;
   const isObject = Boolean(raw) && typeof raw === 'object' && !Array.isArray(raw);
   const invalid =
@@ -100,10 +106,10 @@ function stanceFeedbackBodyOf(req, res, reportId) {
     Object.keys(raw).some((field) => !STANCE_FEEDBACK_FIELDS.includes(field)) ||
     !Number.isInteger(raw.reportVersion) ||
     raw.reportVersion < 1 ||
-    !STANCE_SELECTIONS.has(raw.selection) ||
-    !STANCE_LEVELS.has(raw.effectiveLevel) ||
+    !stanceSelections.has(raw.selection) ||
+    !stanceLevels.has(raw.effectiveLevel) ||
     typeof raw.stancePolicyVersion !== 'string' ||
-    !STANCE_POLICY_VERSION_PATTERN.test(raw.stancePolicyVersion);
+    !stancePolicyVersionPattern.test(raw.stancePolicyVersion);
   if (invalid) {
     res.status(422).json({
       error: { code: 'STANCE_FEEDBACK_INVALID', message: '这次反馈的内容无效', retryable: false },
@@ -161,8 +167,13 @@ function engineError(res, error) {
   });
 }
 
-const LIFE_HOUSE_PATTERN = /^h(?:[1-9]|1[0-2])$/;
-const LIFE_VISIT_MODES = new Set(['first_entry', 'return_entry', 'continue']);
+function lifeHouseIds() {
+  return new Set(runtimeSecurityContracts().houseIds);
+}
+
+function lifeVisitModes() {
+  return new Set(runtimeSecurityContracts().lifeVisitModes);
+}
 
 function houseEntryPrompt(entryHouse, visitMode) {
   // system-tag(开场编排协议 §2):触发消息带 [trigger:*] 前缀,不伪装用户原话。
@@ -175,8 +186,8 @@ function validEntryEvent(value, requestedHouse) {
     value &&
     value.kind === 'house_entered' &&
     value.entryHouse === requestedHouse &&
-    LIFE_HOUSE_PATTERN.test(value.entryHouse) &&
-    LIFE_VISIT_MODES.has(value.visitMode) &&
+    lifeHouseIds().has(value.entryHouse) &&
+    lifeVisitModes().has(value.visitMode) &&
     typeof value.at === 'string' &&
     Number.isFinite(Date.parse(value.at))
   );
@@ -313,7 +324,7 @@ router.post('/onboarding', async (req, res) => {
     (field) => !['archiveName', 'entryHouse'].includes(field),
   );
   const entryHouse = String(rawBody.entryHouse || '').trim();
-  if (extra.length || !LIFE_HOUSE_PATTERN.test(entryHouse)) {
+  if (extra.length || !lifeHouseIds().has(entryHouse)) {
     return res
       .status(422)
       .json({ error: { code: 'INVALID_ENTRY_HOUSE', message: '请选择一个有效的人生领域' } });
@@ -332,7 +343,7 @@ router.post('/onboarding', async (req, res) => {
       operation: 'onboarding',
       idempotencyKey: key,
       requestPayload: body,
-      replayWindowMs: RESUME_REPLAY_WINDOW_MS,
+      replayWindowMs: runtimeApiPolicy().resumeReplayWindowMs,
       executor: async ({ operationId, requestHash }) => {
         const result = await engine.json('/internal/onboarding', {
           userId: userId(req),
@@ -379,7 +390,7 @@ router.post('/resume', async (req, res) => {
       operation: 'resume-create',
       idempotencyKey: key,
       requestPayload: { action: 'resume-create' },
-      replayWindowMs: RESUME_REPLAY_WINDOW_MS,
+      replayWindowMs: runtimeApiPolicy().resumeReplayWindowMs,
       persistIf: (result) => result.action === 'new',
       executor: async ({ operationId }) => {
         const recheck = await latestLifeConversation(id);
@@ -942,6 +953,53 @@ admin.get('/status', async (_req, res) => {
     users,
     uptimeSec: Math.round(process.uptime()),
   });
+});
+
+admin.get('/runtime-config', async (_req, res) => {
+  try {
+    const [bundle, active] = await Promise.all([
+      readRedactedPolicyBundle(runtimeConfigDir),
+      engine.json('/internal/runtime-config'),
+    ]);
+    return res.json({ bundle, active });
+  } catch (error) {
+    logger.error('[life][admin] runtime config read failed', error);
+    return res.status(503).json({
+      error: { code: 'RUNTIME_CONFIG_UNAVAILABLE', message: '运行配置暂时不可读取' },
+    });
+  }
+});
+
+admin.post('/runtime-config/apply', async (req, res) => {
+  const actorId = userId(req);
+  const kind = req.body?.kind;
+  const document = req.body?.document;
+  if (
+    !['runtime', 'security_contract'].includes(kind) ||
+    !document ||
+    typeof document !== 'object' ||
+    Array.isArray(document)
+  ) {
+    return res.status(422).json({
+      error: { code: 'RUNTIME_CONFIG_REQUEST_INVALID', message: '配置申请内容无效' },
+    });
+  }
+  try {
+    const result = await applyRuntimeConfig({
+      configDir: runtimeConfigDir,
+      kind,
+      document,
+      actorId,
+      engine,
+    });
+    return res.json(result);
+  } catch (error) {
+    if (error instanceof LifeEngineError) return engineError(res, error);
+    logger.error('[life][admin] runtime config apply failed', error);
+    return res.status(503).json({
+      error: { code: 'RUNTIME_CONFIG_APPLY_FAILED', message: '配置应用失败，已尝试恢复上一版' },
+    });
+  }
 });
 
 admin.get('/copy', async (_req, res) => {

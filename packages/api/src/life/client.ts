@@ -1,6 +1,6 @@
 import {
   createFutureEngineIdentityAssertion,
-  FUTURE_ENGINE_IDENTITY_HEADER,
+  futureEngineIdentityHeader,
 } from '../utils/identityAssertion';
 
 export interface LifeEngineClientOptions {
@@ -178,7 +178,7 @@ export function createLifeEngineClient({
   async function request(path: string, options: LifeEngineRequestOptions = {}): Promise<Response> {
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
     if (options.userId) {
-      headers[FUTURE_ENGINE_IDENTITY_HEADER] = createFutureEngineIdentityAssertion({
+      headers[futureEngineIdentityHeader()] = createFutureEngineIdentityAssertion({
         principalId: options.userId,
         secret: identitySecret,
         scope: 'life-api',

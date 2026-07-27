@@ -22,7 +22,7 @@ import { sanitizeUrlForLogging, isClientRejectionMessage, isOAuthServer } from '
 import { PENDING_STALE_MS, normalizeExpiresAt } from '~/flow/manager';
 import {
   createFutureEngineIdentityAssertion,
-  FUTURE_ENGINE_IDENTITY_HEADER,
+  futureEngineIdentityHeader,
   FUTURE_ENGINE_IDENTITY_PLACEHOLDER,
 } from '~/utils/identityAssertion';
 import { preProcessGraphTokens } from '~/utils/graph';
@@ -308,7 +308,7 @@ export class MCPConnectionFactory {
       );
     if (refreshesFutureEngineIdentity) {
       this.requestHeadersFactory = () => ({
-        [FUTURE_ENGINE_IDENTITY_HEADER]: createFutureEngineIdentityAssertion({
+        [futureEngineIdentityHeader()]: createFutureEngineIdentityAssertion({
           principalId,
           secret: process.env.FUTURE_ENGINE_IDENTITY_SECRET || '',
           scope: 'mcp',

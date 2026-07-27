@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export DOCKER_BUILDKIT=${DOCKER_BUILDKIT:-1}
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_DIR=${APP_DIR_OVERRIDE:-"$(cd -- "$SCRIPT_DIR/.." && pwd)"}
@@ -9,9 +10,14 @@ RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
 ACTIVE_RELEASE_ENV=${ACTIVE_RELEASE_ENV:-"$APP_DIR/.release.env"}
 RELEASE_ID=${1:-"$(date -u +%Y%m%dT%H%M%SZ)"}
 RELEASE_SERVICE=${RELEASE_SERVICE:-all}
+RELEASE_MODE=${RELEASE_MODE:-full}
+SELECTED_CHANNEL=${SELECTED_CHANNEL:-$RELEASE_MODE}
+SELECTED_BY=${SELECTED_BY:-owner}
+BUILD_CACHE_DIR=${BUILD_CACHE_DIR:-"$RELEASE_ROOT/.build-cache"}
 CORPUS_SCHEMA_REL=library/corpora/schemas/bank-item.schema.json
 CORPUS_SCHEMA_IN_CONTEXT="$PROJECT_DIR/$CORPUS_SCHEMA_REL"
 GENERATED_CORPUS_SCHEMA=false
+BUILD_STARTED_EPOCH=$(date +%s)
 
 [[ "$RELEASE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || {
   echo "release id may contain only letters, numbers, dot, underscore, and dash" >&2
@@ -24,6 +30,24 @@ case "$RELEASE_SERVICE" in
     exit 1
     ;;
 esac
+case "$RELEASE_MODE" in
+  full|hotfix) ;;
+  *)
+    echo "RELEASE_MODE must be full or hotfix" >&2
+    exit 1
+    ;;
+esac
+case "$SELECTED_CHANNEL" in
+  hotfix|full) ;;
+  *)
+    echo "SELECTED_CHANNEL must be hotfix or full for image releases" >&2
+    exit 1
+    ;;
+esac
+[[ "$SELECTED_BY" == owner ]] || {
+  echo "SELECTED_BY must be owner" >&2
+  exit 1
+}
 
 read_release_value() {
   local key=$1
@@ -82,6 +106,7 @@ if docker info >/dev/null 2>&1; then
 else
   DOCKER=(sudo docker)
 fi
+install -d -m 700 "$BUILD_CACHE_DIR"
 
 git_revision() {
   local directory=$1
@@ -97,24 +122,43 @@ ENGINE_TAG="yiweilife/future-engine:$RELEASE_ID"
 if [[ "$RELEASE_SERVICE" != future-engine ]]; then
   echo "Building immutable LibreChat release image: $API_TAG"
   "${DOCKER[@]}" build \
+    --cache-from "type=local,src=$BUILD_CACHE_DIR/api" \
+    --cache-to "type=local,dest=$BUILD_CACHE_DIR/api-next,mode=max" \
     --build-arg "BUILD_COMMIT=$LIBRECHAT_REVISION" \
     --build-arg "BUILD_BRANCH=$(git -C "$APP_DIR" branch --show-current 2>/dev/null || printf unknown)" \
     --build-arg "BUILD_DATE=$BUILD_DATE" \
     --tag "$API_TAG" \
     "$APP_DIR"
+  rm -rf -- "$BUILD_CACHE_DIR/api"
+  mv "$BUILD_CACHE_DIR/api-next" "$BUILD_CACHE_DIR/api"
   API_IMAGE=$("${DOCKER[@]}" image inspect --format '{{.Id}}' "$API_TAG")
 else
   API_IMAGE=$(active_image LIBRECHAT_RELEASE_IMAGE)
 fi
 
 if [[ "$RELEASE_SERVICE" != api ]]; then
+  if [[ "$RELEASE_MODE" == full ]]; then
+    echo "Running future-engine full test stage"
+    "${DOCKER[@]}" build \
+      --file "$ENGINE_DIR/Dockerfile" \
+      --target test \
+      --cache-from "type=local,src=$BUILD_CACHE_DIR/engine" \
+      --cache-to "type=local,dest=$BUILD_CACHE_DIR/engine-test-next,mode=max" \
+      "$PROJECT_DIR"
+    rm -rf -- "$BUILD_CACHE_DIR/engine-test-next"
+  fi
   echo "Building immutable future-engine release image: $ENGINE_TAG"
   "${DOCKER[@]}" build \
     --file "$ENGINE_DIR/Dockerfile" \
+    --target runtime \
+    --cache-from "type=local,src=$BUILD_CACHE_DIR/engine" \
+    --cache-to "type=local,dest=$BUILD_CACHE_DIR/engine-next,mode=max" \
     --build-arg "BUILD_COMMIT=$ENGINE_REVISION" \
     --build-arg "BUILD_DATE=$BUILD_DATE" \
     --tag "$ENGINE_TAG" \
     "$PROJECT_DIR"
+  rm -rf -- "$BUILD_CACHE_DIR/engine"
+  mv "$BUILD_CACHE_DIR/engine-next" "$BUILD_CACHE_DIR/engine"
   ENGINE_IMAGE=$("${DOCKER[@]}" image inspect --format '{{.Id}}' "$ENGINE_TAG")
 else
   ENGINE_IMAGE=$(active_image FUTURE_ENGINE_RELEASE_IMAGE)
@@ -169,6 +213,11 @@ MANIFEST_TMP="$RELEASE_ROOT/.$RELEASE_ID.manifest.tmp"
 {
   printf 'release_id=%s\n' "$RELEASE_ID"
   printf 'release_service=%s\n' "$RELEASE_SERVICE"
+  printf 'release_mode=%s\n' "$RELEASE_MODE"
+  printf 'selected_channel=%s\n' "$SELECTED_CHANNEL"
+  printf 'selected_by=%s\n' "$SELECTED_BY"
+  printf 'owner_override=%s\n' "${OWNER_OVERRIDE:-false}"
+  printf 'tool_recommendation=%s\n' "${TOOL_RECOMMENDATION:-not-run}"
   printf 'built_at=%s\n' "$BUILD_DATE"
   printf 'librechat_revision=%s\n' "$LIBRECHAT_REVISION"
   printf 'future_engine_revision=%s\n' "$ENGINE_REVISION"
@@ -176,6 +225,7 @@ MANIFEST_TMP="$RELEASE_ROOT/.$RELEASE_ID.manifest.tmp"
   printf 'future_engine_image=%s\n' "$ENGINE_IMAGE"
   printf 'librechat_tag=%s\n' "$([[ "$RELEASE_SERVICE" == future-engine ]] && printf reused-active || printf '%s' "$API_TAG")"
   printf 'future_engine_tag=%s\n' "$([[ "$RELEASE_SERVICE" == api ]] && printf reused-active || printf '%s' "$ENGINE_TAG")"
+  printf 'build_seconds=%s\n' "$(( $(date +%s) - BUILD_STARTED_EPOCH ))"
 } > "$MANIFEST_TMP"
 chmod 600 "$ENV_TMP" "$MANIFEST_TMP"
 mv "$ENV_TMP" "$ENV_FILE"

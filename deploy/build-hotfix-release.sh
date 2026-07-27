@@ -13,4 +13,6 @@ case "$SERVICE" in
     ;;
 esac
 
-RELEASE_SERVICE=$SERVICE exec bash "$SCRIPT_DIR/build-release.sh" "$RELEASE_ID"
+bash "$SCRIPT_DIR/verify-hotfix.sh" "$SERVICE"
+SELECTED_CHANNEL=hotfix RELEASE_MODE=hotfix RELEASE_SERVICE=$SERVICE \
+  exec bash "$SCRIPT_DIR/build-release.sh" "$RELEASE_ID"

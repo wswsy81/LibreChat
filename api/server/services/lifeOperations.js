@@ -1,11 +1,8 @@
 const mongoose = require('mongoose');
 const { createHash, randomUUID } = require('crypto');
-const { deleteLifeAccountData } = require('@librechat/api');
+const { deleteLifeAccountData, runtimeApiPolicy } = require('@librechat/api');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const LEASE_MS = 15 * 1000;
-const POLL_INTERVAL_MS = 250;
-const POLL_ATTEMPTS = 10;
 
 const operationSchema = new mongoose.Schema(
   {
@@ -57,7 +54,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function acquireLock(key, ownerRequestId) {
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + LEASE_MS);
+  const expiresAt = new Date(now.getTime() + runtimeApiPolicy().operationLeaseMs);
   const taken = await LifeLock.findOneAndUpdate(
     { key, expiresAt: { $lte: now } },
     { $set: { ownerRequestId, expiresAt }, $inc: { fence: 1 } },
@@ -170,8 +167,9 @@ async function runLifeOperation({
   const lockKey = `life:${operation}:${userId}`;
   const acquired = await acquireLock(lockKey, requestId);
   if (!acquired) {
-    for (let i = 0; i < POLL_ATTEMPTS; i += 1) {
-      await sleep(POLL_INTERVAL_MS);
+    const policy = runtimeApiPolicy();
+    for (let i = 0; i < policy.operationPollAttempts; i += 1) {
+      await sleep(policy.operationPollIntervalMs);
       const settled = await completedReplay({
         userId,
         operation,

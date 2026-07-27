@@ -185,3 +185,4 @@ CLAUDE.md
 .gsd
 codedb.snapshot
 .gstack/
+/runtime-config/

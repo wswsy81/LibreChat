@@ -1,4 +1,6 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
+import { readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
 
 export const FUTURE_ENGINE_IDENTITY_PLACEHOLDER = '{{LIBRECHAT_FUTURE_ENGINE_IDENTITY}}';
 export const FUTURE_ENGINE_IDENTITY_HEADER = 'X-LibreChat-Identity';
@@ -7,6 +9,59 @@ export const FUTURE_ENGINE_IDENTITY_TTL_SECONDS = 60;
 export const ADVISOR_GATEWAY_IDENTITY_PLACEHOLDER = '{{LIBRECHAT_ADVISOR_GATEWAY_IDENTITY}}';
 export const ADVISOR_GATEWAY_IDENTITY_HEADER = 'X-LibreChat-Advisor-Identity';
 export const ADVISOR_GATEWAY_IDENTITY_TTL_SECONDS = 300;
+
+interface RuntimeIdentityPolicy {
+  trustedHeader: string;
+  advisorTrustedHeader: string;
+  audience: string;
+  maxTtlMsByScope: {
+    mcp: number;
+    'life-api': number;
+    'advisor-gateway': number;
+  };
+}
+
+let identityPolicyCache: { fingerprint: string; policy: RuntimeIdentityPolicy } | null = null;
+
+function defaultIdentityPolicy(): RuntimeIdentityPolicy {
+  return {
+    trustedHeader: FUTURE_ENGINE_IDENTITY_HEADER,
+    advisorTrustedHeader: ADVISOR_GATEWAY_IDENTITY_HEADER,
+    audience: FUTURE_ENGINE_IDENTITY_AUDIENCE,
+    maxTtlMsByScope: {
+      mcp: FUTURE_ENGINE_IDENTITY_TTL_SECONDS * 1000,
+      'life-api': FUTURE_ENGINE_IDENTITY_TTL_SECONDS * 1000,
+      'advisor-gateway': ADVISOR_GATEWAY_IDENTITY_TTL_SECONDS * 1000,
+    },
+  };
+}
+
+function runtimeIdentityPolicy(): RuntimeIdentityPolicy {
+  const configDir = process.env.RUNTIME_CONFIG_DIR;
+  if (!configDir) return defaultIdentityPolicy();
+  const file = path.join(configDir, 'security-contract.v1.json');
+  try {
+    const stat = statSync(file);
+    const fingerprint = `${stat.ino}:${stat.mtimeMs}:${stat.size}`;
+    if (identityPolicyCache?.fingerprint === fingerprint) return identityPolicyCache.policy;
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as {
+      identity?: RuntimeIdentityPolicy;
+    };
+    if (!parsed.identity) return defaultIdentityPolicy();
+    identityPolicyCache = { fingerprint, policy: parsed.identity };
+    return parsed.identity;
+  } catch {
+    return identityPolicyCache?.policy ?? defaultIdentityPolicy();
+  }
+}
+
+export function futureEngineIdentityHeader(): string {
+  return runtimeIdentityPolicy().trustedHeader;
+}
+
+export function advisorGatewayIdentityHeader(): string {
+  return runtimeIdentityPolicy().advisorTrustedHeader;
+}
 
 export interface FutureEngineIdentityAssertionOptions {
   principalId: string;
@@ -58,12 +113,18 @@ export function createFutureEngineIdentityAssertion({
   secret,
   scope,
   now = Date.now(),
-  ttlSeconds = FUTURE_ENGINE_IDENTITY_TTL_SECONDS,
+  ttlSeconds,
   jti = randomUUID(),
 }: FutureEngineIdentityAssertionOptions): string {
   const signingSecret = requireSecret(secret);
   const sub = requirePrincipal(principalId);
-  if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > 60) {
+  const policy = runtimeIdentityPolicy();
+  const activeTtlSeconds = ttlSeconds ?? Math.floor(policy.maxTtlMsByScope[scope] / 1000);
+  if (
+    !Number.isInteger(activeTtlSeconds) ||
+    activeTtlSeconds < 1 ||
+    activeTtlSeconds > Math.floor(policy.maxTtlMsByScope[scope] / 1000)
+  ) {
     throw new Error('future-engine identity ttl is invalid');
   }
   if (!/^[A-Za-z0-9._:-]{8,128}$/.test(jti)) {
@@ -74,10 +135,10 @@ export function createFutureEngineIdentityAssertion({
   const payload = {
     v: 1,
     sub,
-    aud: FUTURE_ENGINE_IDENTITY_AUDIENCE,
+    aud: policy.audience,
     scope,
     iat,
-    exp: iat + ttlSeconds,
+    exp: iat + activeTtlSeconds,
     jti,
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -106,12 +167,19 @@ export function createAdvisorGatewayIdentityAssertion({
   userMessageId,
   secret,
   now = Date.now(),
-  ttlSeconds = ADVISOR_GATEWAY_IDENTITY_TTL_SECONDS,
+  ttlSeconds,
   jti = randomUUID(),
 }: AdvisorGatewayIdentityAssertionOptions): string {
   const signingSecret = requireSecret(secret);
   const sub = requirePrincipal(principalId);
-  if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > 600) {
+  const policy = runtimeIdentityPolicy();
+  const maxTtlSeconds = Math.floor(policy.maxTtlMsByScope['advisor-gateway'] / 1000);
+  const activeTtlSeconds = ttlSeconds ?? maxTtlSeconds;
+  if (
+    !Number.isInteger(activeTtlSeconds) ||
+    activeTtlSeconds < 1 ||
+    activeTtlSeconds > maxTtlSeconds
+  ) {
     throw new Error('advisor gateway identity ttl is invalid');
   }
   if (!/^[A-Za-z0-9._:-]{8,128}$/.test(jti)) {
@@ -121,10 +189,10 @@ export function createAdvisorGatewayIdentityAssertion({
   const payload = {
     v: 1,
     sub,
-    aud: FUTURE_ENGINE_IDENTITY_AUDIENCE,
+    aud: policy.audience,
     scope: 'advisor-gateway',
     iat,
-    exp: iat + ttlSeconds,
+    exp: iat + activeTtlSeconds,
     jti,
     advisorId: advisorIdForPrincipal(sub),
     conversationId: requireTurnClaim(conversationId, 'conversationId'),

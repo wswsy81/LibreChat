@@ -6,10 +6,14 @@ const mockFindOne = jest.fn();
 const mockLogger = { error: jest.fn() };
 const mockLifeShareLimiter = jest.fn((_req, _res, next) => next());
 const mockRunLifeOperation = jest.fn();
+const mockApplyRuntimeConfig = jest.fn();
+const mockReadRedactedPolicyBundle = jest.fn();
 
 jest.mock('@librechat/api', () => ({
   ...jest.requireActual('@librechat/api'),
   createLifeEngineClient: jest.fn(() => mockEngine),
+  applyRuntimeConfig: (...args) => mockApplyRuntimeConfig(...args),
+  readRedactedPolicyBundle: (...args) => mockReadRedactedPolicyBundle(...args),
   LifeEngineError: class LifeEngineError extends Error {
     constructor(status, message, payload) {
       super(message);
@@ -65,6 +69,7 @@ function buildApp(user) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockFindOne.mockReturnValue(conversationQuery(null));
+  mockReadRedactedPolicyBundle.mockResolvedValue({ runtime: {}, security: {} });
   mockRunLifeOperation.mockImplementation(async ({ executor, operation }) => ({
     ...(await executor({
       operationId: `operation-${operation}`,
@@ -72,6 +77,53 @@ beforeEach(() => {
     })),
     replayed: false,
   }));
+});
+
+test('ADMIN can read redacted runtime config with active engine SHA summary', async () => {
+  mockEngine.json.mockResolvedValue({
+    policy: { runtime: { sha256: 'a' }, security: { sha256: 'b' } },
+  });
+  const response = await request(buildApp({ id: 'admin-1', role: 'ADMIN' })).get(
+    '/api/life/admin/runtime-config',
+  );
+  expect(response.status).toBe(200);
+  expect(mockReadRedactedPolicyBundle).toHaveBeenCalledTimes(1);
+  expect(mockEngine.json).toHaveBeenCalledWith('/internal/runtime-config');
+});
+
+test('ADMIN runtime config apply delegates validation、backup、atomic reload and rollback', async () => {
+  mockApplyRuntimeConfig.mockResolvedValue({ applied: true, policyVersion: 'runtime-v2' });
+  const document = {
+    schemaVersion: 1,
+    policyVersion: 'runtime-v2',
+    updatedAt: '2026-07-27T00:00:00.000Z',
+    reason: 'owner change',
+  };
+  const response = await request(buildApp({ id: 'admin-1', role: 'ADMIN' }))
+    .post('/api/life/admin/runtime-config/apply')
+    .send({ kind: 'runtime', document });
+  expect(response.status).toBe(200);
+  expect(mockApplyRuntimeConfig).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: 'runtime',
+      document,
+      actorId: 'admin-1',
+    }),
+  );
+});
+
+test('non-ADMIN cannot read or apply runtime config', async () => {
+  const app = buildApp({ id: 'user-1', role: 'USER' });
+
+  const read = await request(app).get('/api/life/admin/runtime-config');
+  const apply = await request(app)
+    .post('/api/life/admin/runtime-config/apply')
+    .send({ kind: 'runtime', document: { schemaVersion: 1 } });
+
+  expect(read.status).toBe(403);
+  expect(apply.status).toBe(403);
+  expect(mockReadRedactedPolicyBundle).not.toHaveBeenCalled();
+  expect(mockApplyRuntimeConfig).not.toHaveBeenCalled();
 });
 
 test('anonymous bootstrap stays on the product home without calling future-engine', async () => {
