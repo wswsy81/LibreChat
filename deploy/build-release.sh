@@ -116,21 +116,43 @@ git_revision() {
 LIBRECHAT_REVISION=${LIBRECHAT_REVISION:-"$(git_revision "$APP_DIR")"}
 ENGINE_REVISION=${ENGINE_REVISION:-"$(git_revision "$ENGINE_DIR")"}
 BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+# 2026-07-27:本地缓存导入/导出要 buildx。生产宿主(docker 29.1.3)没装该插件,
+# 旧版 `docker build` 见到 --cache-to 直接 unknown flag 退出。没有 buildx 时降级成
+# 普通构建:只是慢一点,不影响产物,总比发布通道在服务器上根本跑不起来强。
+BUILDX_AVAILABLE=false
+if "${DOCKER[@]}" buildx version >/dev/null 2>&1; then
+  BUILDX_AVAILABLE=true
+fi
+
+cache_args() {
+  local name=$1
+  $BUILDX_AVAILABLE || return 0
+  printf '%s\n' \
+    "--cache-from" "type=local,src=$BUILD_CACHE_DIR/$name" \
+    "--cache-to" "type=local,dest=$BUILD_CACHE_DIR/$name-next,mode=max"
+}
+
+promote_cache() {
+  local name=$1
+  $BUILDX_AVAILABLE || return 0
+  rm -rf -- "$BUILD_CACHE_DIR/$name"
+  mv "$BUILD_CACHE_DIR/$name-next" "$BUILD_CACHE_DIR/$name"
+}
+
 API_TAG="yiweilife/librechat:$RELEASE_ID"
 ENGINE_TAG="yiweilife/future-engine:$RELEASE_ID"
 
 if [[ "$RELEASE_SERVICE" != future-engine ]]; then
   echo "Building immutable LibreChat release image: $API_TAG"
+  mapfile -t API_CACHE_ARGS < <(cache_args api)
   "${DOCKER[@]}" build \
-    --cache-from "type=local,src=$BUILD_CACHE_DIR/api" \
-    --cache-to "type=local,dest=$BUILD_CACHE_DIR/api-next,mode=max" \
+    ${API_CACHE_ARGS[@]+"${API_CACHE_ARGS[@]}"} \
     --build-arg "BUILD_COMMIT=$LIBRECHAT_REVISION" \
     --build-arg "BUILD_BRANCH=$(git -C "$APP_DIR" branch --show-current 2>/dev/null || printf unknown)" \
     --build-arg "BUILD_DATE=$BUILD_DATE" \
     --tag "$API_TAG" \
     "$APP_DIR"
-  rm -rf -- "$BUILD_CACHE_DIR/api"
-  mv "$BUILD_CACHE_DIR/api-next" "$BUILD_CACHE_DIR/api"
+  promote_cache api
   API_IMAGE=$("${DOCKER[@]}" image inspect --format '{{.Id}}' "$API_TAG")
 else
   API_IMAGE=$(active_image LIBRECHAT_RELEASE_IMAGE)
@@ -138,27 +160,26 @@ fi
 
 if [[ "$RELEASE_SERVICE" != api ]]; then
   if [[ "$RELEASE_MODE" == full ]]; then
+    mapfile -t ENGINE_TEST_CACHE_ARGS < <(cache_args engine-test)
     echo "Running future-engine full test stage"
     "${DOCKER[@]}" build \
       --file "$ENGINE_DIR/Dockerfile" \
       --target test \
-      --cache-from "type=local,src=$BUILD_CACHE_DIR/engine" \
-      --cache-to "type=local,dest=$BUILD_CACHE_DIR/engine-test-next,mode=max" \
+      ${ENGINE_TEST_CACHE_ARGS[@]+"${ENGINE_TEST_CACHE_ARGS[@]}"} \
       "$PROJECT_DIR"
-    rm -rf -- "$BUILD_CACHE_DIR/engine-test-next"
+    $BUILDX_AVAILABLE && rm -rf -- "$BUILD_CACHE_DIR/engine-test-next"
   fi
+  mapfile -t ENGINE_CACHE_ARGS < <(cache_args engine)
   echo "Building immutable future-engine release image: $ENGINE_TAG"
   "${DOCKER[@]}" build \
     --file "$ENGINE_DIR/Dockerfile" \
     --target runtime \
-    --cache-from "type=local,src=$BUILD_CACHE_DIR/engine" \
-    --cache-to "type=local,dest=$BUILD_CACHE_DIR/engine-next,mode=max" \
+    ${ENGINE_CACHE_ARGS[@]+"${ENGINE_CACHE_ARGS[@]}"} \
     --build-arg "BUILD_COMMIT=$ENGINE_REVISION" \
     --build-arg "BUILD_DATE=$BUILD_DATE" \
     --tag "$ENGINE_TAG" \
     "$PROJECT_DIR"
-  rm -rf -- "$BUILD_CACHE_DIR/engine"
-  mv "$BUILD_CACHE_DIR/engine-next" "$BUILD_CACHE_DIR/engine"
+  promote_cache engine
   ENGINE_IMAGE=$("${DOCKER[@]}" image inspect --format '{{.Id}}' "$ENGINE_TAG")
 else
   ENGINE_IMAGE=$(active_image FUTURE_ENGINE_RELEASE_IMAGE)
