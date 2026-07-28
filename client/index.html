@@ -257,6 +257,29 @@
             window.__lcRecoverStaleAssets();
           }
         });
+
+        // Route-level lazy imports replace the initial loading node with an empty React
+        // fallback. Some import failures do not surface as a resource or preload event,
+        // leaving an existing client as a featureless white page. Give that state one
+        // bounded recovery attempt, then leave a visible retry control instead of silence.
+        window.setTimeout(function () {
+          var root = document.getElementById('root');
+          var routeFallback = root && root.querySelector('[data-lc-route-fallback="true"]');
+          if (!root || (!routeFallback && String(root.textContent || '').trim())) {
+            return;
+          }
+          if (window.__lcRecoverStaleAssets()) {
+            return;
+          }
+          root.innerHTML =
+            '<div id="loading-container" role="alert"><div><span id="loading-label">页面没有成功加载</span><button type="button" id="reload-page">重新加载</button></div></div>';
+          var retry = document.getElementById('reload-page');
+          if (retry) {
+            retry.addEventListener('click', function () {
+              window.location.reload();
+            });
+          }
+        }, 10000);
       })();
     </script>
     <script

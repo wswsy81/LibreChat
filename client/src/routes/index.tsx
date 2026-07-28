@@ -41,7 +41,16 @@ const LazyOptionalAuthLayout = lazy(() =>
   import('./Layouts/Auth').then(({ OptionalAuthLayout }) => ({ default: OptionalAuthLayout })),
 );
 
-const RouteFallback = () => <div className="min-h-screen bg-life-paper" aria-busy="true" />;
+const RouteFallback = () => (
+  <div
+    className="flex min-h-screen items-center justify-center bg-life-paper font-life-sans text-life-muted"
+    aria-busy="true"
+    aria-live="polite"
+    data-lc-route-fallback="true"
+  >
+    正在恢复页面...
+  </div>
+);
 
 const EntryRoute = () => (
   <Suspense fallback={<RouteFallback />}>
