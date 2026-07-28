@@ -4,9 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import type { LifeEngineClient, LifeEngineRequestOptions } from './client';
 import { applyRuntimeConfig, readPolicyBundle, readRedactedPolicyBundle } from './runtimeConfig';
-import type { JsonObject, PolicyBundle, PolicyDocument } from './runtimeConfig';
+import type { JsonObject, PolicyBundle, RuntimeConfigDocument } from './runtimeConfig';
 
-function serialize(value: PolicyDocument): string {
+function serialize(value: RuntimeConfigDocument): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
@@ -33,6 +33,14 @@ function fixtureBundle(): PolicyBundle {
       updatedAt: '2026-07-27T00:00:00.000Z',
       reason: 'initial',
     },
+    productCatalog: {
+      schemaVersion: 1,
+      catalogVersion: 'v1',
+      updatedAt: '2026-07-28T00:00:00.000Z',
+      reason: 'initial',
+      activeProductId: 'futureline-current-v1',
+      products: [],
+    },
   };
 }
 
@@ -43,6 +51,7 @@ async function seedConfig(): Promise<{ configDir: string; bundle: PolicyBundle }
   await Promise.all([
     writeFile(path.join(configDir, 'runtime-policy.v1.json'), serialize(bundle.runtime)),
     writeFile(path.join(configDir, 'security-contract.v1.json'), serialize(bundle.security)),
+    writeFile(path.join(configDir, 'product-catalog.v1.json'), serialize(bundle.productCatalog)),
   ]);
   return { configDir, bundle };
 }
@@ -67,6 +76,12 @@ function fakeEngine(configDir: string, failReload = false): LifeEngineClient {
             policyVersion: bundle.security.policyVersion,
             sha256: sha256(serialize(bundle.security)),
           },
+          productCatalog: {
+            catalogVersion: bundle.productCatalog.catalogVersion,
+            sha256: sha256(serialize(bundle.productCatalog)),
+            productId: bundle.productCatalog.activeProductId,
+            snapshotSha256: 'c'.repeat(64),
+          },
         } as T;
       }
       if (requestPath === '/internal/runtime-config/reload') {
@@ -86,6 +101,12 @@ function fakeEngine(configDir: string, failReload = false): LifeEngineClient {
             security: {
               policyVersion: bundle.security.policyVersion,
               sha256: sha256(serialize(bundle.security)),
+            },
+            productCatalog: {
+              catalogVersion: bundle.productCatalog.catalogVersion,
+              sha256: sha256(serialize(bundle.productCatalog)),
+              productId: bundle.productCatalog.activeProductId,
+              snapshotSha256: 'c'.repeat(64),
             },
           },
         } as T;
@@ -141,5 +162,21 @@ describe('runtime config management', () => {
       }),
     ).rejects.toThrow('reload failed');
     expect((await readPolicyBundle(configDir)).runtime.policyVersion).toBe('runtime-v1');
+  });
+
+  it('applies a Product Catalog through the same validate, rollback and health path', async () => {
+    const { configDir, bundle } = await seedConfig();
+    const document = structuredClone(bundle.productCatalog);
+    document.catalogVersion = 'v2';
+    document.reason = 'owner switches product pack';
+    const result = await applyRuntimeConfig({
+      configDir,
+      kind: 'product_catalog',
+      document,
+      actorId: 'admin-1',
+      engine: fakeEngine(configDir),
+    });
+    expect(result.policyVersion).toBe('v2');
+    expect((await readPolicyBundle(configDir)).productCatalog.catalogVersion).toBe('v2');
   });
 });

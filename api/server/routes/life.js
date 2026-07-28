@@ -975,7 +975,7 @@ admin.post('/runtime-config/apply', async (req, res) => {
   const kind = req.body?.kind;
   const document = req.body?.document;
   if (
-    !['runtime', 'security_contract'].includes(kind) ||
+    !['runtime', 'security_contract', 'product_catalog'].includes(kind) ||
     !document ||
     typeof document !== 'object' ||
     Array.isArray(document)

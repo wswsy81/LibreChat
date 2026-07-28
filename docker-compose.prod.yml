@@ -42,6 +42,8 @@ services:
       - FUTURE_ENGINE_IDENTITY_SECRET=${FUTURE_ENGINE_IDENTITY_SECRET}
       - FUTURE_ENGINE_RUNTIME_POLICY_FILE=/app/runtime-config/runtime-policy.v1.json
       - FUTURE_ENGINE_SECURITY_CONTRACT_FILE=/app/runtime-config/security-contract.v1.json
+      - FUTURE_ENGINE_PRODUCT_CATALOG_FILE=/app/runtime-config/product-catalog.v1.json
+      - FUTURE_ENGINE_PRODUCT_SKILL_ROOT=/app/product-skills
       - ADVISOR_GATEWAY_ENABLED=on
       - ADVISOR_INFERENCE_UPSTREAM_ACCOUNT=${ADVISOR_INFERENCE_UPSTREAM_ACCOUNT:-wswhermes}
       - ADVISOR_GATEWAY_API_KEY=${ADVISOR_GATEWAY_API_KEY}
@@ -57,6 +59,7 @@ services:
       - ../future-engine-shim/banks-live:/app/banks-live:ro # 话术库热更新(只读),bank-loader 按 mtime 失效
       - ./runtime-config/runtime-policy.v1.json:/app/runtime-config/runtime-policy.v1.json:ro
       - ./runtime-config/security-contract.v1.json:/app/runtime-config/security-contract.v1.json:ro
+      - ./runtime-config/product-catalog.v1.json:/app/runtime-config/product-catalog.v1.json:ro
     networks:
       trusted-data: {}
       engine-egress:

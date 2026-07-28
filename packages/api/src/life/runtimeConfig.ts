@@ -7,6 +7,7 @@ import type { LifeEngineClient } from './client';
 const POLICY_FILES = {
   runtime: 'runtime-policy.v1.json',
   security_contract: 'security-contract.v1.json',
+  product_catalog: 'product-catalog.v1.json',
 } as const;
 
 export type RuntimeConfigKind = keyof typeof POLICY_FILES;
@@ -24,9 +25,21 @@ export interface PolicyDocument extends JsonObject {
   reason: string;
 }
 
+export interface ProductCatalogDocument extends JsonObject {
+  schemaVersion: number;
+  catalogVersion: string;
+  updatedAt: string;
+  reason: string;
+  activeProductId: string;
+  products: JsonValue[];
+}
+
+export type RuntimeConfigDocument = PolicyDocument | ProductCatalogDocument;
+
 export interface PolicyBundle {
   runtime: PolicyDocument;
   security: PolicyDocument;
+  productCatalog: ProductCatalogDocument;
 }
 
 export interface RuntimeApiPolicy {
@@ -81,8 +94,7 @@ export function runtimeSecurityContracts(
     stanceLevels: ['restrained', 'direct', 'decisive'],
     lifeVisitModes: ['first_entry', 'return_entry', 'continue'],
     houseIds: Array.from({ length: 12 }, (_, index) => `h${index + 1}`),
-    operationIdPattern:
-      '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    operationIdPattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     scenarioIdPattern: '^(?=.{2,64}$)[a-z][a-z0-9]*(?:_[a-z0-9]+)*$',
     policyVersionPattern: '^[a-z0-9-]{1,64}$',
   };
@@ -109,6 +121,12 @@ interface ValidationResult {
   restartRequired: boolean;
   runtime: { policyVersion: string; sha256: string };
   security: { policyVersion: string; sha256: string };
+  productCatalog: {
+    catalogVersion: string;
+    sha256: string;
+    productId: string;
+    snapshotSha256: string;
+  };
 }
 
 interface RuntimeConfigSummary {
@@ -116,6 +134,12 @@ interface RuntimeConfigSummary {
   policy: {
     runtime: { policyVersion: string; sha256: string };
     security: { policyVersion: string; sha256: string };
+    productCatalog: {
+      catalogVersion: string;
+      sha256: string;
+      productId: string;
+      snapshotSha256: string;
+    };
   };
   restartRequired: boolean;
 }
@@ -123,7 +147,7 @@ interface RuntimeConfigSummary {
 export interface ApplyRuntimeConfigOptions {
   configDir: string;
   kind: RuntimeConfigKind;
-  document: PolicyDocument;
+  document: RuntimeConfigDocument;
   actorId: string;
   engine: LifeEngineClient;
   now?: Date;
@@ -143,7 +167,7 @@ function policyPath(configDir: string, kind: RuntimeConfigKind): string {
   return path.join(configDir, POLICY_FILES[kind]);
 }
 
-function serialize(value: PolicyDocument): string {
+function serialize(value: RuntimeConfigDocument): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
@@ -172,12 +196,51 @@ async function readPolicy(file: string, label: string): Promise<PolicyDocument> 
   return parsed;
 }
 
+function assertProductCatalogDocument(
+  value: JsonValue,
+  label: string,
+): asserts value is ProductCatalogDocument {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  if (
+    typeof value.schemaVersion !== 'number' ||
+    typeof value.catalogVersion !== 'string' ||
+    typeof value.updatedAt !== 'string' ||
+    typeof value.reason !== 'string' ||
+    value.reason.trim().length === 0 ||
+    typeof value.activeProductId !== 'string' ||
+    !Array.isArray(value.products)
+  ) {
+    throw new Error(`${label} metadata is invalid`);
+  }
+}
+
+async function readProductCatalog(file: string, label: string): Promise<ProductCatalogDocument> {
+  const parsed = JSON.parse(await readFile(file, 'utf8')) as JsonValue;
+  assertProductCatalogDocument(parsed, label);
+  return parsed;
+}
+
+function assertRuntimeConfigDocument(
+  kind: RuntimeConfigKind,
+  value: JsonValue,
+  label: string,
+): asserts value is RuntimeConfigDocument {
+  if (kind === 'product_catalog') {
+    assertProductCatalogDocument(value, label);
+    return;
+  }
+  assertPolicyDocument(value, label);
+}
+
 export async function readPolicyBundle(configDir: string): Promise<PolicyBundle> {
-  const [runtime, security] = await Promise.all([
+  const [runtime, security, productCatalog] = await Promise.all([
     readPolicy(policyPath(configDir, 'runtime'), 'runtime policy'),
     readPolicy(policyPath(configDir, 'security_contract'), 'security contract'),
+    readProductCatalog(policyPath(configDir, 'product_catalog'), 'product catalog'),
   ]);
-  return { runtime, security };
+  return { runtime, security, productCatalog };
 }
 
 function redactedBundle(bundle: PolicyBundle): PolicyBundle {
@@ -248,11 +311,29 @@ async function restoreBundle(configDir: string, backupDir: string): Promise<void
 function proposedBundle(
   bundle: PolicyBundle,
   kind: RuntimeConfigKind,
-  document: PolicyDocument,
+  document: RuntimeConfigDocument,
 ): PolicyBundle {
-  return kind === 'runtime'
-    ? { runtime: document, security: bundle.security }
-    : { runtime: bundle.runtime, security: document };
+  if (kind === 'runtime') return { ...bundle, runtime: document as PolicyDocument };
+  if (kind === 'security_contract') return { ...bundle, security: document as PolicyDocument };
+  return { ...bundle, productCatalog: document as ProductCatalogDocument };
+}
+
+function documentForKind(bundle: PolicyBundle, kind: RuntimeConfigKind): RuntimeConfigDocument {
+  if (kind === 'runtime') return bundle.runtime;
+  if (kind === 'security_contract') return bundle.security;
+  return bundle.productCatalog;
+}
+
+function versionForKind(kind: RuntimeConfigKind, document: RuntimeConfigDocument): string {
+  return kind === 'product_catalog'
+    ? (document as ProductCatalogDocument).catalogVersion
+    : (document as PolicyDocument).policyVersion;
+}
+
+function validationForKind(validation: ValidationResult, kind: RuntimeConfigKind) {
+  if (kind === 'runtime') return validation.runtime;
+  if (kind === 'security_contract') return validation.security;
+  return validation.productCatalog;
 }
 
 export async function applyRuntimeConfig({
@@ -265,16 +346,16 @@ export async function applyRuntimeConfig({
 }: ApplyRuntimeConfigOptions): Promise<ApplyRuntimeConfigResult> {
   const at = now.toISOString();
   const actor = String(actorId || '').slice(0, 128);
-  assertPolicyDocument(document, `${kind} document`);
+  assertRuntimeConfigDocument(kind, document, `${kind} document`);
   const current = await readPolicyBundle(configDir);
   const proposed = proposedBundle(current, kind, document);
   const validation = await engine.json<ValidationResult>('/internal/runtime-config/validate', {
     method: 'POST',
     body: proposed,
   });
-  const oldDocument = kind === 'runtime' ? current.runtime : current.security;
+  const oldDocument = documentForKind(current, kind);
   const oldSha256 = sha256(serialize(oldDocument));
-  const expected = kind === 'runtime' ? validation.runtime : validation.security;
+  const expected = validationForKind(validation, kind);
   if (oldSha256 === expected.sha256) throw new Error('runtime config has no effective change');
 
   const rollbackId = `${at.replace(/[:.]/g, '-')}-${randomUUID()}`;
@@ -287,12 +368,14 @@ export async function applyRuntimeConfig({
       body: {
         runtimeSha256: validation.runtime.sha256,
         securitySha256: validation.security.sha256,
+        productCatalogSha256: validation.productCatalog.sha256,
       },
     });
     const summary = await engine.json<RuntimeConfigSummary>('/internal/runtime-config');
     if (
       summary.policy.runtime.sha256 !== validation.runtime.sha256 ||
-      summary.policy.security.sha256 !== validation.security.sha256
+      summary.policy.security.sha256 !== validation.security.sha256 ||
+      summary.policy.productCatalog.sha256 !== validation.productCatalog.sha256
     ) {
       throw new Error('runtime config health verification failed');
     }
@@ -304,7 +387,7 @@ export async function applyRuntimeConfig({
       rollbackId,
       oldSha256,
       newSha256: expected.sha256,
-      policyVersion: expected.policyVersion,
+      policyVersion: versionForKind(kind, document),
       restartRequired: validation.restartRequired,
     });
     return {
@@ -313,7 +396,7 @@ export async function applyRuntimeConfig({
       rollbackId,
       oldSha256,
       newSha256: expected.sha256,
-      policyVersion: expected.policyVersion,
+      policyVersion: versionForKind(kind, document),
       restartRequired: validation.restartRequired,
     };
   } catch (error) {
@@ -324,6 +407,7 @@ export async function applyRuntimeConfig({
       body: {
         runtimeSha256: sha256(serialize(restored.runtime)),
         securitySha256: sha256(serialize(restored.security)),
+        productCatalogSha256: sha256(serialize(restored.productCatalog)),
       },
     });
     await appendAudit(configDir, {

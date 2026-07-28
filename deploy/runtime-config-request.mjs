@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 
 const kind = process.argv[2];
-if (!['runtime', 'security_contract'].includes(kind)) {
-  process.stderr.write('kind 必须是 runtime 或 security_contract\n');
+if (!['runtime', 'security_contract', 'product_catalog'].includes(kind)) {
+  process.stderr.write('kind 必须是 runtime、security_contract 或 product_catalog\n');
   process.exit(2);
 }
 const source = readFileSync(0, 'utf8');

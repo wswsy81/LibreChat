@@ -7,9 +7,9 @@ FILE=${2:-}
 BASE_URL=${RUNTIME_CONFIG_BASE_URL:-https://yiweilife.com}
 
 case "$KIND" in
-  runtime|security_contract) ;;
+  runtime|security_contract|product_catalog) ;;
   *)
-    echo "usage: LIBRECHAT_ADMIN_TOKEN=... bash deploy/apply-runtime-config.sh <runtime|security_contract> <json-file>" >&2
+    echo "usage: LIBRECHAT_ADMIN_TOKEN=... bash deploy/apply-runtime-config.sh <runtime|security_contract|product_catalog> <json-file>" >&2
     exit 2
     ;;
 esac
