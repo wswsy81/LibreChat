@@ -37,6 +37,7 @@ import Container from './Container';
 import WebSearch from './WebSearch';
 import ToolCall from './ToolCall';
 import Image from './Image';
+import LifeEntryOptions, { parseLifeEntryCard } from './LifeEntryOptions';
 
 type PartProps = {
   part?: TMessageContentParts;
@@ -123,10 +124,14 @@ const Part = memo(function Part({
         return null;
       }
     }
+    const lifeEntry = isCreatedByUser ? { text, card: null } : parseLifeEntryCard(text);
     return (
-      <Container>
-        <Text text={text} isCreatedByUser={isCreatedByUser} showCursor={showCursor} />
-      </Container>
+      <>
+        <Container>
+          <Text text={lifeEntry.text} isCreatedByUser={isCreatedByUser} showCursor={showCursor} />
+        </Container>
+        {lifeEntry.card && <LifeEntryOptions card={lifeEntry.card} />}
+      </>
     );
   } else if (part.type === ContentTypes.THINK) {
     // 人生设计室:思考过程不展示——"哲学与方法论隐形"(产品哲学九条第3条)。
