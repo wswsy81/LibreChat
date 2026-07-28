@@ -51,6 +51,7 @@ import { buildLangfuseConfig } from '~/langfuse/config';
 import { resolveConfigHeaders } from '~/utils/headers';
 import { applyTestRunHook } from '~/agents/testHook';
 import { isUserProvided } from '~/utils/common';
+import { attachAdvisorRouteProof, prepareAdvisorRoute } from '~/life/route';
 
 /** Expected shape of JSON tool search results */
 interface ToolSearchJsonResult {
@@ -1019,6 +1020,8 @@ export async function createRun({
 
   /** Admin kill switch for the ask tool — see {@link isAskUserQuestionAdminDisabled}. */
   const askToolAdminDisabled = isAskUserQuestionAdminDisabled(appConfig);
+  const advisorRouteProof = await prepareAdvisorRoute({ requestBody, user });
+  let advisorRouteProofAttached = false;
 
   const buildAgentInput = (agent: RunAgent, opts: { isSubagent?: boolean } = {}): AgentInputs => {
     const isSubagent = opts.isSubagent === true;
@@ -1078,6 +1081,9 @@ export async function createRun({
       user: createSafeUser(user),
       body: requestBody,
     });
+    if (attachAdvisorRouteProof(agent.endpoint, llmConfig, advisorRouteProof)) {
+      advisorRouteProofAttached = true;
+    }
 
     /** Resolves issues with new OpenAI usage field */
     if (
@@ -1230,6 +1236,9 @@ export async function createRun({
       agentInput.subagentConfigs = subagentConfigs;
     }
     agentInputs.push(agentInput);
+  }
+  if (advisorRouteProof && !advisorRouteProofAttached) {
+    throw new Error('future-lines advisor product route did not resolve to the polaris agent');
   }
 
   const graphConfig: RunConfig['graphConfig'] = {
