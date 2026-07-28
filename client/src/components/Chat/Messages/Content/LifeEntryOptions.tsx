@@ -10,22 +10,53 @@ export type LifeEntryCard = {
   escape: string;
 };
 
+const ENTRY_OPTIONS_HEADER = '可以先选一句最像你的：';
+
+function validCard(value: Partial<LifeEntryCard>): value is LifeEntryCard {
+  return (
+    value.version === 1 &&
+    typeof value.entryHouse === 'string' &&
+    Array.isArray(value.options) &&
+    value.options.length === 3 &&
+    value.options.every(
+      (option) => typeof option?.id === 'string' && typeof option?.text === 'string',
+    ) &&
+    typeof value.escape === 'string'
+  );
+}
+
+function parseReadableEntryOptions(text: string): { text: string; card: LifeEntryCard | null } {
+  const match = new RegExp(
+    `\\n{2}${ENTRY_OPTIONS_HEADER}\\n- ([^\\r\\n]+)\\n- ([^\\r\\n]+)\\n- ([^\\r\\n]+)\\n([^\\r\\n]+)\\s*$`,
+    'u',
+  ).exec(text);
+  if (!match) return { text, card: null };
+  const [, first, second, third, escape] = match;
+  return {
+    text: text.slice(0, match.index).trimEnd(),
+    card: {
+      version: 1,
+      entryHouse: 'server-opening',
+      options: [first, second, third].map((option, index) => ({
+        id: `server-opening-${index + 1}`,
+        text: option,
+      })),
+      escape,
+    },
+  };
+}
+
 export function parseLifeEntryCard(text: string): { text: string; card: LifeEntryCard | null } {
   const match = /<!--life-entry-options:([^\s>]+)-->/u.exec(text);
-  if (!match) return { text, card: null };
-  try {
-    const decoded = JSON.parse(decodeURIComponent(match[1])) as Partial<LifeEntryCard>;
-    const valid = decoded.version === 1
-      && typeof decoded.entryHouse === 'string'
-      && Array.isArray(decoded.options)
-      && decoded.options.length === 3
-      && decoded.options.every((option) => typeof option?.id === 'string' && typeof option?.text === 'string')
-      && typeof decoded.escape === 'string';
-    if (!valid) return { text, card: null };
-    return { text: text.replace(match[0], '').trimEnd(), card: decoded as LifeEntryCard };
-  } catch {
-    return { text, card: null };
+  if (match) {
+    try {
+      const decoded = JSON.parse(decodeURIComponent(match[1])) as Partial<LifeEntryCard>;
+      if (validCard(decoded)) return { text: text.replace(match[0], '').trimEnd(), card: decoded };
+    } catch {
+      // Fall through to the human-readable protocol below.
+    }
   }
+  return parseReadableEntryOptions(text);
 }
 
 export default function LifeEntryOptions({ card }: { card: LifeEntryCard }) {
@@ -48,7 +79,7 @@ export default function LifeEntryOptions({ card }: { card: LifeEntryCard }) {
             type="button"
             disabled={selectedId !== null}
             onClick={() => select(option)}
-            className="min-h-11 border border-border-medium bg-surface-secondary px-3 py-2 text-left text-sm text-text-primary transition-colors hover:border-border-heavy hover:bg-surface-tertiary disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring-primary"
+            className="min-h-11 border border-border-medium bg-surface-secondary px-3 py-2 text-left text-sm text-text-primary transition-colors hover:border-border-heavy hover:bg-surface-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring-primary disabled:cursor-default disabled:opacity-60"
           >
             {option.text}
           </button>
