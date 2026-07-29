@@ -112,6 +112,55 @@ test('ADMIN runtime config apply delegates validation、backup、atomic reload a
   );
 });
 
+test('ADMIN can replay one redacted fixture across published and draft Product Packs', async () => {
+  const body = {
+    sourceProductId: 'archetype-playground-v1',
+    fixtureId: 'deadline-alchemist-card',
+    targetProductIds: ['futureline-current-v1', 'archetype-playground-v1'],
+  };
+  mockEngine.json.mockResolvedValue({
+    schemaVersion: 1,
+    source: { fixture: { id: body.fixtureId, payloadSha256: 'a'.repeat(64) } },
+    targets: body.targetProductIds.map((id) => ({ product: { id }, passed: true })),
+  });
+
+  const response = await request(buildApp({ id: 'admin-1', role: 'ADMIN' }))
+    .post('/api/life/admin/product-runtime/preview')
+    .send(body);
+
+  expect(response.status).toBe(200);
+  expect(response.body.targets).toHaveLength(2);
+  expect(mockEngine.json).toHaveBeenCalledWith('/internal/product-runtime/preview', {
+    method: 'POST',
+    body,
+  });
+});
+
+test('Product Pack preview rejects arbitrary payloads, duplicate targets and non-ADMIN callers', async () => {
+  const admin = buildApp({ id: 'admin-1', role: 'ADMIN' });
+  const invalid = await request(admin)
+    .post('/api/life/admin/product-runtime/preview')
+    .send({
+      sourceProductId: 'archetype-playground-v1',
+      fixtureId: 'deadline-alchemist-card',
+      targetProductIds: ['futureline-current-v1', 'futureline-current-v1'],
+      payload: { profile: 'raw-user-data' },
+    });
+  expect(invalid.status).toBe(422);
+  expect(invalid.body.error.code).toBe('PRODUCT_PREVIEW_REQUEST_INVALID');
+  expect(mockEngine.json).not.toHaveBeenCalled();
+
+  const forbidden = await request(buildApp({ id: 'user-1', role: 'USER' }))
+    .post('/api/life/admin/product-runtime/preview')
+    .send({
+      sourceProductId: 'archetype-playground-v1',
+      fixtureId: 'deadline-alchemist-card',
+      targetProductIds: ['futureline-current-v1'],
+    });
+  expect(forbidden.status).toBe(403);
+  expect(mockEngine.json).not.toHaveBeenCalled();
+});
+
 test('non-ADMIN cannot read or apply runtime config', async () => {
   const app = buildApp({ id: 'user-1', role: 'USER' });
 

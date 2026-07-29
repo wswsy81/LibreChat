@@ -87,6 +87,44 @@ const STANCE_FEEDBACK_FIELDS = [
   'effectiveLevel',
   'stancePolicyVersion',
 ];
+const PRODUCT_PREVIEW_FIELDS = ['sourceProductId', 'fixtureId', 'targetProductIds'];
+const PRODUCT_PREVIEW_ID_PATTERN = /^[a-z][a-z0-9-]{1,63}$/;
+
+function productPreviewBodyOf(req, res) {
+  const raw = req.body;
+  const isObject = Boolean(raw) && typeof raw === 'object' && !Array.isArray(raw);
+  const targetProductIds =
+    isObject && Array.isArray(raw.targetProductIds) ? raw.targetProductIds : [];
+  const invalid =
+    !isObject ||
+    Object.keys(raw).some((field) => !PRODUCT_PREVIEW_FIELDS.includes(field)) ||
+    Object.keys(raw).length !== PRODUCT_PREVIEW_FIELDS.length ||
+    typeof raw.sourceProductId !== 'string' ||
+    !PRODUCT_PREVIEW_ID_PATTERN.test(raw.sourceProductId) ||
+    typeof raw.fixtureId !== 'string' ||
+    !PRODUCT_PREVIEW_ID_PATTERN.test(raw.fixtureId) ||
+    targetProductIds.length < 1 ||
+    targetProductIds.length > 4 ||
+    targetProductIds.some(
+      (productId) => typeof productId !== 'string' || !PRODUCT_PREVIEW_ID_PATTERN.test(productId),
+    ) ||
+    new Set(targetProductIds).size !== targetProductIds.length;
+  if (invalid) {
+    res.status(422).json({
+      error: {
+        code: 'PRODUCT_PREVIEW_REQUEST_INVALID',
+        message: '产品包预览请求无效',
+        retryable: false,
+      },
+    });
+    return null;
+  }
+  return {
+    sourceProductId: raw.sourceProductId,
+    fixtureId: raw.fixtureId,
+    targetProductIds,
+  };
+}
 
 /**
  * 只做类型边界:枚举、整数版本、字段白名单与 engine 的
@@ -967,6 +1005,21 @@ admin.get('/runtime-config', async (_req, res) => {
     return res.status(503).json({
       error: { code: 'RUNTIME_CONFIG_UNAVAILABLE', message: '运行配置暂时不可读取' },
     });
+  }
+});
+
+admin.post('/product-runtime/preview', async (req, res) => {
+  const body = productPreviewBodyOf(req, res);
+  if (!body) return;
+  try {
+    return res.json(
+      await engine.json('/internal/product-runtime/preview', {
+        method: 'POST',
+        body,
+      }),
+    );
+  } catch (error) {
+    return engineError(res, error);
   }
 });
 
