@@ -3,8 +3,11 @@ const mongoose = require('mongoose');
 const { createHmac } = require('crypto');
 const path = require('path');
 const {
+  applyRulesConfig,
   applyRuntimeConfig,
   createLifeEngineClient,
+  listRulesBackups,
+  restoreRulesBackup,
   LifeEngineError,
   formatLifeInviteCode,
   generateLifeInviteCode,
@@ -1055,6 +1058,71 @@ admin.post('/product-runtime/preview', async (req, res) => {
     );
   } catch (error) {
     return engineError(res, error);
+  }
+});
+
+// 规矩表:页面读到的就是配置本身;保存前先过引擎校验,保存后要求引擎 reload 并核对 SHA。
+admin.get('/rules', async (_req, res) => {
+  try {
+    return res.json(await engine.json('/internal/rules'));
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+admin.get('/rules/backups', async (_req, res) => {
+  try {
+    return res.json({ backups: await listRulesBackups(runtimeConfigDir) });
+  } catch (error) {
+    logger.error('[life][admin] rules backups read failed', error);
+    return res.status(503).json({
+      error: { code: 'RULES_BACKUPS_UNAVAILABLE', message: '回滚点暂时不可读取' },
+    });
+  }
+});
+
+admin.put('/rules', async (req, res) => {
+  try {
+    const result = await applyRulesConfig({
+      configDir: runtimeConfigDir,
+      document: req.body,
+      actorId: userId(req),
+      engine,
+    });
+    logger.info(`[life][admin] rules applied by ${userId(req)}`, {
+      sha256: result.sha256,
+      ruleCount: result.ruleCount,
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error('[life][admin] rules apply failed', error);
+    return res.status(422).json({
+      error: { code: 'RULES_APPLY_FAILED', message: error.message, retryable: false },
+    });
+  }
+});
+
+admin.post('/rules/rollback', async (req, res) => {
+  const rollbackId = req.body?.rollbackId;
+  if (typeof rollbackId !== 'string' || !rollbackId.length) {
+    return res.status(422).json({
+      error: { code: 'RULES_ROLLBACK_INVALID', message: '回滚点标识无效', retryable: false },
+    });
+  }
+  try {
+    const result = await restoreRulesBackup({
+      configDir: runtimeConfigDir,
+      rollbackId,
+      actorId: userId(req),
+      engine,
+    });
+    logger.info(`[life][admin] rules rolled back by ${userId(req)}`, { rollbackId });
+    return res.json(result);
+  } catch (error) {
+    logger.error('[life][admin] rules rollback failed', error);
+    return res.status(422).json({
+      error: { code: 'RULES_ROLLBACK_FAILED', message: error.message, retryable: false },
+    });
   }
 });
 

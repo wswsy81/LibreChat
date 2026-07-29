@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthContext } from '~/hooks/AuthContext';
 import ObservabilityPanel from '../components/admin/ObservabilityPanel';
+import RulesPanel from '../components/admin/RulesPanel';
 import InvitesPanel from '../components/admin/InvitesPanel';
 import StatusPanel from '../components/admin/StatusPanel';
 import UsersPanel from '../components/admin/UsersPanel';
@@ -18,6 +19,7 @@ const TABS = [
   { key: 'copy', label: '文案' },
   { key: 'status', label: '状态' },
   { key: 'observability', label: '观测' },
+  { key: 'rules', label: '规矩' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -48,8 +50,8 @@ export default function AdminRoute() {
         运营台
       </h1>
       <p className="mt-2 text-life-sm text-text-secondary">
-        邀请、用户、文案、状态、观测。这里看不到任何人的对话与存档——存档只属于用户自己;
-        观测也只有按产品快照与实验聚合的元数据。
+        邀请、用户、文案、状态、观测、规矩。这里看不到任何人的对话与存档——存档只属于用户自己;
+        观测只有按产品快照与实验聚合的元数据;规矩就是运行中的那份配置,改完即刻生效。
       </p>
 
       <div role="tablist" className="mt-6 flex gap-1 border-b border-border-light">
@@ -77,6 +79,7 @@ export default function AdminRoute() {
         {tab === 'copy' && <CopyPanel />}
         {tab === 'status' && <StatusPanel />}
         {tab === 'observability' && <ObservabilityPanel />}
+        {tab === 'rules' && <RulesPanel />}
       </div>
     </main>
   );

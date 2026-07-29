@@ -214,6 +214,51 @@ test('ADMIN 观测看板只拿到聚合结果，查询参数越界不打 engine'
   expect(mockEngine.json).not.toHaveBeenCalled();
 });
 
+test('ADMIN 规矩页：读、存、回滚各自走引擎校验，非 ADMIN 一律拒绝', async () => {
+  const admin = buildApp({ id: 'admin-1', role: 'ADMIN' });
+  mockEngine.json.mockResolvedValue({
+    schemaVersion: 1,
+    configurationVersion: 'v1',
+    updatedAt: null,
+    sha256: 'a'.repeat(64),
+    rules: [
+      {
+        id: 'astrology-terms',
+        status: 'published',
+        severity: 'M',
+        targets: ['artifact.narrative'],
+        kind: 'forbid_any',
+        params: { terms: ['八字'], patterns: [] },
+        action: 'reject',
+      },
+    ],
+  });
+
+  const read = await request(admin).get('/api/life/admin/rules');
+  expect(read.status).toBe(200);
+  expect(read.body.rules).toHaveLength(1);
+  expect(mockEngine.json).toHaveBeenCalledWith('/internal/rules');
+
+  const forbiddenRead = await request(buildApp({ id: 'user-1', role: 'USER' })).get(
+    '/api/life/admin/rules',
+  );
+  expect(forbiddenRead.status).toBe(403);
+
+  const forbiddenWrite = await request(buildApp({ id: 'user-1', role: 'USER' }))
+    .put('/api/life/admin/rules')
+    .send({ schemaVersion: 1, configurationVersion: 'v1', rules: [] });
+  expect(forbiddenWrite.status).toBe(403);
+
+  const forbiddenRollback = await request(buildApp({ id: 'user-1', role: 'USER' }))
+    .post('/api/life/admin/rules/rollback')
+    .send({ rollbackId: 'x'.repeat(24) });
+  expect(forbiddenRollback.status).toBe(403);
+
+  const badRollback = await request(admin).post('/api/life/admin/rules/rollback').send({});
+  expect(badRollback.status).toBe(422);
+  expect(badRollback.body.error.code).toBe('RULES_ROLLBACK_INVALID');
+});
+
 test('non-ADMIN cannot read or apply runtime config', async () => {
   const app = buildApp({ id: 'user-1', role: 'USER' });
 
