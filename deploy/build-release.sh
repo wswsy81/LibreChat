@@ -103,8 +103,12 @@ trap cleanup_build_context EXIT
 
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
+  PRIV=()
 else
   DOCKER=(sudo docker)
+  # buildx 的 --cache-to 由 docker 同权限写盘;轮转缓存必须用同一权限,
+  # 否则 sudo 写出的 root 缓存会让后面的 rm -rf 在 set -e 下直接中断发布。
+  PRIV=(sudo)
 fi
 install -d -m 700 "$BUILD_CACHE_DIR"
 
@@ -135,8 +139,8 @@ cache_args() {
 promote_cache() {
   local name=$1
   $BUILDX_AVAILABLE || return 0
-  rm -rf -- "$BUILD_CACHE_DIR/$name"
-  mv "$BUILD_CACHE_DIR/$name-next" "$BUILD_CACHE_DIR/$name"
+  ${PRIV[@]+"${PRIV[@]}"} rm -rf -- "$BUILD_CACHE_DIR/$name"
+  ${PRIV[@]+"${PRIV[@]}"} mv "$BUILD_CACHE_DIR/$name-next" "$BUILD_CACHE_DIR/$name"
 }
 
 API_TAG="yiweilife/librechat:$RELEASE_ID"
@@ -167,7 +171,7 @@ if [[ "$RELEASE_SERVICE" != api ]]; then
       --target test \
       ${ENGINE_TEST_CACHE_ARGS[@]+"${ENGINE_TEST_CACHE_ARGS[@]}"} \
       "$PROJECT_DIR"
-    $BUILDX_AVAILABLE && rm -rf -- "$BUILD_CACHE_DIR/engine-test-next"
+    $BUILDX_AVAILABLE && ${PRIV[@]+"${PRIV[@]}"} rm -rf -- "$BUILD_CACHE_DIR/engine-test-next"
   fi
   mapfile -t ENGINE_CACHE_ARGS < <(cache_args engine)
   echo "Building immutable future-engine release image: $ENGINE_TAG"
