@@ -99,7 +99,9 @@ describe('FuturelineProductRunner', () => {
     });
     const paused = await runner.getState('conversation-001');
     expect(paused?.pendingInterrupt).toEqual({ kind: 'choice', nodeId: 'choose' });
-    const checkpoint = await checkpointer.getTuple({ configurable: { thread_id: 'conversation-001' } });
+    const checkpoint = await checkpointer.getTuple({
+      configurable: { thread_id: 'conversation-001' },
+    });
     expect(checkpoint?.metadata).toMatchObject({
       futureline: {
         runId: 'run-001',
@@ -123,8 +125,17 @@ describe('FuturelineProductRunner', () => {
 
   it('rejects a resume when a newer catalog snapshot tries to reinterpret a paused run', async () => {
     const checkpointer = new MemorySaver();
-    const first = new FuturelineProductRunner({ flow, snapshot: snapshot(), actions: actions(), checkpointer });
-    await first.invoke({ runId: 'run-002', conversationId: 'conversation-002', principalId: 'principal-002' });
+    const first = new FuturelineProductRunner({
+      flow,
+      snapshot: snapshot(),
+      actions: actions(),
+      checkpointer,
+    });
+    await first.invoke({
+      runId: 'run-002',
+      conversationId: 'conversation-002',
+      principalId: 'principal-002',
+    });
     const newerCatalog = new FuturelineProductRunner({
       flow,
       snapshot: snapshot('2026-07-29T00:00:00.000Z'),
@@ -132,39 +143,97 @@ describe('FuturelineProductRunner', () => {
       checkpointer,
     });
 
-    await expect(newerCatalog.resume('conversation-002', 'love')).rejects.toBeInstanceOf(ProductSnapshotMismatchError);
+    await expect(newerCatalog.resume('conversation-002', 'love')).rejects.toBeInstanceOf(
+      ProductSnapshotMismatchError,
+    );
+  });
+
+  it('rejects resume when only the frozen experiment variant changes', async () => {
+    const checkpointer = new MemorySaver();
+    const base = snapshot();
+    const control = createProductSnapshot({
+      ...base,
+      experiment: { id: 'advisor-pack-rollout-v1', variant: 'control' },
+    });
+    const candidate = createProductSnapshot({
+      ...base,
+      experiment: { id: 'advisor-pack-rollout-v1', variant: 'candidate' },
+    });
+    const first = new FuturelineProductRunner({
+      flow,
+      snapshot: control,
+      actions: actions(),
+      checkpointer,
+    });
+    await first.invoke({
+      runId: 'run-experiment',
+      conversationId: 'conversation-experiment',
+      principalId: 'principal-002',
+    });
+    const reassigned = new FuturelineProductRunner({
+      flow,
+      snapshot: candidate,
+      actions: actions(),
+      checkpointer,
+    });
+    await expect(reassigned.resume('conversation-experiment', 'love')).rejects.toBeInstanceOf(
+      ProductSnapshotMismatchError,
+    );
   });
 
   it('rejects unregistered actions and data scopes before a StateGraph exists', () => {
-    expect(() => new FuturelineProductRunner({
-      flow: { ...flow, entry: 'bad-node', nodes: [{ id: 'bad-node', actionId: 'model.generate' }], edges: [] },
-      snapshot: snapshot(),
-      actions: [],
-    })).toThrow(ProductRuntimeContractError);
+    expect(
+      () =>
+        new FuturelineProductRunner({
+          flow: {
+            ...flow,
+            entry: 'bad-node',
+            nodes: [{ id: 'bad-node', actionId: 'model.generate' }],
+            edges: [],
+          },
+          snapshot: snapshot(),
+          actions: [],
+        }),
+    ).toThrow(ProductRuntimeContractError);
 
-    expect(() => new FuturelineProductRunner({
-      flow: { ...flow, entry: 'read', permissions: [], nodes: [{ id: 'read', actionId: 'collect.material' }], edges: [] },
-      snapshot: snapshot(),
-      actions: actions(),
-    })).toThrow(/exceeds permission/);
+    expect(
+      () =>
+        new FuturelineProductRunner({
+          flow: {
+            ...flow,
+            entry: 'read',
+            permissions: [],
+            nodes: [{ id: 'read', actionId: 'collect.material' }],
+            edges: [],
+          },
+          snapshot: snapshot(),
+          actions: actions(),
+        }),
+    ).toThrow(/exceeds permission/);
   });
 });
 
 describe('Product runtime contracts', () => {
   it('rejects executable fields and unrestricted plugin declarations', () => {
-    expect(() => validateProductFlow({
-      ...flow,
-      nodes: [{ id: 'collect', actionId: 'collect.material', script: 'require(\"child_process\")' }],
-      edges: [],
-    })).toThrow(ProductRuntimeContractError);
+    expect(() =>
+      validateProductFlow({
+        ...flow,
+        nodes: [
+          { id: 'collect', actionId: 'collect.material', script: 'require("child_process")' },
+        ],
+        edges: [],
+      }),
+    ).toThrow(ProductRuntimeContractError);
 
-    expect(() => validateProductPluginManifest({
-      schemaVersion: 1,
-      id: 'dangerous-plugin',
-      version: 'v1',
-      actions: ['tool.invoke'],
-      scopes: ['filesystem.write'],
-    })).toThrow(ProductRuntimeContractError);
+    expect(() =>
+      validateProductPluginManifest({
+        schemaVersion: 1,
+        id: 'dangerous-plugin',
+        version: 'v1',
+        actions: ['tool.invoke'],
+        scopes: ['filesystem.write'],
+      }),
+    ).toThrow(ProductRuntimeContractError);
   });
 
   it('makes an equal snapshot deterministic and retains only declared product inputs', () => {

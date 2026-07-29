@@ -103,6 +103,21 @@ describe('Advisor Product Runner route', () => {
     expect(proof?.headers['X-Futureline-Product-Run']).toMatch(/^advisor-[a-f0-9]{32}$/);
     expect(proof?.headers['X-Futureline-Product-Effect']).toMatch(/^[a-f0-9]{64}$/);
 
+    const fetchImpl = fetchContract();
+    await prepareAdvisorRoute(identity, {
+      enabled: true,
+      engineUrl: 'http://future-engine:8899/',
+      internalToken: 'internal-token',
+      fetchImpl,
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://future-engine:8899/internal/product-runtime/advisor',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ principalId: 'user-1', conversationId: 'conversation-1' }),
+      }),
+    );
+
     const llmConfig = {
       provider: 'openAI',
       streaming: true,
@@ -115,6 +130,26 @@ describe('Advisor Product Runner route', () => {
       Existing: 'kept',
       ...proof?.headers,
     });
+  });
+
+  it('retains experiment assignment in the validated snapshot digest', async () => {
+    const assigned = contract();
+    assigned.snapshot = createProductSnapshot({
+      catalogVersion: 'v1',
+      productId: 'futureline-current-v1',
+      skills: [{ id: 'advisor-dialogue', version: 'v1', sha256: 'a'.repeat(64) }],
+      plugins: [{ id: 'mcp-ui-resource', version: 'v1', sha256: pluginSha256 }],
+      pi: [],
+      experiment: { id: 'advisor-pack-rollout-v1', variant: 'control' },
+      createdAt: '2026-07-28T00:00:00.000Z',
+    });
+    const proof = await prepareAdvisorRoute(identity, {
+      enabled: true,
+      engineUrl: 'http://future-engine',
+      internalToken: 'token',
+      fetchImpl: fetchContract(assigned),
+    });
+    expect(proof?.headers['X-Futureline-Product-Snapshot']).toBe(assigned.snapshot.snapshotId);
   });
 
   it.each(['conversationId', 'messageId', 'parentMessageId'] as const)(

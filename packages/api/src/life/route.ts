@@ -226,8 +226,13 @@ export async function prepareAdvisorRoute(
   routeContract(typeof fetchImpl === 'function', 'fetch is unavailable');
 
   const response = await fetchImpl(`${engineUrl}/internal/product-runtime/advisor`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${internalToken}`, Accept: 'application/json' },
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${internalToken}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ principalId, conversationId }),
     signal: AbortSignal.timeout(options.timeoutMs ?? 2_000),
   });
   routeContract(response.ok, `contract fetch failed with ${response.status}`);
