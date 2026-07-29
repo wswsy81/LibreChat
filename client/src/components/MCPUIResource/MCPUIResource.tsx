@@ -1,5 +1,7 @@
 import React from 'react';
 import { UIResourceRenderer } from '@mcp-ui/client';
+import { sanitizeMCPUIResource } from 'librechat-data-provider';
+import type { UIResource } from 'librechat-data-provider';
 import {
   useMessageContext,
   useOptionalMessagesConversation,
@@ -40,7 +42,19 @@ export function MCPUIResource(props: MCPUIResourceProps) {
     );
   }
 
-  if (!shouldRenderUIResource(uiResource, isLatestMessage)) {
+  let safeResource: UIResource;
+  try {
+    safeResource = sanitizeMCPUIResource(uiResource);
+  } catch (error) {
+    console.error('Invalid MCP UI resource:', error);
+    return (
+      <span className="inline-flex items-center rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-600">
+        {localize('com_ui_ui_resource_error', { 0: resourceId })}
+      </span>
+    );
+  }
+
+  if (!shouldRenderUIResource(safeResource, isLatestMessage)) {
     return null;
   }
 
@@ -48,7 +62,7 @@ export function MCPUIResource(props: MCPUIResourceProps) {
     return (
       <span className="mx-1 inline-block w-full align-middle">
         <UIResourceRenderer
-          resource={uiResource}
+          resource={safeResource}
           onUIAction={async (result) => handleUIAction(result, ask)}
           htmlProps={{
             autoResizeIframe: { width: true, height: true },
@@ -61,7 +75,7 @@ export function MCPUIResource(props: MCPUIResourceProps) {
     console.error('Error rendering UI resource:', error);
     return (
       <span className="inline-flex items-center rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-600">
-        {localize('com_ui_ui_resource_error', { 0: uiResource.name || resourceId })}
+        {localize('com_ui_ui_resource_error', { 0: resourceId })}
       </span>
     );
   }

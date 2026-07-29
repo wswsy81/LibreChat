@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Tools } from 'librechat-data-provider';
+import { Tools, trySanitizeMCPUIResource } from 'librechat-data-provider';
 import { UIResourceRenderer } from '@mcp-ui/client';
 import type { TAttachment, UIResource } from 'librechat-data-provider';
 import { useOptionalMessagesOperations } from '~/Providers';
@@ -121,12 +121,15 @@ export default function ToolCallInfo({
     return input.trim().length > 0;
   }, [input]);
 
-  const uiResources: UIResource[] =
+  const uiResources: UIResource[] = (
     attachments
       ?.filter((attachment) => attachment.type === Tools.ui_resources)
       .flatMap((attachment) => {
         return attachment[Tools.ui_resources] as UIResource[];
-      }) ?? [];
+      }) ?? []
+  )
+    .map(trySanitizeMCPUIResource)
+    .filter((resource): resource is UIResource => Boolean(resource));
 
   return (
     <div className="w-full px-3 py-3.5">

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { assertProductPluginSupportedByHost } from 'librechat-data-provider';
 import type { RunLLMConfig } from '~/types';
 import { mergeHeaders } from '~/utils/headers';
 import {
@@ -164,6 +165,26 @@ function validateSnapshot(value: unknown) {
   return rebuilt;
 }
 
+function validatePluginContracts(value: unknown, snapshot: ReturnType<typeof validateSnapshot>) {
+  routeContract(Array.isArray(value), 'contract.plugins must be an array');
+  routeContract(value.length === snapshot.plugins.length, 'contract.plugins count mismatch');
+  const expected = new Map(
+    snapshot.plugins.map((plugin) => [`${plugin.id}@${plugin.version}`, plugin.sha256]),
+  );
+  const received = new Set<string>();
+  for (const [index, plugin] of value.entries()) {
+    const item = exactKeys(plugin, ['sha256', 'manifest'], `contract.plugins[${index}]`);
+    const sha256 = requiredText(item.sha256, `contract.plugins[${index}].sha256`);
+    routeContract(SHA256_PATTERN.test(sha256), `contract.plugins[${index}].sha256 is invalid`);
+    const manifest = assertProductPluginSupportedByHost(item.manifest);
+    const key = `${manifest.id}@${manifest.version}`;
+    routeContract(!received.has(key), `contract.plugins[${index}] is duplicated`);
+    routeContract(expected.get(key) === sha256, `contract.plugins[${index}] snapshot mismatch`);
+    received.add(key);
+  }
+  routeContract(received.size === expected.size, 'contract.plugins coverage mismatch');
+}
+
 function runIdForTurn(turnId: string): string {
   return `advisor-${createHash('sha256').update(turnId).digest('hex').slice(0, 32)}`;
 }
@@ -212,12 +233,13 @@ export async function prepareAdvisorRoute(
   routeContract(response.ok, `contract fetch failed with ${response.status}`);
   const contract = exactKeys(
     await response.json(),
-    ['schemaVersion', 'flow', 'snapshot'],
+    ['schemaVersion', 'flow', 'snapshot', 'plugins'],
     'contract',
   );
   routeContract(contract.schemaVersion === 1, 'contract.schemaVersion must be 1');
   const flow = validateAdvisorFlow(contract.flow);
   const snapshot = validateSnapshot(contract.snapshot);
+  validatePluginContracts(contract.plugins, snapshot);
   const runner = new FuturelineProductRunner({
     flow,
     snapshot,

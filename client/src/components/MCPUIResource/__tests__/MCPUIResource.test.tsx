@@ -20,6 +20,7 @@ jest.mock('@mcp-ui/client', () => ({
     <div
       data-testid="ui-resource-renderer"
       data-resource-uri={resource?.uri}
+      data-has-blob={String(Object.prototype.hasOwnProperty.call(resource, 'blob'))}
       onClick={() => onUIAction({ action: 'test' })}
     />
   ),
@@ -83,6 +84,7 @@ describe('MCPUIResource', () => {
                   uri: 'ui://test/resource',
                   mimeType: 'text/html',
                   text: '<p>Test Resource</p>',
+                  blob: 'must-not-reach-renderer',
                 },
               ],
             },
@@ -95,6 +97,36 @@ describe('MCPUIResource', () => {
       const renderer = screen.getByTestId('ui-resource-renderer');
       expect(renderer).toBeInTheDocument();
       expect(renderer).toHaveAttribute('data-resource-uri', 'ui://test/resource');
+      expect(renderer).toHaveAttribute('data-has-blob', 'false');
+    });
+
+    it('fails closed before rendering an invalid UI resource payload', () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      currentTestMessages = [
+        {
+          messageId: 'msg123',
+          attachments: [
+            {
+              type: 'ui_resources',
+              ui_resources: [
+                {
+                  resourceId: 'resource-1',
+                  uri: 'ui://test/resource',
+                  mimeType: 'application/json',
+                  text: '{}',
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      renderWithRecoil(<MCPUIResource node={{ properties: { resourceId: 'resource-1' } }} />);
+
+      expect(screen.getByText('Error rendering UI resource: resource-1')).toBeInTheDocument();
+      expect(screen.queryByTestId('ui-resource-renderer')).not.toBeInTheDocument();
+      expect(consoleError).toHaveBeenCalledWith('Invalid MCP UI resource:', expect.any(Error));
+      consoleError.mockRestore();
     });
 
     it('should show not found message when resourceId does not exist', () => {

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { Tools } from 'librechat-data-provider';
+import { sanitizeMCPUIResource, Tools } from 'librechat-data-provider';
 import type { UIResource } from 'librechat-data-provider';
 import type * as t from './types';
 
@@ -189,10 +189,7 @@ export function formatToolContent(
             ? item.resource.text
             : item.resource.uri;
         const resourceId = generateResourceId(contentToHash);
-        const uiResource: UIResource = {
-          ...item.resource,
-          resourceId,
-        };
+        const uiResource: UIResource = sanitizeMCPUIResource({ ...item.resource, resourceId });
         uiResources.push(uiResource);
         resourceText.push(`UI Resource ID: ${resourceId}`);
         resourceText.push(`UI Resource Marker: \\ui{${resourceId}}`);

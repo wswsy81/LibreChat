@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { UIResourceRenderer } from '@mcp-ui/client';
+import { trySanitizeMCPUIResource } from 'librechat-data-provider';
 import type { UIResource } from 'librechat-data-provider';
 import { useOptionalMessagesOperations } from '~/Providers';
 import { handleUIAction } from '~/utils';
@@ -14,6 +15,13 @@ const UIResourceCarousel: React.FC<UIResourceCarouselProps> = React.memo(({ uiRe
   const [isContainerHovered, setIsContainerHovered] = useState(false);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const { ask } = useOptionalMessagesOperations();
+  const safeResources = React.useMemo(
+    () =>
+      uiResources
+        .map(trySanitizeMCPUIResource)
+        .filter((resource): resource is UIResource => Boolean(resource)),
+    [uiResources],
+  );
 
   const handleScroll = React.useCallback(() => {
     if (!scrollContainerRef.current) return;
@@ -47,7 +55,7 @@ const UIResourceCarousel: React.FC<UIResourceCarouselProps> = React.memo(({ uiRe
     }
   }, [handleScroll]);
 
-  if (uiResources.length === 0) {
+  if (safeResources.length === 0) {
     return null;
   }
 
@@ -93,7 +101,7 @@ const UIResourceCarousel: React.FC<UIResourceCarouselProps> = React.memo(({ uiRe
         ref={scrollContainerRef}
         className="hide-scrollbar flex gap-4 overflow-x-auto scroll-smooth"
       >
-        {uiResources.map((uiResource, index) => {
+        {safeResources.map((uiResource, index) => {
           const height = 360;
           const width = 230;
 

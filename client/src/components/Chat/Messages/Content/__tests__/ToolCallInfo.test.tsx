@@ -56,6 +56,12 @@ describe('ToolCallInfo', () => {
   const mockProps = {
     input: '{"test": "input"}',
   };
+  const uiResource = (resourceId: string, text: string) => ({
+    resourceId,
+    uri: `ui://test/${resourceId}`,
+    mimeType: 'text/html',
+    text,
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -63,10 +69,7 @@ describe('ToolCallInfo', () => {
 
   describe('ui_resources from attachments', () => {
     it('should render single ui_resource from attachments', () => {
-      const uiResource = {
-        type: 'text',
-        data: 'Test resource',
-      };
+      const resource = uiResource('resource-1', 'Test resource');
 
       const attachments: TAttachment[] = [
         {
@@ -74,7 +77,7 @@ describe('ToolCallInfo', () => {
           messageId: 'msg123',
           toolCallId: 'tool456',
           conversationId: 'conv789',
-          [Tools.ui_resources]: [uiResource] as any,
+          [Tools.ui_resources]: [resource],
         },
       ];
 
@@ -83,7 +86,7 @@ describe('ToolCallInfo', () => {
       // Should render UIResourceRenderer for single resource
       expect(UIResourceRenderer).toHaveBeenCalledWith(
         expect.objectContaining({
-          resource: uiResource,
+          resource,
           onUIAction: expect.any(Function),
           htmlProps: {
             autoResizeIframe: { width: true, height: true },
@@ -104,10 +107,10 @@ describe('ToolCallInfo', () => {
           toolCallId: 'tool1',
           conversationId: 'conv1',
           [Tools.ui_resources]: [
-            { type: 'text', data: 'Resource 1' },
-            { type: 'text', data: 'Resource 2' },
-            { type: 'text', data: 'Resource 3' },
-          ] as any,
+            uiResource('resource-1', 'Resource 1'),
+            uiResource('resource-2', 'Resource 2'),
+            uiResource('resource-3', 'Resource 3'),
+          ],
         },
       ];
 
@@ -117,9 +120,9 @@ describe('ToolCallInfo', () => {
       expect(UIResourceCarousel).toHaveBeenCalledWith(
         expect.objectContaining({
           uiResources: [
-            { type: 'text', data: 'Resource 1' },
-            { type: 'text', data: 'Resource 2' },
-            { type: 'text', data: 'Resource 3' },
+            uiResource('resource-1', 'Resource 1'),
+            uiResource('resource-2', 'Resource 2'),
+            uiResource('resource-3', 'Resource 3'),
           ],
         }),
         expect.any(Object),
@@ -131,6 +134,30 @@ describe('ToolCallInfo', () => {
 
     it('should handle no attachments', () => {
       render(<ToolCallInfo {...mockProps} output="Some output" />);
+
+      expect(UIResourceRenderer).not.toHaveBeenCalled();
+      expect(UIResourceCarousel).not.toHaveBeenCalled();
+    });
+
+    it('should drop invalid UI resources before selecting a renderer', () => {
+      const attachments: TAttachment[] = [
+        {
+          type: Tools.ui_resources,
+          messageId: 'msg123',
+          toolCallId: 'tool456',
+          conversationId: 'conv789',
+          [Tools.ui_resources]: [
+            {
+              resourceId: 'invalid',
+              uri: 'ui://test/invalid',
+              mimeType: 'application/json',
+              text: '{}',
+            },
+          ],
+        },
+      ];
+
+      render(<ToolCallInfo {...mockProps} attachments={attachments} />);
 
       expect(UIResourceRenderer).not.toHaveBeenCalled();
       expect(UIResourceCarousel).not.toHaveBeenCalled();
@@ -200,7 +227,7 @@ describe('ToolCallInfo', () => {
           messageId: 'msg123',
           toolCallId: 'tool456',
           conversationId: 'conv789',
-          [Tools.ui_resources]: [{ type: 'text', data: 'Test' }] as any,
+          [Tools.ui_resources]: [uiResource('resource-1', 'Test')],
         },
       ];
 
@@ -208,7 +235,7 @@ describe('ToolCallInfo', () => {
 
       expect(UIResourceRenderer).toHaveBeenCalledWith(
         expect.objectContaining({
-          resource: { type: 'text', data: 'Test' },
+          resource: uiResource('resource-1', 'Test'),
         }),
         expect.any(Object),
       );
@@ -241,7 +268,7 @@ describe('ToolCallInfo', () => {
           messageId: 'msg123',
           toolCallId: 'tool456',
           conversationId: 'conv789',
-          [Tools.ui_resources]: [{ type: 'attachment', data: 'From attachments' }] as any,
+          [Tools.ui_resources]: [uiResource('attachment', 'From attachments')],
         },
       ];
 
@@ -259,7 +286,7 @@ describe('ToolCallInfo', () => {
       // Should use attachments, not output
       expect(UIResourceRenderer).toHaveBeenCalledWith(
         expect.objectContaining({
-          resource: { type: 'attachment', data: 'From attachments' },
+          resource: uiResource('attachment', 'From attachments'),
         }),
         expect.any(Object),
       );

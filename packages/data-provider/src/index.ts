@@ -58,3 +58,5 @@ export * from './feedback';
 export * from './parameterSettings';
 /* code-execution sandbox */
 export * from './codeEnvRef';
+/* product plugins */
+export * from './productPlugins';

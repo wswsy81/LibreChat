@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { trySanitizeMCPUIResource } from 'librechat-data-provider';
 import type { UIResource } from 'librechat-data-provider';
 import { useConversationUIResources } from '~/hooks/Messages/useConversationUIResources';
 import UIResourceCarousel from '../Chat/Messages/Content/UIResourceCarousel';
@@ -25,6 +26,8 @@ export function MCPUIResourceCarousel(props: MCPUIResourceCarouselProps) {
 
     return resourceIds
       .map((id) => conversationResourceMap.get(id))
+      .filter((resource): resource is UIResource => Boolean(resource))
+      .map(trySanitizeMCPUIResource)
       .filter((resource): resource is UIResource => Boolean(resource))
       .filter((resource) => shouldRenderUIResource(resource, isLatestMessage));
   }, [props.node.properties, conversationResourceMap, isLatestMessage]);

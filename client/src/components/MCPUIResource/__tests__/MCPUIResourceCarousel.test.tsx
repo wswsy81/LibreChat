@@ -148,6 +148,46 @@ describe('MCPUIResourceCarousel', () => {
   });
 
   describe('error handling', () => {
+    it('filters invalid payloads and does not pass them to the carousel renderer', () => {
+      currentTestMessages = [
+        {
+          messageId: 'msg123',
+          attachments: [
+            {
+              type: 'ui_resources',
+              ui_resources: [
+                {
+                  resourceId: 'valid',
+                  uri: 'ui://test/valid',
+                  mimeType: 'text/html',
+                  text: '<p>valid</p>',
+                },
+                {
+                  resourceId: 'invalid',
+                  uri: 'ui://test/invalid',
+                  mimeType: 'application/json',
+                  text: '{}',
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      renderWithRecoil(
+        <MCPUIResourceCarousel node={{ properties: { resourceIds: ['invalid', 'valid'] } }} />,
+      );
+
+      expect(screen.getByTestId('ui-resource-carousel')).toHaveAttribute(
+        'data-resource-count',
+        '1',
+      );
+      expect(screen.getByTestId('resource-0')).toHaveAttribute(
+        'data-resource-uri',
+        'ui://test/valid',
+      );
+    });
+
     it('should return null when no attachments', () => {
       currentTestMessages = [
         {

@@ -2,6 +2,10 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { appendFile, chmod, copyFile, mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
+import {
+  assertProductPluginSupportedByHost,
+  type ProductPluginContract,
+} from 'librechat-data-provider';
 import type { LifeEngineClient } from './client';
 
 const POLICY_FILES = {
@@ -119,6 +123,7 @@ interface ValidationResult {
   schemaVersion: 1;
   valid: true;
   restartRequired: boolean;
+  plugins: ProductPluginContract[];
   runtime: { policyVersion: string; sha256: string };
   security: { policyVersion: string; sha256: string };
   productCatalog: {
@@ -127,6 +132,34 @@ interface ValidationResult {
     productId: string;
     snapshotSha256: string;
   };
+}
+
+function assertValidationPlugins(value: unknown): asserts value is ProductPluginContract[] {
+  if (!Array.isArray(value)) throw new Error('runtime config plugin preflight is missing');
+  const identities = new Set<string>();
+  for (const [index, item] of value.entries()) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error(`runtime config plugin preflight[${index}] is invalid`);
+    }
+    const keys = Object.keys(item);
+    if (
+      keys.length !== 2 ||
+      !Object.prototype.hasOwnProperty.call(item, 'sha256') ||
+      !Object.prototype.hasOwnProperty.call(item, 'manifest')
+    ) {
+      throw new Error(`runtime config plugin preflight[${index}] fields mismatch`);
+    }
+    const plugin = item as Record<string, unknown>;
+    if (typeof plugin.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(plugin.sha256)) {
+      throw new Error(`runtime config plugin preflight[${index}].sha256 is invalid`);
+    }
+    const manifest = assertProductPluginSupportedByHost(plugin.manifest);
+    const identity = `${manifest.id}@${manifest.version}`;
+    if (identities.has(identity)) {
+      throw new Error(`runtime config plugin preflight contains duplicate ${identity}`);
+    }
+    identities.add(identity);
+  }
 }
 
 interface RuntimeConfigSummary {
@@ -353,6 +386,7 @@ export async function applyRuntimeConfig({
     method: 'POST',
     body: proposed,
   });
+  assertValidationPlugins(validation.plugins);
   const oldDocument = documentForKind(current, kind);
   const oldSha256 = sha256(serialize(oldDocument));
   const expected = validationForKind(validation, kind);

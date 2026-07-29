@@ -256,8 +256,9 @@ describe('formatToolContent', () => {
             type: 'resource',
             resource: {
               uri: 'ui://carousel',
-              mimeType: 'application/json',
-              text: '{"items": []}',
+              mimeType: 'text/html',
+              text: '<p>items</p>',
+              blob: 'must-not-cross-parser-boundary',
             },
           },
         ],
@@ -268,15 +269,16 @@ describe('formatToolContent', () => {
       expect(content).toContain('UI Resource ID:');
       expect(content).toContain('UI Resource Marker: \\ui{');
       expect(content).toContain('Resource URI: ui://carousel');
-      expect(content).toContain('Resource MIME Type: application/json');
+      expect(content).toContain('Resource MIME Type: text/html');
 
       const uiResourceArtifact = artifacts?.ui_resources?.data?.[0];
       expect(uiResourceArtifact).toBeTruthy();
       expect(uiResourceArtifact).toMatchObject({
         uri: 'ui://carousel',
-        mimeType: 'application/json',
-        text: '{"items": []}',
+        mimeType: 'text/html',
+        text: '<p>items</p>',
       });
+      expect(uiResourceArtifact).not.toHaveProperty('blob');
       expect(uiResourceArtifact?.resourceId).toEqual(expect.any(String));
     });
 
@@ -302,6 +304,25 @@ describe('formatToolContent', () => {
       expect(content).not.toContain(html);
       expect(content.length).toBeLessThan(2_000);
       expect(artifacts?.ui_resources?.data?.[0]?.text).toBe(html);
+    });
+
+    it('fails closed when a ui:// resource does not match the registered payload schema', () => {
+      const result: t.MCPToolCallResponse = {
+        content: [
+          {
+            type: 'resource',
+            resource: {
+              uri: 'ui://future-lines/report',
+              mimeType: 'application/json',
+              text: '{}',
+            },
+          },
+        ],
+      };
+
+      expect(() => formatToolContent(result, 'openai')).toThrow(
+        'MCP UI resource.mimeType must be text/html',
+      );
     });
 
     it('should handle regular resources', () => {
@@ -353,8 +374,8 @@ describe('formatToolContent', () => {
             type: 'resource',
             resource: {
               uri: 'ui://button',
-              mimeType: 'application/json',
-              text: '{"label": "Click me"}',
+              mimeType: 'text/html',
+              text: '<button>Click me</button>',
             },
           },
           {
@@ -372,14 +393,14 @@ describe('formatToolContent', () => {
       expect(content).toContain('Some text');
       expect(content).toContain('UI Resource Marker: \\ui{');
       expect(content).toContain('Resource URI: ui://button');
-      expect(content).toContain('Resource MIME Type: application/json');
+      expect(content).toContain('Resource MIME Type: text/html');
       expect(content).toContain('Resource URI: file://data.csv');
 
       const uiResource = artifacts?.ui_resources?.data?.[0];
       expect(uiResource).toMatchObject({
         uri: 'ui://button',
-        mimeType: 'application/json',
-        text: '{"label": "Click me"}',
+        mimeType: 'text/html',
+        text: '<button>Click me</button>',
       });
       expect(uiResource?.resourceId).toEqual(expect.any(String));
     });
@@ -393,8 +414,8 @@ describe('formatToolContent', () => {
             type: 'resource',
             resource: {
               uri: 'ui://graph',
-              mimeType: 'application/json',
-              text: '{"type": "line"}',
+              mimeType: 'text/html',
+              text: '<div>line graph</div>',
             },
           },
         ],
@@ -405,7 +426,7 @@ describe('formatToolContent', () => {
       expect(content).toContain('Content with multimedia');
       expect(content).toContain('UI Resource Marker: \\ui{');
       expect(content).toContain('Resource URI: ui://graph');
-      expect(content).toContain('Resource MIME Type: application/json');
+      expect(content).toContain('Resource MIME Type: text/html');
       expect(artifacts).toEqual({
         content: [
           {
@@ -417,8 +438,8 @@ describe('formatToolContent', () => {
           data: [
             {
               uri: 'ui://graph',
-              mimeType: 'application/json',
-              text: '{"type": "line"}',
+              mimeType: 'text/html',
+              text: '<div>line graph</div>',
               resourceId: expect.any(String),
             },
           ],
@@ -455,8 +476,8 @@ describe('formatToolContent', () => {
             type: 'resource',
             resource: {
               uri: 'ui://chart',
-              mimeType: 'application/json',
-              text: '{"type": "bar"}',
+              mimeType: 'text/html',
+              text: '<div>bar chart</div>',
             },
           },
           {
@@ -478,7 +499,7 @@ describe('formatToolContent', () => {
       expect(content).toContain('UI Resource ID:');
       expect(content).toContain('UI Resource Marker: \\ui{');
       expect(content).toContain('Resource URI: ui://chart');
-      expect(content).toContain('Resource MIME Type: application/json');
+      expect(content).toContain('Resource MIME Type: text/html');
       expect(content).toContain('Resource URI: https://api.example.com/data');
       expect(content).toContain('Conclusion');
       expect(content).toContain('UI Resource Markers Available:');
@@ -497,8 +518,8 @@ describe('formatToolContent', () => {
           data: [
             {
               uri: 'ui://chart',
-              mimeType: 'application/json',
-              text: '{"type": "bar"}',
+              mimeType: 'text/html',
+              text: '<div>bar chart</div>',
               resourceId: expect.any(String),
             },
           ],

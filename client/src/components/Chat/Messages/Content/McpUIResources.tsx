@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Tools } from 'librechat-data-provider';
+import { Tools, trySanitizeMCPUIResource } from 'librechat-data-provider';
 import { UIResourceRenderer } from '@mcp-ui/client';
 import type { UIActionResult } from '@mcp-ui/client';
 import type { TAttachment, UIResource } from 'librechat-data-provider';
@@ -54,6 +54,8 @@ export default function McpUIResources({
       )
       .flatMap((attachment) => attachment[Tools.ui_resources] as UIResource[]) ?? []
   )
+    .map(trySanitizeMCPUIResource)
+    .filter((resource): resource is UIResource => Boolean(resource))
     .filter((resource) => !(resource.resourceId && inlineResourceIds?.has(resource.resourceId)))
     .filter((resource) => shouldRenderUIResource(resource, isLatestMessage));
 

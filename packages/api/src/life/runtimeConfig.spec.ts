@@ -56,7 +56,11 @@ async function seedConfig(): Promise<{ configDir: string; bundle: PolicyBundle }
   return { configDir, bundle };
 }
 
-function fakeEngine(configDir: string, failReload = false): LifeEngineClient {
+function fakeEngine(
+  configDir: string,
+  failReload = false,
+  validationPlugins: unknown[] = [],
+): LifeEngineClient {
   return {
     async json<T extends object>(
       requestPath: string,
@@ -68,6 +72,7 @@ function fakeEngine(configDir: string, failReload = false): LifeEngineClient {
           schemaVersion: 1,
           valid: true,
           restartRequired: false,
+          plugins: validationPlugins,
           runtime: {
             policyVersion: bundle.runtime.policyVersion,
             sha256: sha256(serialize(bundle.runtime)),
@@ -178,5 +183,44 @@ describe('runtime config management', () => {
     });
     expect(result.policyVersion).toBe('v2');
     expect((await readPolicyBundle(configDir)).productCatalog.catalogVersion).toBe('v2');
+  });
+
+  it('rejects a Product Catalog before writing when its primitive is unsupported by this host', async () => {
+    const { configDir, bundle } = await seedConfig();
+    const document = structuredClone(bundle.productCatalog);
+    document.catalogVersion = 'v2';
+    const unsupportedPlugin = {
+      sha256: 'd'.repeat(64),
+      manifest: {
+        schemaVersion: 1,
+        id: 'mcp-ui-resource',
+        version: 'v1',
+        status: 'deployed',
+        kind: 'product_plugin',
+        actions: [],
+        scopes: [],
+        clientPrimitiveId: 'mcp-ui-resource',
+        minHostVersion: '0.8.8',
+        payloadSchema: {
+          schemaVersion: 1,
+          id: 'mcp-ui-resource-payload',
+          fields: [
+            { name: 'uri', type: 'ui_uri', required: true, maxLength: 256 },
+            { name: 'mimeType', type: 'mime_type', required: true, maxLength: 64 },
+            { name: 'text', type: 'html', required: true, maxLength: 200000 },
+          ],
+        },
+      },
+    };
+    await expect(
+      applyRuntimeConfig({
+        configDir,
+        kind: 'product_catalog',
+        document,
+        actorId: 'admin-1',
+        engine: fakeEngine(configDir, false, [unsupportedPlugin]),
+      }),
+    ).rejects.toThrow('requires host 0.8.8');
+    expect((await readPolicyBundle(configDir)).productCatalog.catalogVersion).toBe('v1');
   });
 });

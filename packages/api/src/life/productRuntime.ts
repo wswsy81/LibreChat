@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
 import { Annotation, Command, END, START, StateGraph, interrupt } from '@langchain/langgraph';
+import {
+  validateProductPluginManifest as validateSharedProductPluginManifest,
+  type ProductPluginManifest as SharedProductPluginManifest,
+} from 'librechat-data-provider';
 
 export type ProductRuntimePrimitive = string | number | boolean | null;
 export type ProductRuntimeValue =
@@ -44,15 +48,7 @@ export interface ProductSnapshot {
 
 export interface ProductSnapshotInput extends Omit<ProductSnapshot, 'snapshotId'> {}
 
-export interface ProductPluginManifest {
-  schemaVersion: 1;
-  id: string;
-  version: string;
-  actions: string[];
-  scopes: ProductDataScope[];
-  clientPrimitiveId?: string;
-  minHostVersion?: string;
-}
+export type ProductPluginManifest = SharedProductPluginManifest;
 
 export interface ProductFlowCondition {
   fact: string;
@@ -235,22 +231,13 @@ export function createProductSnapshot(input: ProductSnapshotInput): ProductSnaps
 }
 
 export function validateProductPluginManifest(value: unknown): ProductPluginManifest {
-  const manifest = exactKeys(
-    value,
-    ['schemaVersion', 'id', 'version', 'actions', 'scopes', 'clientPrimitiveId', 'minHostVersion'],
-    'plugin manifest',
-    ['clientPrimitiveId', 'minHostVersion'],
-  );
-  contract(manifest.schemaVersion === 1, 'plugin manifest.schemaVersion must be 1');
-  assertId(manifest.id, 'plugin manifest.id');
-  assertVersion(manifest.version, 'plugin manifest.version');
-  contract(Array.isArray(manifest.actions) && manifest.actions.length > 0, 'plugin manifest.actions is required');
-  for (const actionId of manifest.actions) assertId(actionId, 'plugin manifest.action', ACTION_ID_PATTERN);
-  contract(new Set(manifest.actions).size === manifest.actions.length, 'plugin manifest.actions has duplicates');
-  assertScopes(manifest.scopes, 'plugin manifest.scopes');
-  if (manifest.clientPrimitiveId !== undefined) assertId(manifest.clientPrimitiveId, 'plugin manifest.clientPrimitiveId');
-  if (manifest.minHostVersion !== undefined) assertVersion(manifest.minHostVersion, 'plugin manifest.minHostVersion');
-  return manifest as unknown as ProductPluginManifest;
+  try {
+    return validateSharedProductPluginManifest(value);
+  } catch (error) {
+    throw new ProductRuntimeContractError(
+      error instanceof Error ? error.message : 'plugin manifest is invalid',
+    );
+  }
 }
 
 export function validateProductFlow(value: unknown): ProductFlow {

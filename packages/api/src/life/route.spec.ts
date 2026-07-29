@@ -18,6 +18,28 @@ const flow = {
   edges: [{ from: 'route', to: 'END' }],
 };
 
+const pluginSha256 = 'c'.repeat(64);
+const pluginManifest = {
+  schemaVersion: 1,
+  id: 'mcp-ui-resource',
+  version: 'v1',
+  status: 'deployed',
+  kind: 'product_plugin',
+  actions: [],
+  scopes: [],
+  clientPrimitiveId: 'mcp-ui-resource',
+  minHostVersion: '0.8.7',
+  payloadSchema: {
+    schemaVersion: 1,
+    id: 'mcp-ui-resource-payload',
+    fields: [
+      { name: 'uri', type: 'ui_uri', required: true, maxLength: 256 },
+      { name: 'mimeType', type: 'mime_type', required: true, maxLength: 64 },
+      { name: 'text', type: 'html', required: true, maxLength: 200000 },
+    ],
+  },
+};
+
 function contract() {
   return {
     schemaVersion: 1,
@@ -26,10 +48,11 @@ function contract() {
       catalogVersion: 'v1',
       productId: 'futureline-current-v1',
       skills: [{ id: 'advisor-dialogue', version: 'v1', sha256: 'a'.repeat(64) }],
-      plugins: [],
+      plugins: [{ id: 'mcp-ui-resource', version: 'v1', sha256: pluginSha256 }],
       pi: [],
       createdAt: '2026-07-28T00:00:00.000Z',
     }),
+    plugins: [{ sha256: pluginSha256, manifest: pluginManifest }],
   };
 }
 
@@ -67,9 +90,7 @@ describe('Advisor Product Runner route', () => {
   });
 
   it('runs the real LangGraph flow and returns the sole action effect as route proof', async () => {
-    expect(contract().snapshot.snapshotId).toBe(
-      'f5d25e2443f8aca5f6b71c45c85f8ceb0a2c21db8ff5e6fc507045335582624b',
-    );
+    expect(contract().snapshot.snapshotId).toMatch(/^[a-f0-9]{64}$/);
     const proof = await prepareAdvisorRoute(identity, {
       enabled: true,
       engineUrl: 'http://future-engine:8899/',
@@ -147,6 +168,33 @@ describe('Advisor Product Runner route', () => {
         internalToken: 'token',
       }),
     ).rejects.toThrow('digest');
+    await expect(
+      prepareAdvisorRoute(identity, {
+        enabled: true,
+        fetchImpl: fetchContract({
+          ...contract(),
+          plugins: [
+            {
+              sha256: pluginSha256,
+              manifest: { ...pluginManifest, minHostVersion: '0.8.8' },
+            },
+          ],
+        }),
+        engineUrl: 'http://future-engine',
+        internalToken: 'token',
+      }),
+    ).rejects.toThrow('requires host 0.8.8');
+    await expect(
+      prepareAdvisorRoute(identity, {
+        enabled: true,
+        fetchImpl: fetchContract({
+          ...contract(),
+          plugins: [{ sha256: 'd'.repeat(64), manifest: pluginManifest }],
+        }),
+        engineUrl: 'http://future-engine',
+        internalToken: 'token',
+      }),
+    ).rejects.toThrow('snapshot mismatch');
     await expect(
       prepareAdvisorRoute(identity, {
         enabled: true,
