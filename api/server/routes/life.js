@@ -89,6 +89,9 @@ const STANCE_FEEDBACK_FIELDS = [
 ];
 const PRODUCT_PREVIEW_FIELDS = ['sourceProductId', 'fixtureId', 'targetProductIds'];
 const PRODUCT_PREVIEW_ID_PATTERN = /^[a-z][a-z0-9-]{1,63}$/;
+const PRODUCT_OBSERVABILITY_QUERY_FIELDS = ['windowDays', 'experimentId'];
+const PRODUCT_OBSERVABILITY_ID_PATTERN = /^[a-z][a-z0-9_-]{1,63}$/;
+const PRODUCT_OBSERVABILITY_MAX_WINDOW_DAYS = 90;
 
 function productPreviewBodyOf(req, res) {
   const raw = req.body;
@@ -124,6 +127,38 @@ function productPreviewBodyOf(req, res) {
     fixtureId: raw.fixtureId,
     targetProductIds,
   };
+}
+
+/**
+ * 只做类型边界:窗口是 1-90 的整数天,实验 ID 走与 engine 相同的白名单,
+ * 且只允许这两个查询字段。真相与聚合在 future-engine,这里不放行任意查询。
+ */
+function observabilityQueryOf(req, res) {
+  const raw = req.query || {};
+  const rawWindowDays = raw.windowDays;
+  const rawExperimentId = raw.experimentId;
+  const windowDays = rawWindowDays === undefined ? 30 : Number(rawWindowDays);
+  const invalid =
+    Object.keys(raw).some((field) => !PRODUCT_OBSERVABILITY_QUERY_FIELDS.includes(field)) ||
+    (rawWindowDays !== undefined &&
+      (typeof rawWindowDays !== 'string' || !/^[0-9]{1,3}$/.test(rawWindowDays))) ||
+    !Number.isInteger(windowDays) ||
+    windowDays < 1 ||
+    windowDays > PRODUCT_OBSERVABILITY_MAX_WINDOW_DAYS ||
+    (rawExperimentId !== undefined &&
+      (typeof rawExperimentId !== 'string' ||
+        !PRODUCT_OBSERVABILITY_ID_PATTERN.test(rawExperimentId)));
+  if (invalid) {
+    res.status(422).json({
+      error: {
+        code: 'PRODUCT_OBSERVABILITY_QUERY_INVALID',
+        message: '产品观测查询无效',
+        retryable: false,
+      },
+    });
+    return null;
+  }
+  return { windowDays, experimentId: rawExperimentId };
 }
 
 /**
@@ -1018,6 +1053,20 @@ admin.post('/product-runtime/preview', async (req, res) => {
         body,
       }),
     );
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+admin.get('/product-observability/results', async (req, res) => {
+  const query = observabilityQueryOf(req, res);
+  if (!query) return;
+  const search = new URLSearchParams({ windowDays: String(query.windowDays) });
+  if (query.experimentId !== undefined) {
+    search.set('experimentId', query.experimentId);
+  }
+  try {
+    return res.json(await engine.json(`/internal/product-observability/results?${search}`));
   } catch (error) {
     return engineError(res, error);
   }

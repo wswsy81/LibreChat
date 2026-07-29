@@ -161,6 +161,59 @@ test('Product Pack preview rejects arbitrary payloads, duplicate targets and non
   expect(mockEngine.json).not.toHaveBeenCalled();
 });
 
+test('ADMIN 观测看板只拿到聚合结果，查询参数越界不打 engine', async () => {
+  mockEngine.json.mockResolvedValue({
+    schemaVersion: 1,
+    individualTracesExposed: false,
+    windowDays: 7,
+    groups: [
+      {
+        snapshotId: 'a'.repeat(64),
+        productId: 'futureline-current-v1',
+        experiment: { id: 'advisor-pack-rollout-v1', variant: 'control' },
+        sampleSize: 3,
+        successCount: 3,
+        failureCount: 0,
+      },
+    ],
+  });
+
+  const response = await request(buildApp({ id: 'admin-1', role: 'ADMIN' })).get(
+    '/api/life/admin/product-observability/results?windowDays=7&experimentId=advisor-pack-rollout-v1',
+  );
+
+  expect(response.status).toBe(200);
+  expect(response.body.individualTracesExposed).toBe(false);
+  expect(response.body.groups).toHaveLength(1);
+  expect(mockEngine.json).toHaveBeenCalledWith(
+    '/internal/product-observability/results?windowDays=7&experimentId=advisor-pack-rollout-v1',
+  );
+
+  mockEngine.json.mockClear();
+  const rejectedWindow = await request(buildApp({ id: 'admin-1', role: 'ADMIN' })).get(
+    '/api/life/admin/product-observability/results?windowDays=365',
+  );
+  expect(rejectedWindow.status).toBe(422);
+  expect(rejectedWindow.body.error.code).toBe('PRODUCT_OBSERVABILITY_QUERY_INVALID');
+
+  const rejectedExperiment = await request(buildApp({ id: 'admin-1', role: 'ADMIN' })).get(
+    '/api/life/admin/product-observability/results?experimentId=../private',
+  );
+  expect(rejectedExperiment.status).toBe(422);
+
+  const rejectedField = await request(buildApp({ id: 'admin-1', role: 'ADMIN' })).get(
+    '/api/life/admin/product-observability/results?userId=user-1',
+  );
+  expect(rejectedField.status).toBe(422);
+  expect(mockEngine.json).not.toHaveBeenCalled();
+
+  const forbidden = await request(buildApp({ id: 'user-1', role: 'USER' })).get(
+    '/api/life/admin/product-observability/results',
+  );
+  expect(forbidden.status).toBe(403);
+  expect(mockEngine.json).not.toHaveBeenCalled();
+});
+
 test('non-ADMIN cannot read or apply runtime config', async () => {
   const app = buildApp({ id: 'user-1', role: 'USER' });
 
