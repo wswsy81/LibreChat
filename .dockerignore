@@ -16,3 +16,10 @@ docs
 
 # Ignore all hidden files
 .*
+
+# 发布产物与本地构建缓存绝不进镜像上下文(曾把 2.4G 缓存打进层里,撑爆磁盘)
+.releases
+.rules-backups
+backups
+data-node
+umami-db-data
