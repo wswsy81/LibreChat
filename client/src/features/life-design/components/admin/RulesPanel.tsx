@@ -19,9 +19,9 @@ type Rule = {
 type RulesDocument = {
   schemaVersion: number;
   configurationVersion: string;
-  updatedAt: string | null;
   sha256: string;
   rules: Rule[];
+  [field: string]: unknown;
 };
 
 type Backup = { rollbackId: string; at: string };
@@ -76,17 +76,10 @@ export default function RulesPanel() {
 
   useEffect(() => {
     if (rules.data && !draft) {
-      setDraft(
-        JSON.stringify(
-          {
-            schemaVersion: rules.data.schemaVersion,
-            configurationVersion: rules.data.configurationVersion,
-            rules: rules.data.rules,
-          },
-          null,
-          2,
-        ),
-      );
+      // 草稿必须带上文件里的全部顶层字段(reason/updatedAt 等)，
+      // 只挑几个键会在保存时把配置改瘦，SHA 也就再也回不到原值。
+      const { sha256: _serverSha, ...document } = rules.data;
+      setDraft(JSON.stringify(document, null, 2));
     }
   }, [rules.data, draft]);
 

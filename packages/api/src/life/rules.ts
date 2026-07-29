@@ -119,13 +119,15 @@ export async function listRulesBackups(configDir: string): Promise<RulesBackup[]
   } catch {
     return [];
   }
+  // 回滚点 ID = ISO 时间戳(含大写 T/Z) + UUID;正则必须覆盖全字符集,
+  // 否则列表恒为空、页面上根本看不到回滚按钮。
   return entries
-    .filter((entry) => /^[0-9T:.\-a-f]{20,}$/.test(entry))
+    .filter((entry) => /^\d{4}-\d{2}-\d{2}T[\dA-Za-z-]{10,}$/.test(entry))
     .sort()
     .reverse()
     .map((rollbackId) => ({
       rollbackId,
-      at: rollbackId.slice(0, 19).replace(/-(\d{2})-(\d{2})-(\d{3})Z?$/, ':$1:$2'),
+      at: rollbackId.slice(0, 19).replace(/T(\d{2})-(\d{2})-(\d{2})$/, ' $1:$2:$3'),
     }));
 }
 

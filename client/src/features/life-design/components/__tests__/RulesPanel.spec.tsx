@@ -24,6 +24,7 @@ const rulesDocument = {
   schemaVersion: 1,
   configurationVersion: 'v1',
   updatedAt: '2026-07-29T08:00:00Z',
+  reason: '把写死在代码里的判据搬进配置',
   sha256: 'a'.repeat(64),
   rules: [
     {
@@ -92,6 +93,10 @@ test('保存把整份规矩表 PUT 上去，成功后提示生效条数', async 
   );
   const [, body] = mockPut.mock.calls[0];
   expect(body.rules).toHaveLength(2);
+  // 保存不得把配置改瘦：文件里的其他顶层字段必须原样带回去。
+  expect(body.reason).toBe('把写死在代码里的判据搬进配置');
+  expect(body.updatedAt).toBe('2026-07-29T08:00:00Z');
+  expect(body.sha256).toBeUndefined();
   expect(await screen.findByText(/已生效：2 条规矩/)).toBeTruthy();
 });
 
