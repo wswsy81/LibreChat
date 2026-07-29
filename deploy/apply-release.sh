@@ -19,7 +19,7 @@ CANDIDATE=${1:-}
 }
 
 install -d -m 700 "$RUNTIME_CONFIG_DIR"
-for file in runtime-policy.v1.json security-contract.v1.json; do
+for file in runtime-policy.v1.json security-contract.v1.json product-catalog.v1.json product-experiments.v1.json; do
   if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
     install -m 600 "$ENGINE_DIR/../config/$file" "$RUNTIME_CONFIG_DIR/$file"
   fi

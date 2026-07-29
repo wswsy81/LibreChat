@@ -43,8 +43,13 @@ services:
       - FUTURE_ENGINE_RUNTIME_POLICY_FILE=/app/runtime-config/runtime-policy.v1.json
       - FUTURE_ENGINE_SECURITY_CONTRACT_FILE=/app/runtime-config/security-contract.v1.json
       - FUTURE_ENGINE_PRODUCT_CATALOG_FILE=/app/runtime-config/product-catalog.v1.json
+      - FUTURE_ENGINE_PRODUCT_EXPERIMENTS_FILE=/app/runtime-config/product-experiments.v1.json
       - FUTURE_ENGINE_PRODUCT_SKILL_ROOT=/app/product-skills
+      - FUTURE_ENGINE_PRODUCT_PLUGIN_ROOT=/app/product-plugins
       - ADVISOR_GATEWAY_ENABLED=on
+      # 产品运行时成对开关:必须与 api 的 FUTURELINE_PRODUCT_RUNNER_ENABLED 同时切换,
+      # 只开一侧会让每个回合的 Snapshot proof 对不上而 409 fail-closed。默认 off,先发镜像再单独打开。
+      - ADVISOR_PRODUCT_RUNNER_REQUIRED=${ADVISOR_PRODUCT_RUNNER_REQUIRED:-off}
       - ADVISOR_INFERENCE_UPSTREAM_ACCOUNT=${ADVISOR_INFERENCE_UPSTREAM_ACCOUNT:-wswhermes}
       - ADVISOR_GATEWAY_API_KEY=${ADVISOR_GATEWAY_API_KEY}
       - ADVISOR_EMERGENCY_RESOURCES_JSON=${ADVISOR_EMERGENCY_RESOURCES_JSON:-[]}
@@ -60,6 +65,7 @@ services:
       - ./runtime-config/runtime-policy.v1.json:/app/runtime-config/runtime-policy.v1.json:ro
       - ./runtime-config/security-contract.v1.json:/app/runtime-config/security-contract.v1.json:ro
       - ./runtime-config/product-catalog.v1.json:/app/runtime-config/product-catalog.v1.json:ro
+      - ./runtime-config/product-experiments.v1.json:/app/runtime-config/product-experiments.v1.json:ro
     networks:
       trusted-data: {}
       engine-egress:
@@ -93,6 +99,8 @@ services:
       - FUTURE_ENGINE_INTERNAL_TOKEN=${FUTURE_ENGINE_INTERNAL_TOKEN}
       - FUTURE_ENGINE_IDENTITY_SECRET=${FUTURE_ENGINE_IDENTITY_SECRET}
       - ADVISOR_GATEWAY_API_KEY=${ADVISOR_GATEWAY_API_KEY}
+      # 与 future-engine 的 ADVISOR_PRODUCT_RUNNER_REQUIRED 成对,必须同时切换。
+      - FUTURELINE_PRODUCT_RUNNER_ENABLED=${FUTURELINE_PRODUCT_RUNNER_ENABLED:-off}
       - RUNTIME_CONFIG_DIR=/app/runtime-config
       - MONGO_URI=mongodb://librechat:${MONGO_APP_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat
     volumes:
