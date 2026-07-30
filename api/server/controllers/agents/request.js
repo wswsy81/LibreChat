@@ -11,7 +11,9 @@ const {
   decrementPendingRequest,
   sanitizeMessageForTransmit,
   checkAndIncrementPendingRequest,
+  deriveChatConversationId,
   isUnpersistedPreliminaryParent,
+  resolveChatSubmissionIdentity,
 } = require('@librechat/api');
 const { disposeClient, clientRegistry, requestDataMap } = require('~/server/cleanup');
 const {
@@ -182,6 +184,53 @@ function rejectPreliminaryParentMessageId(res) {
   });
 }
 
+function isReusableSubmissionJob(job, { userId, conversationId, identity }) {
+  if (!job || !identity || !['running', 'requires_action', 'complete'].includes(job.status)) {
+    return false;
+  }
+
+  const metadata = job.metadata;
+  return (
+    metadata?.userId === userId &&
+    metadata?.conversationId === conversationId &&
+    metadata?.userMessage?.messageId === identity.userMessageId &&
+    metadata?.responseMessageId === identity.responseMessageId
+  );
+}
+
+const startingSubmissionKeys = new Set();
+
+function releaseStartingSubmission(submissionKey) {
+  if (submissionKey) {
+    startingSubmissionKeys.delete(submissionKey);
+  }
+}
+
+function rejectStartingSubmission(res) {
+  return res.status(503).json({
+    code: 'SERVER_NOT_READY',
+    error: 'The matching chat submission is still starting. Please retry.',
+  });
+}
+
+function isFreshChatSubmission({
+  isRegenerate,
+  isContinued,
+  editedContent,
+  overrideConvoId,
+  overrideUserMessageId,
+  overrideParentMessageId,
+}) {
+  return (
+    !isRegenerate &&
+    !isContinued &&
+    editedContent == null &&
+    !overrideConvoId &&
+    !overrideUserMessageId &&
+    !overrideParentMessageId
+  );
+}
+
 /**
  * Resumable Agent Controller - Generation runs independently of HTTP connection.
  * Returns streamId immediately, client subscribes separately via SSE.
@@ -195,11 +244,21 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
     isContinued = false,
     editedContent = null,
     parentMessageId = null,
+    overrideConvoId = null,
+    overrideUserMessageId = null,
     overrideParentMessageId = null,
     responseMessageId: editedResponseMessageId = null,
   } = req.body;
 
   const userId = req.user.id;
+  const freshSubmission = isFreshChatSubmission({
+    isRegenerate,
+    isContinued,
+    editedContent,
+    overrideConvoId,
+    overrideUserMessageId,
+    overrideParentMessageId,
+  });
 
   if (
     await isUnpersistedPreliminaryParent({
@@ -212,29 +271,109 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
     return rejectPreliminaryParentMessageId(res);
   }
 
+  // Generate conversationId upfront if not provided - streamId === conversationId always
+  // Treat "new" as a placeholder that needs a real UUID (frontend may send "new" for new convos)
+  const isNewConvo = !reqConversationId || reqConversationId === 'new';
+  const stableNewConversationId =
+    isNewConvo && freshSubmission
+      ? deriveChatConversationId({ userId, clientMessageId: req.body.messageId })
+      : null;
+  const conversationId = isNewConvo
+    ? (stableNewConversationId ?? crypto.randomUUID())
+    : reqConversationId;
+  const streamId = conversationId;
+  req.body.conversationId = conversationId;
+  let resolvedResponseMessageId = editedResponseMessageId;
+  let submissionIdentity = null;
+  let startingSubmissionKey = null;
+
+  try {
+    if (freshSubmission) {
+      submissionIdentity = await resolveChatSubmissionIdentity({
+        input: {
+          userId,
+          conversationId,
+          parentMessageId,
+          text,
+          endpoint: endpointOption?.endpoint,
+          endpointType: endpointOption?.endpointType ?? req.body?.endpointType,
+          agentId: endpointOption?.agent_id ?? req.body?.agent_id,
+          model:
+            endpointOption?.modelOptions?.model ??
+            endpointOption?.model_parameters?.model ??
+            req.body?.model,
+          spec: endpointOption?.spec ?? req.body?.spec,
+          promptPrefix: endpointOption?.promptPrefix ?? req.body?.promptPrefix,
+          ephemeralAgent: req.body?.ephemeralAgent,
+          addedConvo: req.body?.addedConvo,
+          modelParameters: endpointOption?.model_parameters ?? req.body?.model_parameters,
+          files: req.body?.files,
+          quotes: req.body?.quotes,
+          manualSkills: req.body?.manualSkills,
+          alwaysAppliedSkills: req.body?.alwaysAppliedSkills,
+          endpointOption,
+          isTemporary: req.body?.isTemporary,
+          timezone: req.body?.timezone,
+        },
+        getMessages,
+      });
+      req.body.messageId = submissionIdentity.userMessageId;
+      req.body.overrideUserMessageId = submissionIdentity.userMessageId;
+      req.body.responseMessageId = submissionIdentity.responseMessageId;
+      resolvedResponseMessageId = submissionIdentity.responseMessageId;
+      logger.debug('[ResumableAgentController] Resolved stable submission identity', {
+        conversationId,
+        source: submissionIdentity.source,
+        submissionKey: submissionIdentity.submissionKey.slice(0, 12),
+      });
+
+      const existingJob = await GenerationJobManager.getJob(streamId);
+      if (
+        isReusableSubmissionJob(existingJob, {
+          userId,
+          conversationId,
+          identity: submissionIdentity,
+        })
+      ) {
+        logger.warn('[ResumableAgentController] Reusing idempotent submission job', {
+          conversationId,
+          status: existingJob.status,
+          submissionKey: submissionIdentity.submissionKey.slice(0, 12),
+        });
+        return res.json({ streamId, conversationId, status: 'started', reused: true });
+      }
+
+      if (startingSubmissionKeys.has(submissionIdentity.submissionKey)) {
+        return rejectStartingSubmission(res);
+      }
+      startingSubmissionKeys.add(submissionIdentity.submissionKey);
+      startingSubmissionKey = submissionIdentity.submissionKey;
+    }
+  } catch (error) {
+    logger.error('[ResumableAgentController] Failed to resolve submission identity:', error);
+    return res.status(500).json({ error: 'Failed to resolve submission identity' });
+  }
+
   /** When to generate the conversation title. `immediate` (default) fires title
    *  generation in parallel with the response, from the user's first message;
    *  `final` defers it until the full response completes (legacy behavior).
    *  Resolved from the agent's actual endpoint once the client is initialized. */
   let titleTiming = 'immediate';
 
-  const { allowed, pendingRequests, limit } = await checkAndIncrementPendingRequest(userId);
-  if (!allowed) {
-    const violationInfo = getViolationInfo(pendingRequests, limit);
-    await logViolation(req, res, ViolationTypes.CONCURRENT, violationInfo, violationInfo.score);
-    return res.status(429).json(violationInfo);
-  }
-
-  // Generate conversationId upfront if not provided - streamId === conversationId always
-  // Treat "new" as a placeholder that needs a real UUID (frontend may send "new" for new convos)
-  const isNewConvo = !reqConversationId || reqConversationId === 'new';
-  const conversationId = isNewConvo ? crypto.randomUUID() : reqConversationId;
-  const streamId = conversationId;
-  req.body.conversationId = conversationId;
-
   let client = null;
+  let pendingRequestCounted = false;
 
   try {
+    const { allowed, pendingRequests, limit } = await checkAndIncrementPendingRequest(userId);
+    if (!allowed) {
+      releaseStartingSubmission(startingSubmissionKey);
+      startingSubmissionKey = null;
+      const violationInfo = getViolationInfo(pendingRequests, limit);
+      await logViolation(req, res, ViolationTypes.CONCURRENT, violationInfo, violationInfo.score);
+      return res.status(429).json(violationInfo);
+    }
+    pendingRequestCounted = true;
+
     logger.debug(`[ResumableAgentController] Creating job`, {
       streamId,
       conversationId,
@@ -246,12 +385,6 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
     const jobCreatedAt = job.createdAt; // Capture creation time to detect job replacement
     req._resumableStreamId = streamId;
     getMCPRequestContext(req, undefined, { cleanupOnResponse: false });
-
-    // Send JSON response IMMEDIATELY so client can connect to SSE stream
-    // This is critical: tool loading (MCP OAuth) may emit events that the client needs to receive
-    res.json({ streamId, conversationId, status: 'started' });
-
-    await attachConversationCreatedAt(req, { userId, conversationId, isNewConvo });
 
     const endpointIconURL = getEndpointIconURL(req, endpointOption);
     const responseModel = getAgentResponseModel(req, endpointOption);
@@ -271,6 +404,14 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       responseMessageId: preliminaryResponseMessageId,
       userMessage: preliminaryUserMessage,
     });
+    releaseStartingSubmission(startingSubmissionKey);
+    startingSubmissionKey = null;
+
+    // Publish the stable turn identity before the client can remount and replay the POST.
+    // A duplicate request can now reuse this job instead of replacing its SSE state.
+    res.json({ streamId, conversationId, status: 'started' });
+
+    await attachConversationCreatedAt(req, { userId, conversationId, isNewConvo });
 
     // Note: We no longer use res.on('close') to abort since we send JSON immediately.
     // The response closes normally after res.json(), which is not an abort condition.
@@ -529,7 +670,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
           overrideParentMessageId,
           isEdited: !!editedContent,
           userMCPAuthMap: result.userMCPAuthMap,
-          responseMessageId: editedResponseMessageId,
+          responseMessageId: resolvedResponseMessageId,
           progressOptions: {
             res: {
               write: () => true,
@@ -880,6 +1021,8 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       await finishResumableRequest(req, userId);
     });
   } catch (error) {
+    releaseStartingSubmission(startingSubmissionKey);
+    startingSubmissionKey = null;
     logger.error('[ResumableAgentController] Initialization error:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: error.message || 'Failed to start generation' });
@@ -888,7 +1031,11 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       await GenerationJobManager.emitError(streamId, error.message || 'Failed to start generation');
     }
     GenerationJobManager.completeJob(streamId, error.message);
-    await finishResumableRequest(req, userId);
+    if (pendingRequestCounted) {
+      await finishResumableRequest(req, userId);
+    } else {
+      await cleanupMCPRequestContextForReq(req);
+    }
     if (client) {
       disposeClient(client);
     }

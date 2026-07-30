@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { Constants } from 'librechat-data-provider';
-import type { TFile, TMessage } from 'librechat-data-provider';
+import type { TEndpointOption, TFile, TMessage } from 'librechat-data-provider';
 
 /** Minimal shape for request file entries (from `req.body.files`) */
 type RequestFile = { file_id?: string };
@@ -9,11 +10,292 @@ type GetMessagesByParentId = (
   select: '_id',
 ) => Promise<unknown[]>;
 
+type SubmissionRequestFile = {
+  file_id?: string;
+  filepath?: string;
+  filename?: string;
+  type?: string;
+};
+
+type SubmissionMessage = {
+  messageId?: string;
+  createdAt?: Date | string;
+};
+
+type GetSubmissionMessages = (
+  filter: {
+    user: string;
+    conversationId: string;
+    parentMessageId: string;
+    isCreatedByUser: boolean;
+    text?: string | { $in: string[] };
+    endpoint?: string;
+    model?: string;
+  },
+  select: 'messageId' | 'messageId createdAt',
+  options: { sort: { createdAt: 1 }; limit: 1 },
+) => Promise<SubmissionMessage[]>;
+
+export type ChatSubmissionIdentityInput = {
+  userId: string;
+  conversationId: string;
+  parentMessageId?: string | null;
+  text?: string | null;
+  endpoint?: string | null;
+  endpointType?: string | null;
+  agentId?: string | null;
+  model?: string | null;
+  spec?: string | null;
+  promptPrefix?: string | null;
+  ephemeralAgent?: Record<string, unknown> | null;
+  addedConvo?: Record<string, unknown> | null;
+  modelParameters?: Record<string, unknown> | null;
+  files?: SubmissionRequestFile[] | null;
+  quotes?: string[] | null;
+  manualSkills?: string[] | null;
+  alwaysAppliedSkills?: string[] | null;
+  endpointOption?: TEndpointOption | null;
+  isTemporary?: boolean | null;
+  timezone?: string | null;
+};
+
+export type ChatSubmissionIdentity = {
+  submissionKey: string;
+  userMessageId: string;
+  responseMessageId: string;
+  source: 'derived' | 'existing';
+};
+
 /** Fields to strip from files before client transmission */
 const FILE_STRIP_FIELDS = ['text', '_id', '__v'] as const;
 
 /** Fields to strip from messages before client transmission */
 const MESSAGE_STRIP_FIELDS = ['fileContext'] as const;
+const LEGACY_SUBMISSION_REUSE_WINDOW_MS = 30 * 60 * 1000;
+const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const normalizeSubmissionText = (value?: string | null): string => (value ?? '').trim();
+
+const normalizeOrderedStringList = (values?: string[] | null): string[] =>
+  (values ?? []).map((value) => value.trim()).filter(Boolean);
+
+const normalizeUnorderedStringList = (values?: string[] | null): string[] =>
+  normalizeOrderedStringList(values).sort();
+
+const NON_GENERATION_ENDPOINT_OPTION_KEYS = new Set([
+  'agent',
+  'attachments',
+  'chatGptLabel',
+  'greeting',
+  'iconURL',
+  'key',
+  'modelDisplayLabel',
+  'modelLabel',
+  'modelsConfig',
+  'overrideConvoId',
+  'overrideUserMessageId',
+  'thread_id',
+]);
+
+const canonicalizeSubmissionValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeSubmissionValue);
+  }
+  if (value == null || typeof value !== 'object') {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(record)
+      .sort()
+      .map((key) => [key, canonicalizeSubmissionValue(record[key])]),
+  );
+};
+
+const normalizeEndpointOption = (endpointOption?: TEndpointOption | null): unknown => {
+  if (!endpointOption) {
+    return null;
+  }
+
+  return canonicalizeSubmissionValue(
+    Object.fromEntries(
+      Object.entries(endpointOption).filter(
+        ([key]) => !NON_GENERATION_ENDPOINT_OPTION_KEYS.has(key),
+      ),
+    ),
+  );
+};
+
+const normalizeRequestFiles = (files?: SubmissionRequestFile[] | null): string[][] =>
+  (files ?? []).map((file) => [
+    file.file_id ?? '',
+    file.filepath ?? '',
+    file.filename ?? '',
+    file.type ?? '',
+  ]);
+
+const deterministicUuid = (seed: string): string => {
+  const bytes = Buffer.from(createHash('sha256').update(seed).digest().subarray(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+
+export function deriveChatConversationId({
+  userId,
+  clientMessageId,
+}: {
+  userId: string;
+  clientMessageId?: string | null;
+}): string | null {
+  if (!userId || !clientMessageId) {
+    return null;
+  }
+  return deterministicUuid(`chat-conversation-v1:${userId}:${clientMessageId}`);
+}
+
+const isRecentLegacySubmissionPair = ({
+  userMessage,
+  responseMessage,
+  now,
+}: {
+  userMessage: SubmissionMessage;
+  responseMessage: SubmissionMessage;
+  now: number;
+}): boolean => {
+  if (
+    !userMessage.messageId ||
+    !responseMessage.messageId ||
+    !UUID_V4_PATTERN.test(userMessage.messageId) ||
+    !UUID_V4_PATTERN.test(responseMessage.messageId)
+  ) {
+    return false;
+  }
+
+  const createdAt = new Date(userMessage.createdAt ?? 0).getTime();
+  return Number.isFinite(createdAt) && now - createdAt <= LEGACY_SUBMISSION_REUSE_WINDOW_MS;
+};
+
+const hasNonMigratableSubmissionMetadata = (input: ChatSubmissionIdentityInput): boolean =>
+  (input.files?.length ?? 0) > 0 ||
+  (input.quotes?.length ?? 0) > 0 ||
+  (input.manualSkills?.length ?? 0) > 0 ||
+  (input.alwaysAppliedSkills?.length ?? 0) > 0 ||
+  input.addedConvo != null ||
+  input.isTemporary === true;
+
+export async function resolveChatSubmissionIdentity({
+  input,
+  getMessages,
+  now = Date.now(),
+}: {
+  input: ChatSubmissionIdentityInput;
+  getMessages: GetSubmissionMessages;
+  now?: number;
+}): Promise<ChatSubmissionIdentity> {
+  const parentMessageId = input.parentMessageId ?? Constants.NO_PARENT;
+  const normalizedText = normalizeSubmissionText(input.text);
+  const submissionKey = createHash('sha256')
+    .update(
+      JSON.stringify([
+        'chat-submission-v1',
+        input.userId,
+        input.conversationId,
+        parentMessageId,
+        normalizedText,
+        input.endpoint ?? '',
+        input.endpointType ?? '',
+        input.agentId ?? '',
+        input.model ?? '',
+        input.spec ?? '',
+        input.promptPrefix ?? '',
+        canonicalizeSubmissionValue(input.ephemeralAgent),
+        canonicalizeSubmissionValue(input.addedConvo),
+        canonicalizeSubmissionValue(input.modelParameters),
+        normalizeRequestFiles(input.files),
+        normalizeOrderedStringList(input.quotes),
+        normalizeUnorderedStringList(input.manualSkills),
+        normalizeUnorderedStringList(input.alwaysAppliedSkills),
+        normalizeEndpointOption(input.endpointOption),
+        input.isTemporary === true,
+        input.timezone ?? '',
+      ]),
+    )
+    .digest('hex');
+  const derived: ChatSubmissionIdentity = {
+    submissionKey,
+    userMessageId: deterministicUuid(`user:${submissionKey}`),
+    responseMessageId: deterministicUuid(`assistant:${submissionKey}`),
+    source: 'derived',
+  };
+
+  if (
+    input.conversationId === Constants.NEW_CONVO ||
+    !normalizedText ||
+    hasNonMigratableSubmissionMetadata(input)
+  ) {
+    return derived;
+  }
+
+  const [existingUserMessage] = await getMessages(
+    {
+      user: input.userId,
+      conversationId: input.conversationId,
+      parentMessageId,
+      isCreatedByUser: true,
+      text:
+        input.text === normalizedText
+          ? normalizedText
+          : { $in: [input.text ?? '', normalizedText] },
+    },
+    'messageId createdAt',
+    { sort: { createdAt: 1 }, limit: 1 },
+  );
+  if (!existingUserMessage?.messageId) {
+    return derived;
+  }
+
+  const responseModel = input.agentId ?? input.model;
+  const [existingResponseMessage] = await getMessages(
+    {
+      user: input.userId,
+      conversationId: input.conversationId,
+      parentMessageId: existingUserMessage.messageId,
+      isCreatedByUser: false,
+      ...(input.endpoint ? { endpoint: input.endpoint } : {}),
+      ...(responseModel ? { model: responseModel } : {}),
+    },
+    'messageId',
+    { sort: { createdAt: 1 }, limit: 1 },
+  );
+
+  if (!existingResponseMessage?.messageId) {
+    return derived;
+  }
+
+  const matchesDerivedIdentity =
+    existingUserMessage.messageId === derived.userMessageId &&
+    existingResponseMessage.messageId === derived.responseMessageId;
+  if (
+    !matchesDerivedIdentity &&
+    !isRecentLegacySubmissionPair({
+      userMessage: existingUserMessage,
+      responseMessage: existingResponseMessage,
+      now,
+    })
+  ) {
+    return derived;
+  }
+
+  return {
+    submissionKey,
+    userMessageId: existingUserMessage.messageId,
+    responseMessageId: existingResponseMessage.messageId,
+    source: 'existing',
+  };
+}
 
 /**
  * Strips large/unnecessary fields from a file object before transmitting to client.

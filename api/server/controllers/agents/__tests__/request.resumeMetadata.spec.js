@@ -9,6 +9,7 @@ const mockLogger = {
 
 const mockGenerationJobManager = {
   createJob: jest.fn(),
+  getJob: jest.fn(),
   emitError: jest.fn(),
   completeJob: jest.fn(),
   getResumeState: jest.fn(),
@@ -23,6 +24,22 @@ const mockFilterPersistableAbortContent = jest.fn((content) =>
 const mockGetConvo = jest.fn();
 const mockGetMessages = jest.fn();
 const mockSaveMessage = jest.fn();
+const mockResolveChatSubmissionIdentity = jest.fn(async ({ input }) => {
+  const stable = Buffer.from(
+    `${input.userId}:${input.conversationId}:${input.parentMessageId}:${input.text}`,
+  )
+    .toString('hex')
+    .slice(0, 20);
+  return {
+    submissionKey: stable.padEnd(64, '0'),
+    userMessageId: `stable-user-${stable}`,
+    responseMessageId: `stable-response-${stable}`,
+    source: 'derived',
+  };
+});
+const mockDeriveChatConversationId = jest.fn(({ userId, clientMessageId }) =>
+  Buffer.from(`${userId}:${clientMessageId}`).toString('hex').slice(0, 8).padEnd(36, '0'),
+);
 let mockMCPContexts = new WeakMap();
 
 const mockCreateMCPRequestContext = jest.fn(() => ({
@@ -103,6 +120,7 @@ jest.mock('@librechat/api', () => ({
   decrementPendingRequest: (...args) => mockDecrementPendingRequest(...args),
   sanitizeMessageForTransmit: jest.fn((message) => message),
   checkAndIncrementPendingRequest: (...args) => mockCheckAndIncrementPendingRequest(...args),
+  deriveChatConversationId: (...args) => mockDeriveChatConversationId(...args),
   isUnpersistedPreliminaryParent: async ({
     userId,
     conversationId,
@@ -121,6 +139,7 @@ jest.mock('@librechat/api', () => ({
     const messages = await getMessages(filter, '_id');
     return messages.length === 0;
   },
+  resolveChatSubmissionIdentity: (...args) => mockResolveChatSubmissionIdentity(...args),
 }));
 
 jest.mock('~/server/cleanup', () => ({
@@ -183,6 +202,7 @@ describe('ResumableAgentController resume metadata', () => {
       abortController: new AbortController(),
       emitter: { on: jest.fn() },
     });
+    mockGenerationJobManager.getJob.mockResolvedValue(undefined);
     mockGenerationJobManager.getResumeState.mockResolvedValue(null);
     mockGenerationJobManager.updateMetadata.mockResolvedValue(undefined);
     mockGenerationJobManager.emitError.mockResolvedValue(undefined);
@@ -304,9 +324,9 @@ describe('ResumableAgentController resume metadata', () => {
         endpoint: 'agents',
         iconURL: 'https://example.com/spec-icon.png',
         model: 'gpt-3.5-turbo',
-        responseMessageId: 'follow-up-user_',
+        responseMessageId: expect.stringMatching(/^stable-response-/),
         userMessage: {
-          messageId: 'follow-up-user',
+          messageId: expect.stringMatching(/^stable-user-/),
           parentMessageId: 'original-response',
           conversationId,
           text: 'Check Google Workspace availability.',
@@ -316,6 +336,252 @@ describe('ResumableAgentController resume metadata', () => {
     expect(mockGenerationJobManager.updateMetadata.mock.invocationCallOrder[0]).toBeLessThan(
       initializeClient.mock.invocationCallOrder[0],
     );
+  });
+
+  it('resolves the same logical fresh submission to stable server turn ids', async () => {
+    const conversationId = 'conversation-stable-submit';
+    const initializeClient = jest.fn().mockRejectedValue(new Error('stop before tool loading'));
+    const buildReq = (messageId) => ({
+      user: { id: 'user-123' },
+      body: {
+        text: '可以，你给下意见',
+        messageId,
+        parentMessageId: 'assistant-parent-1',
+        conversationId,
+        endpointOption: {
+          endpoint: 'agents',
+          agent_id: 'agent-life-design',
+          modelOptions: { model: 'gpt-5.6-sol' },
+        },
+      },
+      config: {},
+    });
+
+    await AgentController(
+      buildReq('client-message-1'),
+      createResumableResponse(),
+      jest.fn(),
+      initializeClient,
+      null,
+    );
+    await AgentController(
+      buildReq('client-message-2'),
+      createResumableResponse(),
+      jest.fn(),
+      initializeClient,
+      null,
+    );
+
+    const metadataWrites = mockGenerationJobManager.updateMetadata.mock.calls.map(
+      (call) => call[1],
+    );
+    expect(metadataWrites).toHaveLength(2);
+    expect(metadataWrites[0].userMessage.messageId).toBe(metadataWrites[1].userMessage.messageId);
+    expect(metadataWrites[0].responseMessageId).toBe(metadataWrites[1].responseMessageId);
+    expect(metadataWrites[0].userMessage.messageId).not.toMatch(/^client-message-/);
+  });
+
+  it('keeps a retried new-chat POST on the same derived conversation stream', async () => {
+    const buildReq = () => ({
+      user: { id: 'user-123' },
+      body: {
+        text: '第一条消息',
+        messageId: 'client-new-chat-message',
+        parentMessageId: '00000000-0000-0000-0000-000000000000',
+        conversationId: null,
+        endpointOption: {
+          endpoint: 'agents',
+          agent_id: 'agent-life-design',
+          modelOptions: { model: 'gpt-5.6-sol' },
+        },
+      },
+      config: {},
+    });
+    const initializeClient = jest.fn().mockRejectedValue(new Error('stop before tool loading'));
+
+    await AgentController(buildReq(), createResumableResponse(), jest.fn(), initializeClient, null);
+    await AgentController(buildReq(), createResumableResponse(), jest.fn(), initializeClient, null);
+
+    expect(mockDeriveChatConversationId).toHaveBeenCalledTimes(2);
+    const streamIds = mockGenerationJobManager.createJob.mock.calls.map((call) => call[0]);
+    expect(streamIds).toHaveLength(2);
+    expect(streamIds[1]).toBe(streamIds[0]);
+    const identityConversationIds = mockResolveChatSubmissionIdentity.mock.calls.map(
+      ([{ input }]) => input.conversationId,
+    );
+    expect(identityConversationIds.at(-1)).toBe(identityConversationIds.at(-2));
+  });
+
+  it('preserves explicit multi-response override ids instead of treating them as a fresh turn', async () => {
+    const conversationId = 'conversation-multi-response';
+    const req = {
+      user: { id: 'user-123' },
+      body: {
+        text: 'Compare two responses',
+        messageId: 'optimistic-user-id',
+        parentMessageId: 'assistant-parent-1',
+        conversationId,
+        overrideConvoId: `${conversationId}__1`,
+        overrideUserMessageId: 'shared-user-id__1',
+        endpointOption: {
+          endpoint: 'agents',
+          agent_id: 'agent-life-design',
+          modelOptions: { model: 'gpt-5.6-sol' },
+        },
+      },
+      config: {},
+    };
+    const initializeClient = jest.fn().mockRejectedValue(new Error('stop before tool loading'));
+
+    await AgentController(req, createResumableResponse(), jest.fn(), initializeClient, null);
+
+    expect(mockResolveChatSubmissionIdentity).not.toHaveBeenCalled();
+    expect(req.body.overrideConvoId).toBe(`${conversationId}__1`);
+    expect(req.body.overrideUserMessageId).toBe('shared-user-id__1');
+  });
+
+  it('reuses the matching in-flight job before concurrency accounting or initialization', async () => {
+    const conversationId = 'conversation-active-submit';
+    const req = {
+      user: { id: 'user-123' },
+      body: {
+        text: '可以，你给下意见',
+        messageId: 'client-message-remounted',
+        parentMessageId: 'assistant-parent-1',
+        conversationId,
+        endpointOption: {
+          endpoint: 'agents',
+          agent_id: 'agent-life-design',
+          modelOptions: { model: 'gpt-5.6-sol' },
+        },
+      },
+      config: {},
+    };
+    const identity = await mockResolveChatSubmissionIdentity({
+      input: {
+        userId: req.user.id,
+        conversationId,
+        parentMessageId: req.body.parentMessageId,
+        text: req.body.text,
+      },
+    });
+    mockGenerationJobManager.getJob.mockResolvedValue({
+      status: 'running',
+      metadata: {
+        userId: req.user.id,
+        conversationId,
+        userMessage: { messageId: identity.userMessageId },
+        responseMessageId: identity.responseMessageId,
+      },
+    });
+    const res = createResumableResponse();
+    const initializeClient = jest.fn();
+
+    await AgentController(req, res, jest.fn(), initializeClient, null);
+
+    expect(res.json).toHaveBeenCalledWith({
+      streamId: conversationId,
+      conversationId,
+      status: 'started',
+      reused: true,
+    });
+    expect(mockCheckAndIncrementPendingRequest).not.toHaveBeenCalled();
+    expect(mockGenerationJobManager.createJob).not.toHaveBeenCalled();
+    expect(mockGenerationJobManager.updateMetadata).not.toHaveBeenCalled();
+    expect(initializeClient).not.toHaveBeenCalled();
+  });
+
+  it('asks a racing duplicate to retry while the first matching job is still being published', async () => {
+    const conversationId = 'conversation-racing-submit';
+    const buildReq = () => ({
+      user: { id: 'user-123' },
+      body: {
+        text: '可以，你给下意见',
+        messageId: 'client-message-race',
+        parentMessageId: 'assistant-parent-1',
+        conversationId,
+        endpointOption: {
+          endpoint: 'agents',
+          agent_id: 'agent-life-design',
+          modelOptions: { model: 'gpt-5.6-sol' },
+        },
+      },
+      config: {},
+    });
+    let releaseFirstCreate;
+    mockGenerationJobManager.createJob.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseFirstCreate = () =>
+            resolve({
+              createdAt: 1000,
+              readyPromise: Promise.resolve(),
+              abortController: new AbortController(),
+              emitter: { on: jest.fn() },
+            });
+        }),
+    );
+    const initializeClient = jest.fn().mockRejectedValue(new Error('stop before tool loading'));
+    const firstResponse = createResumableResponse();
+    const first = AgentController(buildReq(), firstResponse, jest.fn(), initializeClient, null);
+
+    await nextTick();
+
+    const racingResponse = createResumableResponse();
+    await AgentController(buildReq(), racingResponse, jest.fn(), initializeClient, null);
+
+    expect(racingResponse.status).toHaveBeenCalledWith(503);
+    expect(racingResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'SERVER_NOT_READY' }),
+    );
+    expect(mockCheckAndIncrementPendingRequest).toHaveBeenCalledTimes(1);
+    expect(mockGenerationJobManager.createJob).toHaveBeenCalledTimes(1);
+
+    releaseFirstCreate();
+    await first;
+  });
+
+  it('releases the startup key when job creation fails so the same submission can retry', async () => {
+    const conversationId = 'conversation-create-retry';
+    const buildReq = () => ({
+      user: { id: 'user-123' },
+      body: {
+        text: '创建 job 失败后重试',
+        messageId: 'client-message-retry',
+        parentMessageId: 'assistant-parent-1',
+        conversationId,
+        endpointOption: {
+          endpoint: 'agents',
+          agent_id: 'agent-life-design',
+          modelOptions: { model: 'gpt-5.6-sol' },
+        },
+      },
+      config: {},
+    });
+    mockGenerationJobManager.createJob
+      .mockRejectedValueOnce(new Error('job store unavailable'))
+      .mockResolvedValueOnce({
+        createdAt: 1000,
+        readyPromise: Promise.resolve(),
+        abortController: new AbortController(),
+        emitter: { on: jest.fn() },
+      });
+    const initializeClient = jest.fn().mockRejectedValue(new Error('stop before tool loading'));
+    const firstResponse = createResumableResponse();
+
+    await AgentController(buildReq(), firstResponse, jest.fn(), initializeClient, null);
+    expect(firstResponse.status).toHaveBeenCalledWith(500);
+
+    const retryResponse = createResumableResponse();
+    await AgentController(buildReq(), retryResponse, jest.fn(), initializeClient, null);
+
+    expect(retryResponse.status).not.toHaveBeenCalledWith(503);
+    expect(mockGenerationJobManager.createJob).toHaveBeenCalledTimes(2);
+    expect(retryResponse.json).toHaveBeenCalledWith({
+      streamId: conversationId,
+      conversationId,
+      status: 'started',
+    });
   });
 
   it('keeps request-scoped MCP connections until resumable initialization finishes', async () => {

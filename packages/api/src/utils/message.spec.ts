@@ -3,9 +3,11 @@ import {
   sanitizeMessageForTransmit,
   sanitizeFileForTransmit,
   buildMessageFiles,
+  deriveChatConversationId,
   getThreadData,
   isPreliminaryMessageId,
   isUnpersistedPreliminaryParent,
+  resolveChatSubmissionIdentity,
 } from './message';
 
 /** Cast to string for type compatibility with ThreadMessage */
@@ -178,6 +180,301 @@ describe('isUnpersistedPreliminaryParent', () => {
         getMessages,
       }),
     ).resolves.toBe(false);
+  });
+});
+
+describe('resolveChatSubmissionIdentity', () => {
+  const input = {
+    userId: 'user-123',
+    conversationId: 'conversation-123',
+    parentMessageId: 'assistant-parent-1',
+    text: '可以，你给下意见',
+    endpoint: 'agents',
+    agentId: 'agent-life-design',
+    model: 'gpt-5.6-sol',
+  };
+
+  it('derives stable user and response ids for the same logical submission', async () => {
+    const getMessages = jest.fn().mockResolvedValue([]);
+
+    const first = await resolveChatSubmissionIdentity({ input, getMessages });
+    const second = await resolveChatSubmissionIdentity({ input: { ...input }, getMessages });
+
+    expect(first).toEqual(second);
+    expect(first.userMessageId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(first.responseMessageId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(first.userMessageId).not.toBe(first.responseMessageId);
+  });
+
+  it('changes the identity when model-affecting submission data changes', async () => {
+    const getMessages = jest.fn().mockResolvedValue([]);
+
+    const base = await resolveChatSubmissionIdentity({ input, getMessages });
+    const changedText = await resolveChatSubmissionIdentity({
+      input: { ...input, text: '换个问题' },
+      getMessages,
+    });
+    const changedSkill = await resolveChatSubmissionIdentity({
+      input: { ...input, manualSkills: ['调查'] },
+      getMessages,
+    });
+    const changedEndpointOption = await resolveChatSubmissionIdentity({
+      input: {
+        ...input,
+        endpointOption: { endpoint: 'agents', reasoning_effort: 'high' },
+      },
+      getMessages,
+    });
+    const changedTimezone = await resolveChatSubmissionIdentity({
+      input: { ...input, timezone: 'America/New_York' },
+      getMessages,
+    });
+
+    expect(changedText.submissionKey).not.toBe(base.submissionKey);
+    expect(changedSkill.submissionKey).not.toBe(base.submissionKey);
+    expect(changedEndpointOption.submissionKey).not.toBe(base.submissionKey);
+    expect(changedTimezone.submissionKey).not.toBe(base.submissionKey);
+  });
+
+  it('ignores display-only endpoint option changes', async () => {
+    const getMessages = jest.fn().mockResolvedValue([]);
+    const first = await resolveChatSubmissionIdentity({
+      input: {
+        ...input,
+        endpointOption: {
+          endpoint: 'agents',
+          model: 'gpt-5.6-sol',
+          iconURL: 'https://example.com/old.png',
+          modelLabel: '旧标签',
+        },
+      },
+      getMessages,
+    });
+    const second = await resolveChatSubmissionIdentity({
+      input: {
+        ...input,
+        endpointOption: {
+          endpoint: 'agents',
+          model: 'gpt-5.6-sol',
+          iconURL: 'https://example.com/new.png',
+          modelLabel: '新标签',
+        },
+      },
+      getMessages,
+    });
+
+    expect(second.submissionKey).toBe(first.submissionKey);
+  });
+
+  it('canonicalizes unordered skill names and nested agent configuration', async () => {
+    const getMessages = jest.fn().mockResolvedValue([]);
+    const first = await resolveChatSubmissionIdentity({
+      input: {
+        ...input,
+        manualSkills: ['调查', '分析'],
+        ephemeralAgent: { mcp: ['server-b', 'server-a'], execute_code: true },
+        modelParameters: { temperature: 0.2, nested: { beta: 2, alpha: 1 } },
+      },
+      getMessages,
+    });
+    const second = await resolveChatSubmissionIdentity({
+      input: {
+        ...input,
+        manualSkills: ['分析', '调查'],
+        ephemeralAgent: { execute_code: true, mcp: ['server-b', 'server-a'] },
+        modelParameters: { nested: { alpha: 1, beta: 2 }, temperature: 0.2 },
+      },
+      getMessages,
+    });
+
+    expect(first).toEqual(second);
+  });
+
+  it('does not reuse a legacy branch when user-visible rich context is present', async () => {
+    const getMessages = jest.fn().mockResolvedValue([{ messageId: 'legacy-user-id' }]);
+
+    const identity = await resolveChatSubmissionIdentity({
+      input: { ...input, manualSkills: ['调查'] },
+      getMessages,
+    });
+
+    expect(identity.source).toBe('derived');
+    expect(getMessages).not.toHaveBeenCalled();
+  });
+
+  it('reuses the original persisted branch for legacy random ids', async () => {
+    const now = Date.parse('2026-07-30T06:00:00.000Z');
+    const getMessages = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          messageId: '659da7da-7a96-4d2a-a40e-feb54a664816',
+          createdAt: '2026-07-30T05:56:24.632Z',
+        },
+      ])
+      .mockResolvedValueOnce([{ messageId: '90f82906-2b65-495b-a9d9-09882eac0324' }]);
+
+    const identity = await resolveChatSubmissionIdentity({ input, getMessages, now });
+
+    expect(identity).toEqual(
+      expect.objectContaining({
+        userMessageId: '659da7da-7a96-4d2a-a40e-feb54a664816',
+        responseMessageId: '90f82906-2b65-495b-a9d9-09882eac0324',
+        source: 'existing',
+      }),
+    );
+  });
+
+  it('can migrate a recent legacy branch with fixed prompt and ephemeral-agent configuration', async () => {
+    const now = Date.parse('2026-07-30T06:00:00.000Z');
+    const getMessages = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          messageId: '659da7da-7a96-4d2a-a40e-feb54a664816',
+          createdAt: '2026-07-30T05:56:24.632Z',
+        },
+      ])
+      .mockResolvedValueOnce([{ messageId: '90f82906-2b65-495b-a9d9-09882eac0324' }]);
+
+    const identity = await resolveChatSubmissionIdentity({
+      input: {
+        ...input,
+        promptPrefix: '固定的人生设计室提示',
+        ephemeralAgent: { mcp: ['mingli'] },
+      },
+      getMessages,
+      now,
+    });
+
+    expect(identity.source).toBe('existing');
+    expect(identity.userMessageId).toBe('659da7da-7a96-4d2a-a40e-feb54a664816');
+  });
+
+  it('still reuses a legacy plain-text branch when ordinary model parameters are present', async () => {
+    const now = Date.parse('2026-07-30T06:00:00.000Z');
+    const getMessages = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          messageId: '659da7da-7a96-4d2a-a40e-feb54a664816',
+          createdAt: '2026-07-30T05:56:24.632Z',
+        },
+      ])
+      .mockResolvedValueOnce([{ messageId: '90f82906-2b65-495b-a9d9-09882eac0324' }]);
+
+    const identity = await resolveChatSubmissionIdentity({
+      input: { ...input, modelParameters: { model: 'gpt-5.6-sol', temperature: 0.2 } },
+      getMessages,
+      now,
+    });
+
+    expect(identity).toEqual(
+      expect.objectContaining({
+        userMessageId: '659da7da-7a96-4d2a-a40e-feb54a664816',
+        responseMessageId: '90f82906-2b65-495b-a9d9-09882eac0324',
+        source: 'existing',
+      }),
+    );
+  });
+
+  it('does not keep reusing an old random branch after the migration window', async () => {
+    const getMessages = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          messageId: '659da7da-7a96-4d2a-a40e-feb54a664816',
+          createdAt: '2026-07-30T05:00:00.000Z',
+        },
+      ])
+      .mockResolvedValueOnce([{ messageId: '90f82906-2b65-495b-a9d9-09882eac0324' }]);
+
+    const identity = await resolveChatSubmissionIdentity({
+      input,
+      getMessages,
+      now: Date.parse('2026-07-30T06:00:00.000Z'),
+    });
+
+    expect(identity.source).toBe('derived');
+    expect(identity.userMessageId).not.toBe('659da7da-7a96-4d2a-a40e-feb54a664816');
+  });
+
+  it('does not reuse a derived branch when model parameters changed', async () => {
+    const getMessages = jest.fn().mockResolvedValue([]);
+    const original = await resolveChatSubmissionIdentity({ input, getMessages });
+    getMessages
+      .mockResolvedValueOnce([{ messageId: original.userMessageId, createdAt: new Date() }])
+      .mockResolvedValueOnce([{ messageId: original.responseMessageId }]);
+
+    const changed = await resolveChatSubmissionIdentity({
+      input: { ...input, modelParameters: { temperature: 0.8 } },
+      getMessages,
+    });
+
+    expect(changed.source).toBe('derived');
+    expect(changed.userMessageId).not.toBe(original.userMessageId);
+    expect(changed.responseMessageId).not.toBe(original.responseMessageId);
+  });
+
+  it('finds a legacy branch whose stored text retained surrounding whitespace', async () => {
+    const getMessages = jest
+      .fn()
+      .mockResolvedValueOnce([{ messageId: 'legacy-user-id' }])
+      .mockResolvedValueOnce([{ messageId: 'legacy-response-id' }]);
+
+    await resolveChatSubmissionIdentity({
+      input: { ...input, text: '  可以，你给下意见  ' },
+      getMessages,
+    });
+
+    expect(getMessages).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        text: { $in: ['  可以，你给下意见  ', '可以，你给下意见'] },
+      }),
+      'messageId createdAt',
+      { sort: { createdAt: 1 }, limit: 1 },
+    );
+  });
+});
+
+describe('deriveChatConversationId', () => {
+  it('keeps a retried new-chat request on the same conversation stream', () => {
+    const first = deriveChatConversationId({
+      userId: 'user-123',
+      clientMessageId: 'client-message-123',
+    });
+    const second = deriveChatConversationId({
+      userId: 'user-123',
+      clientMessageId: 'client-message-123',
+    });
+
+    expect(second).toBe(first);
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it('does not merge separate new-chat actions or different users', () => {
+    const base = deriveChatConversationId({
+      userId: 'user-123',
+      clientMessageId: 'client-message-123',
+    });
+
+    expect(
+      deriveChatConversationId({
+        userId: 'user-123',
+        clientMessageId: 'client-message-456',
+      }),
+    ).not.toBe(base);
+    expect(
+      deriveChatConversationId({
+        userId: 'user-456',
+        clientMessageId: 'client-message-123',
+      }),
+    ).not.toBe(base);
+  });
+
+  it('falls back when the client request has no stable message id', () => {
+    expect(deriveChatConversationId({ userId: 'user-123', clientMessageId: null })).toBeNull();
   });
 });
 

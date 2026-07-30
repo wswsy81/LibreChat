@@ -311,10 +311,12 @@ describe('useResumableSSE', () => {
     });
 
     expect(request.post).toHaveBeenCalledTimes(1);
+    expect(mockSSEInstances).toHaveLength(2);
   });
 
-  it('切走再回来不得把同父同文案的新 messageId 再发一次（BUG-2026-010 回归）', async () => {
+  it('新 messageId 的重复提交交给 API 复用原 job，并恢复订阅（BUG-2026-010 回归）', async () => {
     const { request } = jest.requireMock('librechat-data-provider');
+    const { SSE } = jest.requireMock('sse.js');
     const chatHelpers = buildChatHelpers();
     const parentMessageId = 'assistant-parent-1';
     const firstSubmission = buildSubmission({
@@ -346,12 +348,82 @@ describe('useResumableSSE', () => {
 
     first.unmount();
 
+    (request.post as jest.Mock).mockResolvedValueOnce({
+      streamId: 'stream-123',
+      reused: true,
+    });
+
     renderHook(() => useResumableSSE(secondSubmission, chatHelpers));
     await act(async () => {
       await Promise.resolve();
     });
 
-    expect(request.post).toHaveBeenCalledTimes(1);
+    expect(request.post).toHaveBeenCalledTimes(2);
+    expect(mockSSEInstances).toHaveLength(2);
+    expect(SSE.mock.calls.at(-1)?.[0]).toContain('/stream/stream-123?resume=true');
+  });
+
+  it('重新生成是显式新动作，不得被新提交的重挂载锁拦截', async () => {
+    const { request } = jest.requireMock('librechat-data-provider');
+    const chatHelpers = buildChatHelpers();
+    const submission = buildSubmission();
+
+    const first = renderHook(() => useResumableSSE(submission, chatHelpers));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    first.unmount();
+
+    const regenerateSubmission = {
+      ...submission,
+      isRegenerate: true,
+      userMessage: { ...submission.userMessage },
+    } as TSubmission;
+    renderHook(() => useResumableSSE(regenerateSubmission, chatHelpers));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(request.post).toHaveBeenCalledTimes(2);
+  });
+
+  it('启动失败不会留下永久锁，用户可以重试同一提交', async () => {
+    const { request } = jest.requireMock('librechat-data-provider');
+    const submission = buildSubmission();
+    const chatHelpers = buildChatHelpers();
+    (request.post as jest.Mock).mockRejectedValueOnce({
+      response: { status: 400, data: { message: 'bad request' } },
+    });
+
+    const first = renderHook(() => useResumableSSE(submission, chatHelpers));
+    await waitFor(() => {
+      expect(mockSetSubmission).toHaveBeenCalledWith(null);
+    });
+    first.unmount();
+
+    (request.post as jest.Mock).mockResolvedValueOnce({ streamId: 'stream-retry' });
+    renderHook(() => useResumableSSE(submission, chatHelpers));
+    await waitFor(() => {
+      expect(request.post).toHaveBeenCalledTimes(2);
+    });
+
+    expect(getLastSSE()).toBeDefined();
+  });
+
+  it('API 复用既有 job 时按恢复流订阅，补齐已产生的内容', async () => {
+    const { request } = jest.requireMock('librechat-data-provider');
+    const { SSE } = jest.requireMock('sse.js');
+    (request.post as jest.Mock).mockResolvedValueOnce({
+      streamId: 'stream-reused',
+      reused: true,
+    });
+
+    renderHook(() => useResumableSSE(buildSubmission(), buildChatHelpers()));
+    await waitFor(() => {
+      expect(SSE).toHaveBeenCalled();
+    });
+
+    expect(SSE.mock.calls.at(-1)?.[0]).toContain('/stream/stream-reused?resume=true');
   });
 
   it('clears the text and files draft from localStorage on 404', async () => {

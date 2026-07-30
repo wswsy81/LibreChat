@@ -68,6 +68,11 @@ type StartGenerationError = {
   };
 };
 
+type StartGenerationResult = {
+  streamId: string;
+  reused: boolean;
+};
+
 const toStartGenerationError = (error: unknown): StartGenerationError | undefined =>
   error != null && typeof error === 'object' ? (error as StartGenerationError) : undefined;
 
@@ -79,6 +84,12 @@ const getStartGenerationStreamId = (data: unknown): string | null => {
   const streamId = (data as { streamId?: unknown }).streamId;
   return typeof streamId === 'string' && streamId.length > 0 ? streamId : null;
 };
+
+const isReusedStartGeneration = (data: unknown): boolean =>
+  data != null &&
+  typeof data === 'object' &&
+  'reused' in data &&
+  (data as { reused?: unknown }).reused === true;
 
 const parseSSEErrorData = (body: string): unknown | null => {
   const blocks = body.split(/\r?\n\r?\n/);
@@ -285,35 +296,44 @@ const shouldHydrateMessage = (message: TMessage) =>
 const hydrateMessageConversationId = (message: TMessage, conversationId: string): TMessage =>
   shouldHydrateMessage(message) ? { ...message, conversationId } : message;
 
-// 已启动过的提交:键 = 会话 + 用户消息 ID。模块级保存,组件重挂载后依然记得。
-const startedSubmissions = new Set<string>();
-// 同一父节点下的同文案重提:键 = 会话 + 父消息 + 规范化正文。用于拦截
-// 切回页面后把同一句话又发出去的回归,即使 messageId 变了也能认出来。
-const startedSubmissionFingerprints = new Set<string>();
+// 成功启动过的提交:键 -> streamId。组件重挂载时复用并重新订阅原流，
+// 而不是只把第二次 POST 吞掉后清空 UI。
+const startedSubmissionStreams = new Map<string, string>();
 const MAX_TRACKED_SUBMISSIONS = 200;
 
 /** 仅供测试:清掉"已启动过"的记账,让用例之间互不影响。 */
 export const __resetStartedSubmissions = (): void => {
-  startedSubmissions.clear();
-  startedSubmissionFingerprints.clear();
+  startedSubmissionStreams.clear();
 };
 
+const isFreshSubmission = (submission: TSubmission | null): boolean =>
+  !!submission &&
+  !submission.isRegenerate &&
+  !submission.isContinued &&
+  !submission.isEdited &&
+  submission.editedContent == null;
+
 const startedSubmissionKey = (submission: TSubmission | null): string | null => {
+  if (!isFreshSubmission(submission)) {
+    return null;
+  }
   const conversationId = submission?.conversation?.conversationId;
   const messageId = submission?.userMessage?.messageId;
   return conversationId && messageId ? `${conversationId}:${messageId}` : null;
 };
 
-const normalizeSubmissionText = (text?: string | null): string => (text ?? '').trim();
-
-const startedSubmissionFingerprintKey = (submission: TSubmission | null): string | null => {
-  const conversationId = submission?.conversation?.conversationId;
-  const parentMessageId = submission?.userMessage?.parentMessageId;
-  const normalizedText = normalizeSubmissionText(submission?.userMessage?.text);
-  if (!conversationId || !parentMessageId || !normalizedText) {
-    return null;
+const rememberStartedSubmission = (
+  streams: Map<string, string>,
+  key: string | null,
+  streamId: string,
+): void => {
+  if (!key) {
+    return;
   }
-  return JSON.stringify([conversationId, parentMessageId, normalizedText]);
+  streams.set(key, streamId);
+  if (streams.size > MAX_TRACKED_SUBMISSIONS) {
+    streams.delete(streams.keys().next().value as string);
+  }
 };
 
 const preferDefinedString = (value?: string | null, fallback?: string): string | undefined =>
@@ -1317,7 +1337,10 @@ export default function useResumableSSE(
    * Readiness retries honor Retry-After until cleanup or the readiness window expires.
    */
   const startGeneration = useCallback(
-    async (currentSubmission: TSubmission, signal?: AbortSignal): Promise<string | null> => {
+    async (
+      currentSubmission: TSubmission,
+      signal?: AbortSignal,
+    ): Promise<StartGenerationResult | null> => {
       const payloadData = createPayload(currentSubmission);
       let { payload } = payloadData;
       payload = removeNullishValues(payload) as TPayload;
@@ -1342,8 +1365,9 @@ export default function useResumableSSE(
           }
           const streamId = getStartGenerationStreamId(data);
           if (streamId) {
-            logger.log('ResumableSSE', 'Generation started:', { streamId });
-            return streamId;
+            const reused = isReusedStartGeneration(data);
+            logger.log('ResumableSSE', 'Generation started:', { streamId, reused });
+            return { streamId, reused };
           }
 
           lastError = { response: { data } };
@@ -1438,7 +1462,6 @@ export default function useResumableSSE(
     submissionRef.current = submission;
     const startController = new AbortController();
     const submissionKey = startedSubmissionKey(submission);
-    const submissionFingerprintKey = startedSubmissionFingerprintKey(submission);
     const { signal } = startController;
 
     const initStream = async () => {
@@ -1460,50 +1483,29 @@ export default function useResumableSSE(
         addActiveJob(resumeStreamId);
         subscribeToStream(resumeStreamId, submission, true); // isResume=true
       } else {
-        // 同一份提交只允许启动一次。组件重挂载会让 effect 拿着旧提交重跑,
-        // 而 ref 会随卸载丢失,所以这里用模块级集合记账。
-        if (submissionKey && startedSubmissions.has(submissionKey)) {
-          logger.log('ResumableSSE', 'Skipping already-started submission:', submissionKey);
-          setIsSubmitting(false);
-          setShowStopButton(false);
-          setSubmission(null);
-          return;
-        }
-        if (
-          submissionFingerprintKey &&
-          startedSubmissionFingerprints.has(submissionFingerprintKey)
-        ) {
+        const existingStreamId = submissionKey
+          ? startedSubmissionStreams.get(submissionKey)
+          : undefined;
+        if (existingStreamId) {
           logger.log(
             'ResumableSSE',
-            'Skipping already-started submission fingerprint:',
-            submissionFingerprintKey,
+            'Reusing already-started submission stream:',
+            existingStreamId,
           );
-          setIsSubmitting(false);
-          setShowStopButton(false);
-          setSubmission(null);
+          setStreamId(existingStreamId);
+          addActiveJob(existingStreamId);
+          subscribeToStream(existingStreamId, submission, true);
           return;
-        }
-        if (submissionKey) {
-          startedSubmissions.add(submissionKey);
-          if (startedSubmissions.size > MAX_TRACKED_SUBMISSIONS) {
-            startedSubmissions.delete(startedSubmissions.values().next().value as string);
-          }
-        }
-        if (submissionFingerprintKey) {
-          startedSubmissionFingerprints.add(submissionFingerprintKey);
-          if (startedSubmissionFingerprints.size > MAX_TRACKED_SUBMISSIONS) {
-            startedSubmissionFingerprints.delete(
-              startedSubmissionFingerprints.values().next().value as string,
-            );
-          }
         }
         // New generation: start and then subscribe
         logger.log('ResumableSSE', 'Starting NEW generation');
-        const newStreamId = await startGeneration(submission, signal);
+        const startResult = await startGeneration(submission, signal);
         if (signal.aborted) {
           return;
         }
-        if (newStreamId) {
+        if (startResult) {
+          const { streamId: newStreamId, reused } = startResult;
+          rememberStartedSubmission(startedSubmissionStreams, submissionKey, newStreamId);
           setStreamId(newStreamId);
           // Optimistically add to active jobs
           addActiveJob(newStreamId);
@@ -1520,7 +1522,7 @@ export default function useResumableSSE(
           }
           const streamSubmission = addOptimisticConversation(newStreamId, submission);
           submissionRef.current = streamSubmission;
-          subscribeToStream(newStreamId, streamSubmission);
+          subscribeToStream(newStreamId, streamSubmission, reused);
         } else {
           logger.error('ResumableSSE', 'Failed to get streamId from startGeneration');
         }

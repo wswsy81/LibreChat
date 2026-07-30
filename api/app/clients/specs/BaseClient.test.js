@@ -583,6 +583,22 @@ describe('BaseClient', () => {
       expect(TestClient.responseMessageId).toBe('existing-message-id');
     });
 
+    test('uses API-resolved stable user and response ids for a fresh submission', async () => {
+      TestClient.options = {
+        ...TestClient.options,
+        req: { body: { overrideUserMessageId: 'stable-user-message-id' } },
+      };
+
+      const resolved = await TestClient.setMessageOptions({
+        conversationId: 'stable-conversation-id',
+        parentMessageId: 'stable-parent-id',
+        responseMessageId: 'stable-response-message-id',
+      });
+
+      expect(resolved.userMessageId).toBe('stable-user-message-id');
+      expect(resolved.responseMessageId).toBe('stable-response-message-id');
+    });
+
     test('sendMessage should work with provided conversationId and parentMessageId', async () => {
       const userMessage = 'Second message in the conversation';
       const opts = {
