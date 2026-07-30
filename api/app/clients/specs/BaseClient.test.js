@@ -586,17 +586,24 @@ describe('BaseClient', () => {
     test('uses API-resolved stable user and response ids for a fresh submission', async () => {
       TestClient.options = {
         ...TestClient.options,
-        req: { body: { overrideUserMessageId: 'stable-user-message-id' } },
+        req: { body: { overrideUserMessageId: 'stable-user-message-id__0' } },
       };
+      TestClient.saveMessageToDatabase = jest.fn().mockResolvedValue({ message: {} });
 
-      const resolved = await TestClient.setMessageOptions({
+      const response = await TestClient.sendMessage('Persist this stable turn', {
         conversationId: 'stable-conversation-id',
         parentMessageId: 'stable-parent-id',
         responseMessageId: 'stable-response-message-id',
       });
+      const userSave = TestClient.saveMessageToDatabase.mock.calls.find(
+        ([message]) => message.isCreatedByUser,
+      );
 
-      expect(resolved.userMessageId).toBe('stable-user-message-id');
-      expect(resolved.responseMessageId).toBe('stable-response-message-id');
+      expect(userSave?.[0]).toEqual(
+        expect.objectContaining({ messageId: 'stable-user-message-id' }),
+      );
+      expect(response.messageId).toBe('stable-response-message-id');
+      expect(TestClient.skipSaveUserMessage).not.toBe(true);
     });
 
     test('sendMessage should work with provided conversationId and parentMessageId', async () => {

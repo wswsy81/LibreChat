@@ -381,6 +381,30 @@ describe('ResumableAgentController resume metadata', () => {
     expect(metadataWrites[0].userMessage.messageId).not.toMatch(/^client-message-/);
   });
 
+  it('marks the stable user id as the primary response lane so BaseClient persists it', async () => {
+    const req = {
+      user: { id: 'user-123' },
+      body: {
+        text: '普通提交必须保存用户消息',
+        messageId: 'client-message-id',
+        parentMessageId: 'assistant-parent-1',
+        conversationId: 'conversation-stable-submit',
+        endpointOption: {
+          endpoint: 'agents',
+          agent_id: 'agent-life-design',
+          modelOptions: { model: 'gpt-5.6-sol' },
+        },
+      },
+      config: {},
+    };
+    const initializeClient = jest.fn().mockRejectedValue(new Error('stop before tool loading'));
+
+    await AgentController(req, createResumableResponse(), jest.fn(), initializeClient, null);
+
+    expect(req.body.messageId).toMatch(/^stable-user-/);
+    expect(req.body.overrideUserMessageId).toBe(`${req.body.messageId}__0`);
+  });
+
   it('keeps a retried new-chat POST on the same derived conversation stream', async () => {
     const buildReq = () => ({
       user: { id: 'user-123' },

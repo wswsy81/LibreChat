@@ -318,7 +318,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         getMessages,
       });
       req.body.messageId = submissionIdentity.userMessageId;
-      req.body.overrideUserMessageId = submissionIdentity.userMessageId;
+      req.body.overrideUserMessageId = `${submissionIdentity.userMessageId}${Constants.COMMON_DIVIDER}0`;
       req.body.responseMessageId = submissionIdentity.responseMessageId;
       resolvedResponseMessageId = submissionIdentity.responseMessageId;
       logger.debug('[ResumableAgentController] Resolved stable submission identity', {
