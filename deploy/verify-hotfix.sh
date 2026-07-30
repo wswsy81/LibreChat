@@ -25,7 +25,7 @@ run_engine_checks() {
 run_engine_checks_in_image() {
   local docker_bin=(docker)
   docker info >/dev/null 2>&1 || docker_bin=(sudo docker)
-  echo "宿主无 node,改跑镜像 test stage(与完整发布同一个门)"
+  echo "宿主缺 node 或缺 devDependencies,改跑镜像 test stage(与完整发布同一个门)"
   "${docker_bin[@]}" build \
     --file "$ENGINE_DIR/Dockerfile" \
     --target test \
