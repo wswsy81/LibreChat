@@ -1276,6 +1276,7 @@ export default function useResumableSSE(
       messageHandler,
       errorHandler,
       setIsSubmitting,
+      setSubmission,
       getMessages,
       setMessages,
       startupConfig?.balance?.enabled,

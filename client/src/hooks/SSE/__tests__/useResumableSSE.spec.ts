@@ -290,7 +290,6 @@ describe('useResumableSSE', () => {
     return { sse, unmount, chatHelpers };
   };
 
-
   it('切走再回来不得把同一份提交重发一次（BUG-2026-010）', async () => {
     const { request } = jest.requireMock('librechat-data-provider');
     const submission = buildSubmission();
