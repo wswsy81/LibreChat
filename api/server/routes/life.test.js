@@ -327,7 +327,7 @@ test('authenticated bootstrap merges archive state with the latest valid convers
       user: 'user-1',
       spec: 'future-lines',
       isTemporary: { $ne: true },
-      'messages.0': { $exists: true },
+      'messages.2': { $exists: true },
     }),
   );
 });
@@ -364,6 +364,10 @@ test('onboarding accepts archiveName + entryHouse and returns a one-time house t
   expect(prompt).toBe('[trigger:house_entered] entryHouse=h10;visitMode=first_entry');
   expect(valid.body.entryEvent.entryHouse).toBe('h10');
   expect(mockEngine.json).toHaveBeenCalledWith(
+    '/internal/bootstrap',
+    { userId: 'user-1' },
+  );
+  expect(mockEngine.json).toHaveBeenCalledWith(
     '/internal/onboarding',
     expect.objectContaining({ body: { archiveName: '张东', entryHouse: 'h10' } }),
   );
@@ -383,6 +387,86 @@ test('onboarding accepts archiveName + entryHouse and returns a one-time house t
     .set('Idempotency-Key', 'diagnostic-retired')
     .send({ dashboards: { work: 3 } });
   expect(retired.status).toBe(404);
+});
+
+test('cached current-house entry restores latest substantive conversation', async () => {
+  const app = buildApp({ id: 'user-1', name: '张东' });
+  mockFindOne.mockReturnValueOnce(conversationQuery({ conversationId: 'conversation-real' }));
+  mockEngine.json.mockResolvedValueOnce({
+    profileVersion: 'v1',
+    summary: {
+      lifeWheel: {
+        lanternHouse: 'h6',
+      },
+    },
+  });
+
+  const restored = await request(app)
+    .post('/api/life/onboarding')
+    .set('Idempotency-Key', 'cached-current-house')
+    .send({
+      archiveName: '张东',
+      entryHouse: 'h6',
+    });
+
+  expect(restored.status).toBe(200);
+  expect(restored.body).toMatchObject({
+    ok: true,
+    action: 'restored',
+    conversationId: 'conversation-real',
+    route: '/c/conversation-real',
+    entryEvent: { kind: 'house_entered', entryHouse: 'h6', visitMode: 'continue' },
+  });
+  expect(mockRunLifeOperation).not.toHaveBeenCalled();
+  expect(mockEngine.json).toHaveBeenCalledTimes(1);
+  expect(mockEngine.json).toHaveBeenCalledWith('/internal/bootstrap', { userId: 'user-1' });
+  expect(mockFindOne).toHaveBeenCalledWith(
+    expect.objectContaining({
+      user: 'user-1',
+      spec: 'future-lines',
+      isTemporary: { $ne: true },
+      'messages.2': { $exists: true },
+    }),
+  );
+});
+
+test('onboarding falls back to the original house entry path when bootstrap is unavailable', async () => {
+  const app = buildApp({ id: 'user-1', name: '张东' });
+  mockEngine.json
+    .mockRejectedValueOnce(new Error('bootstrap unavailable'))
+    .mockResolvedValueOnce({
+      ok: true,
+      profileVersion: 'v1',
+      applied: 1,
+      entryEvent: {
+        kind: 'house_entered',
+        entryHouse: 'h6',
+        visitMode: 'return_entry',
+        at: '2026-07-30T03:50:00.000Z',
+      },
+    });
+
+  const response = await request(app)
+    .post('/api/life/onboarding')
+    .set('Idempotency-Key', 'bootstrap-unavailable')
+    .send({
+      archiveName: '张东',
+      entryHouse: 'h6',
+    });
+
+  expect(response.status).toBe(200);
+  expect(response.body.entryEvent).toMatchObject({
+    kind: 'house_entered',
+    entryHouse: 'h6',
+    visitMode: 'return_entry',
+  });
+  expect(mockRunLifeOperation).toHaveBeenCalledTimes(1);
+  expect(mockEngine.json).toHaveBeenNthCalledWith(1, '/internal/bootstrap', { userId: 'user-1' });
+  expect(mockEngine.json).toHaveBeenNthCalledWith(
+    2,
+    '/internal/onboarding',
+    expect.objectContaining({ body: { archiveName: '张东', entryHouse: 'h6' } }),
+  );
 });
 
 test('resume restores an existing conversation and only creates D-mode when none exists', async () => {

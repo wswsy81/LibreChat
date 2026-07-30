@@ -55,7 +55,9 @@ async function latestLifeConversation(id) {
     user: id,
     spec: 'future-lines',
     isTemporary: { $ne: true },
-    'messages.0': { $exists: true },
+    // future-lines conversations usually begin with a system trigger and the opening answer.
+    // Require a third message so resume ignores empty "entry only" conversations.
+    'messages.2': { $exists: true },
     $or: [
       { expiredAt: { $exists: false } },
       { expiredAt: null },
@@ -65,6 +67,11 @@ async function latestLifeConversation(id) {
     .sort({ updatedAt: -1, _id: -1 })
     .select({ _id: 0, conversationId: 1, title: 1, updatedAt: 1 })
     .lean();
+}
+
+function currentLanternHouse(bootstrap) {
+  const house = bootstrap?.summary?.lifeWheel?.lanternHouse;
+  return lifeHouseIds().has(house) ? house : null;
 }
 
 const SHARE_TOKEN_SECRET =
@@ -414,15 +421,38 @@ router.post('/onboarding', async (req, res) => {
     entryHouse,
   };
   try {
+    const id = userId(req);
+    const [bootstrap, conversation] = await Promise.all([
+      engine.json('/internal/bootstrap', { userId: id }).catch(() => null),
+      latestLifeConversation(id),
+    ]);
+    if (conversation?.conversationId && currentLanternHouse(bootstrap) === entryHouse) {
+      return res.json({
+        ok: true,
+        profileVersion: bootstrap.profileVersion || 'v1',
+        applied: 0,
+        action: 'restored',
+        conversationId: conversation.conversationId,
+        entryEvent: {
+          kind: 'house_entered',
+          entryHouse,
+          visitMode: 'continue',
+          at: new Date().toISOString(),
+        },
+        prompt: '',
+        route: `/c/${conversation.conversationId}`,
+        operationId: null,
+      });
+    }
     const outcome = await runLifeOperation({
-      userId: userId(req),
+      userId: id,
       operation: 'onboarding',
       idempotencyKey: key,
       requestPayload: body,
       replayWindowMs: runtimeApiPolicy().resumeReplayWindowMs,
       executor: async ({ operationId, requestHash }) => {
         const result = await engine.json('/internal/onboarding', {
-          userId: userId(req),
+          userId: id,
           method: 'POST',
           body,
           operation: { id: operationId, name: 'onboarding', requestHash },
