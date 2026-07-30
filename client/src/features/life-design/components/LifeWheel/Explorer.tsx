@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { LifeWheelView } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks';
 import { Button } from '@librechat/client';
@@ -96,6 +97,7 @@ export default function Explorer({
   archiveName: string;
 }) {
   const localize = useLocalize();
+  const navigate = useNavigate();
   const { enterHouse, error, isLoading } = useHouseEntry();
   const [selectedHouse, setSelectedHouse] = useState<HouseId | null>(wheel?.lanternHouse ?? null);
   const selected = wheel?.houses.find((house) => house.id === selectedHouse);
@@ -108,6 +110,10 @@ export default function Explorer({
 
   const start = () => {
     if (!selectedHouse || isLoading) {
+      return;
+    }
+    if (selectedHouse === wheel?.lanternHouse) {
+      navigate('/resume');
       return;
     }
     enterHouse({ archiveName, entryHouse: selectedHouse });

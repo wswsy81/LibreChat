@@ -8,6 +8,12 @@ import ReturningHome from './ReturningHome';
 
 const mockLogout = jest.fn();
 const mockEnter = jest.fn();
+const mockNavigate = jest.fn();
+
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useNavigate: () => mockNavigate,
+}));
 
 jest.mock('~/data-provider', () => ({
   useLifeArchiveQuery: () => ({
@@ -46,6 +52,10 @@ jest.mock('~/hooks', () => ({
 }));
 
 jest.mock('~/utils/track', () => ({ track: jest.fn() }));
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 const bootstrap: LifeBootstrapResponse = {
   authenticated: true,
@@ -97,7 +107,7 @@ test('renders a natural-language timeline date without crashing the returning ho
   expect(screen.getByText('com_life_trend_improving')).toBeInTheDocument();
 });
 
-test('老用户可以再次从同一领域进入', () => {
+test('老用户点击当前亮灯领域时恢复最近对话', () => {
   render(
     <MemoryRouter>
       <ReturningHome bootstrap={bootstrap} />
@@ -106,8 +116,6 @@ test('老用户可以再次从同一领域进入', () => {
 
   fireEvent.click(screen.getByRole('button', { name: /com_life_enter_house/ }));
 
-  expect(mockEnter).toHaveBeenCalledWith(
-    { archiveName: '修文测试1', entryHouse: 'h6' },
-    expect.any(Object),
-  );
+  expect(mockNavigate).toHaveBeenCalledWith('/resume');
+  expect(mockEnter).not.toHaveBeenCalled();
 });
