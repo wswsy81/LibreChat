@@ -313,6 +313,47 @@ describe('useResumableSSE', () => {
     expect(request.post).toHaveBeenCalledTimes(1);
   });
 
+  it('切走再回来不得把同父同文案的新 messageId 再发一次（BUG-2026-010 回归）', async () => {
+    const { request } = jest.requireMock('librechat-data-provider');
+    const chatHelpers = buildChatHelpers();
+    const parentMessageId = 'assistant-parent-1';
+    const firstSubmission = buildSubmission({
+      userMessage: {
+        messageId: 'msg-1',
+        conversationId: CONV_ID,
+        text: '可以，你给下意见',
+        isCreatedByUser: true,
+        sender: 'User',
+        parentMessageId,
+      },
+    });
+    const secondSubmission = buildSubmission({
+      userMessage: {
+        messageId: 'msg-2',
+        conversationId: CONV_ID,
+        text: '可以，你给下意见',
+        isCreatedByUser: true,
+        sender: 'User',
+        parentMessageId,
+      },
+    });
+
+    const first = renderHook(() => useResumableSSE(firstSubmission, chatHelpers));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(request.post).toHaveBeenCalledTimes(1);
+
+    first.unmount();
+
+    renderHook(() => useResumableSSE(secondSubmission, chatHelpers));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(request.post).toHaveBeenCalledTimes(1);
+  });
+
   it('clears the text and files draft from localStorage on 404', async () => {
     seedDraft(CONV_ID);
     expect(localStorage.getItem(`${LocalStorageKeys.TEXT_DRAFT}${CONV_ID}`)).not.toBeNull();

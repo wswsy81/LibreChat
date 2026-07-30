@@ -287,17 +287,33 @@ const hydrateMessageConversationId = (message: TMessage, conversationId: string)
 
 // 已启动过的提交:键 = 会话 + 用户消息 ID。模块级保存,组件重挂载后依然记得。
 const startedSubmissions = new Set<string>();
+// 同一父节点下的同文案重提:键 = 会话 + 父消息 + 规范化正文。用于拦截
+// 切回页面后把同一句话又发出去的回归,即使 messageId 变了也能认出来。
+const startedSubmissionFingerprints = new Set<string>();
 const MAX_TRACKED_SUBMISSIONS = 200;
 
 /** 仅供测试:清掉"已启动过"的记账,让用例之间互不影响。 */
 export const __resetStartedSubmissions = (): void => {
   startedSubmissions.clear();
+  startedSubmissionFingerprints.clear();
 };
 
 const startedSubmissionKey = (submission: TSubmission | null): string | null => {
   const conversationId = submission?.conversation?.conversationId;
   const messageId = submission?.userMessage?.messageId;
   return conversationId && messageId ? `${conversationId}:${messageId}` : null;
+};
+
+const normalizeSubmissionText = (text?: string | null): string => (text ?? '').trim();
+
+const startedSubmissionFingerprintKey = (submission: TSubmission | null): string | null => {
+  const conversationId = submission?.conversation?.conversationId;
+  const parentMessageId = submission?.userMessage?.parentMessageId;
+  const normalizedText = normalizeSubmissionText(submission?.userMessage?.text);
+  if (!conversationId || !parentMessageId || !normalizedText) {
+    return null;
+  }
+  return JSON.stringify([conversationId, parentMessageId, normalizedText]);
 };
 
 const preferDefinedString = (value?: string | null, fallback?: string): string | undefined =>
@@ -1422,6 +1438,7 @@ export default function useResumableSSE(
     submissionRef.current = submission;
     const startController = new AbortController();
     const submissionKey = startedSubmissionKey(submission);
+    const submissionFingerprintKey = startedSubmissionFingerprintKey(submission);
     const { signal } = startController;
 
     const initStream = async () => {
@@ -1452,10 +1469,32 @@ export default function useResumableSSE(
           setSubmission(null);
           return;
         }
+        if (
+          submissionFingerprintKey &&
+          startedSubmissionFingerprints.has(submissionFingerprintKey)
+        ) {
+          logger.log(
+            'ResumableSSE',
+            'Skipping already-started submission fingerprint:',
+            submissionFingerprintKey,
+          );
+          setIsSubmitting(false);
+          setShowStopButton(false);
+          setSubmission(null);
+          return;
+        }
         if (submissionKey) {
           startedSubmissions.add(submissionKey);
           if (startedSubmissions.size > MAX_TRACKED_SUBMISSIONS) {
             startedSubmissions.delete(startedSubmissions.values().next().value as string);
+          }
+        }
+        if (submissionFingerprintKey) {
+          startedSubmissionFingerprints.add(submissionFingerprintKey);
+          if (startedSubmissionFingerprints.size > MAX_TRACKED_SUBMISSIONS) {
+            startedSubmissionFingerprints.delete(
+              startedSubmissionFingerprints.values().next().value as string,
+            );
           }
         }
         // New generation: start and then subscribe
