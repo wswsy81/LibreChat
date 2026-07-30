@@ -161,7 +161,7 @@ jest.mock('librechat-data-provider', () => {
   };
 });
 
-import useResumableSSE from '~/hooks/SSE/useResumableSSE';
+import useResumableSSE, { __resetStartedSubmissions } from '~/hooks/SSE/useResumableSSE';
 
 const CONV_ID = 'conv-abc-123';
 
@@ -238,6 +238,7 @@ const advanceRetryTimer = async (ms: number) => {
 
 describe('useResumableSSE', () => {
   beforeEach(() => {
+    __resetStartedSubmissions();
     mockSSEInstances.length = 0;
     localStorage.clear();
     mockErrorHandler.mockClear();
@@ -288,6 +289,30 @@ describe('useResumableSSE', () => {
 
     return { sse, unmount, chatHelpers };
   };
+
+
+  it('切走再回来不得把同一份提交重发一次（BUG-2026-010）', async () => {
+    const { request } = jest.requireMock('librechat-data-provider');
+    const submission = buildSubmission();
+    const chatHelpers = buildChatHelpers();
+
+    const first = renderHook(() => useResumableSSE(submission, chatHelpers));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(request.post).toHaveBeenCalledTimes(1);
+
+    // 切到别的页面：组件卸载，但 Recoil 里的提交还在。
+    first.unmount();
+
+    // 切回来：同一份提交被重新挂载的 effect 拿到，绝不能再发一次。
+    renderHook(() => useResumableSSE(submission, chatHelpers));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(request.post).toHaveBeenCalledTimes(1);
+  });
 
   it('clears the text and files draft from localStorage on 404', async () => {
     seedDraft(CONV_ID);

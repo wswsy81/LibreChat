@@ -285,6 +285,21 @@ const shouldHydrateMessage = (message: TMessage) =>
 const hydrateMessageConversationId = (message: TMessage, conversationId: string): TMessage =>
   shouldHydrateMessage(message) ? { ...message, conversationId } : message;
 
+// 已启动过的提交:键 = 会话 + 用户消息 ID。模块级保存,组件重挂载后依然记得。
+const startedSubmissions = new Set<string>();
+const MAX_TRACKED_SUBMISSIONS = 200;
+
+/** 仅供测试:清掉"已启动过"的记账,让用例之间互不影响。 */
+export const __resetStartedSubmissions = (): void => {
+  startedSubmissions.clear();
+};
+
+const startedSubmissionKey = (submission: TSubmission | null): string | null => {
+  const conversationId = submission?.conversation?.conversationId;
+  const messageId = submission?.userMessage?.messageId;
+  return conversationId && messageId ? `${conversationId}:${messageId}` : null;
+};
+
 const preferDefinedString = (value?: string | null, fallback?: string): string | undefined =>
   value != null && value !== '' ? value : fallback;
 
@@ -696,6 +711,10 @@ export default function useResumableSSE(
             setStreamId(null);
             optimisticStreamIdsRef.current.delete(currentStreamId);
             createdStreamIdsRef.current.delete(currentStreamId);
+            // 回合已经结束:提交必须从原子里清掉。留着它,用户切走再切回来时
+            // 本 effect 会拿同一份提交重新 startGeneration——同一句话被发第二次,
+            // 挂在同一个父节点上,于是分叉 + 重复计费(BUG-2026-010)。
+            setSubmission(null);
             return;
           }
 
@@ -1401,6 +1420,7 @@ export default function useResumableSSE(
 
     submissionRef.current = submission;
     const startController = new AbortController();
+    const submissionKey = startedSubmissionKey(submission);
     const { signal } = startController;
 
     const initStream = async () => {
@@ -1422,6 +1442,21 @@ export default function useResumableSSE(
         addActiveJob(resumeStreamId);
         subscribeToStream(resumeStreamId, submission, true); // isResume=true
       } else {
+        // 同一份提交只允许启动一次。组件重挂载会让 effect 拿着旧提交重跑,
+        // 而 ref 会随卸载丢失,所以这里用模块级集合记账。
+        if (submissionKey && startedSubmissions.has(submissionKey)) {
+          logger.log('ResumableSSE', 'Skipping already-started submission:', submissionKey);
+          setIsSubmitting(false);
+          setShowStopButton(false);
+          setSubmission(null);
+          return;
+        }
+        if (submissionKey) {
+          startedSubmissions.add(submissionKey);
+          if (startedSubmissions.size > MAX_TRACKED_SUBMISSIONS) {
+            startedSubmissions.delete(startedSubmissions.values().next().value as string);
+          }
+        }
         // New generation: start and then subscribe
         logger.log('ResumableSSE', 'Starting NEW generation');
         const newStreamId = await startGeneration(submission, signal);
