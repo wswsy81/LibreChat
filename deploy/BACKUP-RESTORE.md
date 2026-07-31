@@ -11,7 +11,7 @@
 | `future-engine-data.tgz`       | 画像、报告、分享、inbox、后台记录和删除墓碑                                                                       |
 | `future-engine-runtime.tgz`    | 引擎代码和构建入口，不重复包含 data                                                                               |
 | `librechat-user-files.tgz`     | `uploads/` 和 `images/`                                                                                           |
-| `librechat-runtime.tgz`        | `.env`、当前/历史 release manifest、compose、Docker 构建入口、LibreChat YAML、Caddy、deploy 脚本及可重建源码/dist |
+| `librechat-runtime.tgz`        | `.env`、当前/历史 release manifest、compose、Docker 构建入口、LibreChat YAML、Caddy、deploy 脚本、可重建源码/dist，以及热改 `runtime-config` 与 prompt last-known-good |
 | `images.txt`                   | 备份时六个容器的镜像 ID                                                                                           |
 | `SHA256SUMS`                   | 恢复前完整性校验                                                                                                  |
 | `mongorestore-dry-run.txt`     | 备份时 Mongo 可读验证                                                                                             |

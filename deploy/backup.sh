@@ -140,7 +140,8 @@ for path in \
   packages/data-provider/dist \
   api/server \
   api/strategies \
-  config; do
+  config \
+  runtime-config; do
   [[ -e "$APP_DIR/$path" ]] && runtime_paths+=("$path")
 done
 [[ ${#runtime_paths[@]} -ge 5 ]] || die 'LibreChat runtime/config coverage is unexpectedly small'

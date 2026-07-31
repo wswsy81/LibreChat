@@ -88,6 +88,7 @@ describe('loadCustomConfig', () => {
     });
     delete process.env.CONFIG_PATH;
     delete process.env.LIBRECHAT_PROMPT_FILE;
+    delete process.env.LIBRECHAT_PROMPT_LAST_GOOD_FILE;
     delete process.env.LIBRECHAT_PROMPT_MODEL_SPEC;
   });
 
@@ -102,7 +103,9 @@ describe('loadCustomConfig', () => {
       },
     };
 
-    expect(applyExternalPrompt(config).modelSpecs.list[0].preset.promptPrefix).toBe('外置全局提示词');
+    expect(applyExternalPrompt(config).modelSpecs.list[0].preset.promptPrefix).toBe(
+      '外置全局提示词',
+    );
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
@@ -114,11 +117,43 @@ describe('loadCustomConfig', () => {
       },
     };
 
-    expect(applyExternalPrompt(config).modelSpecs.list[0].preset.promptPrefix).toBe('镜像内置提示词');
+    expect(applyExternalPrompt(config).modelSpecs.list[0].preset.promptPrefix).toBe(
+      '镜像内置提示词',
+    );
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining('using embedded promptPrefix'),
       expect.objectContaining({ message: expect.stringContaining('ENOENT') }),
     );
+  });
+
+  it('persists the last valid external prompt and restores it after the mounted file disappears', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'librechat-prompt-last-good-'));
+    const promptFile = path.join(dir, 'global-prompt.v1.md');
+    const lastGoodFile = path.join(dir, '.last-good', 'global-prompt.v1.md');
+    fs.writeFileSync(promptFile, '上一份合法提示词\n');
+    process.env.LIBRECHAT_PROMPT_FILE = promptFile;
+    process.env.LIBRECHAT_PROMPT_LAST_GOOD_FILE = lastGoodFile;
+
+    const first = {
+      modelSpecs: { list: [{ name: 'future-lines', preset: { promptPrefix: '镜像内置提示词' } }] },
+    };
+    expect(applyExternalPrompt(first).modelSpecs.list[0].preset.promptPrefix).toBe(
+      '上一份合法提示词',
+    );
+    expect(fs.readFileSync(lastGoodFile, 'utf8').trim()).toBe('上一份合法提示词');
+
+    fs.rmSync(promptFile);
+    const restarted = {
+      modelSpecs: { list: [{ name: 'future-lines', preset: { promptPrefix: '镜像内置提示词' } }] },
+    };
+    expect(applyExternalPrompt(restarted).modelSpecs.list[0].preset.promptPrefix).toBe(
+      '上一份合法提示词',
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('using persisted last-known-good prompt'),
+      expect.objectContaining({ message: expect.stringContaining('ENOENT') }),
+    );
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   it('should return null and log error if remote config fetch fails', async () => {

@@ -7,6 +7,7 @@ APP_DIR=${APP_DIR_OVERRIDE:-"$(cd -- "$SCRIPT_DIR/.." && pwd)"}
 ENGINE_DIR=${ENGINE_DIR_OVERRIDE:-"$(cd -- "$APP_DIR/../future-engine-shim" && pwd)"}
 RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
 RUNTIME_CONFIG_DIR=${RUNTIME_CONFIG_DIR:-"$APP_DIR/runtime-config"}
+ENGINE_LAST_GOOD_DIR=${ENGINE_LAST_GOOD_DIR:-"$ENGINE_DIR/data/runtime-last-good"}
 CANDIDATE=${1:-}
 
 [[ -n "$CANDIDATE" ]] || {
@@ -18,12 +19,13 @@ CANDIDATE=${1:-}
   exit 1
 }
 
-install -d -m 700 "$RUNTIME_CONFIG_DIR"
+install -d -m 700 "$RUNTIME_CONFIG_DIR" "$RUNTIME_CONFIG_DIR/.last-good" "$ENGINE_LAST_GOOD_DIR"
 for file in runtime-policy.v1.json security-contract.v1.json product-catalog.v1.json product-experiments.v1.json rules.v1.json; do
   if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
     install -m 600 "$ENGINE_DIR/../config/$file" "$RUNTIME_CONFIG_DIR/$file"
   fi
 done
+
 if [[ ! -f "$RUNTIME_CONFIG_DIR/global-prompt.v1.md" ]]; then
   install -m 600 "$ENGINE_DIR/../config/global-prompt.v1.md" "$RUNTIME_CONFIG_DIR/global-prompt.v1.md"
 fi
@@ -39,6 +41,15 @@ for file in \
   constitution.v1.json; do
   if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
     install -m 600 "$ENGINE_DIR/banks/$file" "$RUNTIME_CONFIG_DIR/$file"
+  fi
+done
+
+if [[ ! -f "$RUNTIME_CONFIG_DIR/.last-good/global-prompt.v1.md" ]]; then
+  install -m 600 "$RUNTIME_CONFIG_DIR/global-prompt.v1.md" "$RUNTIME_CONFIG_DIR/.last-good/global-prompt.v1.md"
+fi
+for file in runtime-copy.v1.json rescue-bank.v1.json topics-bank.v1.json; do
+  if [[ ! -f "$ENGINE_LAST_GOOD_DIR/$file" ]]; then
+    install -m 600 "$RUNTIME_CONFIG_DIR/$file" "$ENGINE_LAST_GOOD_DIR/$file"
   fi
 done
 

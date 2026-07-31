@@ -51,6 +51,7 @@ mkdir -p \
   "$app/packages/api/dist" \
   "$app/packages/data-schemas/dist" \
   "$app/packages/data-provider/dist" \
+  "$app/runtime-config/.last-good" \
   "$engine/data" \
   "$fake_bin" \
   "$backup_root"
@@ -61,6 +62,8 @@ printf 'client\n' > "$app/client/dist/index.html"
 printf 'api\n' > "$app/packages/api/dist/index.js"
 printf 'schemas\n' > "$app/packages/data-schemas/dist/index.js"
 printf 'provider\n' > "$app/packages/data-provider/dist/index.js"
+printf 'hot-copy\n' > "$app/runtime-config/runtime-copy.v1.json"
+printf 'last-good-prompt\n' > "$app/runtime-config/.last-good/global-prompt.v1.md"
 printf 'profile\n' > "$engine/data/profile.json"
 printf 'engine\n' > "$engine/server.js"
 printf 'FROM scratch\n' > "$engine/Dockerfile"
@@ -137,6 +140,10 @@ done
   fail "backup directory is not 0700"
 
 (cd "$backup" && sha256sum -c SHA256SUMS >/dev/null)
+tar -tzf "$backup/librechat-runtime.tgz" | grep -Fq 'runtime-config/runtime-copy.v1.json' ||
+  fail 'runtime-config hot copy missing from runtime backup'
+tar -tzf "$backup/librechat-runtime.tgz" | grep -Fq 'runtime-config/.last-good/global-prompt.v1.md' ||
+  fail 'runtime-config last-known-good prompt missing from runtime backup'
 grep -Fq -- '--username librechat' "$fake_docker_log" || fail 'Mongo dump did not authenticate'
 grep -Fq -- 'pg_dump' "$fake_docker_log" || fail 'Umami Postgres was not dumped'
 find "$backup_root" -maxdepth 1 -type d -name '*.partial.*' | grep -q . &&

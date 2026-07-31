@@ -10,9 +10,16 @@ ENGINE_DIR="$TEST_ROOT/future-engine"
 RELEASE_ROOT="$TEST_ROOT/releases"
 FAKE_BIN="$TEST_ROOT/bin"
 FAKE_LOG="$TEST_ROOT/docker.log"
-mkdir -p "$APP_DIR" "$ENGINE_DIR/data" "$RELEASE_ROOT" "$FAKE_BIN" "$TEST_ROOT/library/corpora/schemas"
+mkdir -p "$APP_DIR" "$ENGINE_DIR/data" "$ENGINE_DIR/banks" "$RELEASE_ROOT" "$FAKE_BIN" "$TEST_ROOT/config" "$TEST_ROOT/library/corpora/schemas"
 touch "$APP_DIR/.env" "$APP_DIR/docker-compose.prod.yml" "$ENGINE_DIR/Dockerfile"
 printf '{}\n' > "$TEST_ROOT/library/corpora/schemas/bank-item.schema.json"
+for file in runtime-policy.v1.json security-contract.v1.json product-catalog.v1.json product-experiments.v1.json rules.v1.json; do
+  printf '{}\n' > "$TEST_ROOT/config/$file"
+done
+printf 'test prompt\n' > "$TEST_ROOT/config/global-prompt.v1.md"
+for file in runtime-copy.v1.json rescue-bank.v1.json topics-bank.v1.json house-entry-options-bank.v1.json reveal-scenario-registry.v1.json reveal-common-variables.v1.json house-opening-bank.v1.json house-opening-bank.v2.json constitution.v1.json; do
+  printf '{}\n' > "$ENGINE_DIR/banks/$file"
+done
 
 CURRENT_API="sha256:$(printf 'a%.0s' {1..64})"
 CURRENT_ENGINE="sha256:$(printf 'b%.0s' {1..64})"
@@ -28,7 +35,9 @@ cat > "$FAKE_BIN/docker" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
 case "${1:-}" in
-  info|build|run) exit 0 ;;
+  info|run) exit 0 ;;
+  buildx) exit 1 ;;
+  build) exit 0 ;;
   image)
     if [[ "${2:-}" != inspect ]]; then exit 0; fi
     if [[ " $* " != *" --format "* ]]; then exit 0; fi
@@ -76,7 +85,7 @@ RELEASE_SERVICE=future-engine bash "$SCRIPT_DIR/build-release.sh" ENGINE-HOTFIX-
 grep -qx "LIBRECHAT_RELEASE_IMAGE=$CURRENT_API" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
 grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
 grep -qx 'release_service=future-engine' "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.manifest"
-[[ $(grep -c '^build ' "$FAKE_LOG") -eq 1 ]]
+[[ $(grep -c '^build ' "$FAKE_LOG") -eq 2 ]]
 
 : > "$FAKE_LOG"
 bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env" >/dev/null
@@ -84,6 +93,10 @@ up_line=$(grep 'compose .* up --detach' "$FAKE_LOG")
 [[ "$up_line" == *'future-engine' && "$up_line" != *' api'* ]]
 grep -qx "LIBRECHAT_RELEASE_IMAGE=$CURRENT_API" "$APP_DIR/.release.env"
 grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$APP_DIR/.release.env"
+[[ -s "$APP_DIR/runtime-config/.last-good/global-prompt.v1.md" ]]
+[[ -s "$ENGINE_DIR/data/runtime-last-good/runtime-copy.v1.json" ]]
+[[ -s "$ENGINE_DIR/data/runtime-last-good/rescue-bank.v1.json" ]]
+[[ -s "$ENGINE_DIR/data/runtime-last-good/topics-bank.v1.json" ]]
 
 : > "$FAKE_LOG"
 set +e

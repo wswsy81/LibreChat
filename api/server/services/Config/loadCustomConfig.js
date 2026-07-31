@@ -63,25 +63,76 @@ function addOpenRouterDefaults(endpoint) {
   };
 }
 
+function readPromptFile(file) {
+  const resolved = path.resolve(file);
+  const stat = fs.statSync(resolved);
+  if (!stat.isFile() || stat.size < 1 || stat.size > MAX_EXTERNAL_PROMPT_BYTES) {
+    throw new Error(`prompt file size invalid:${stat.size}`);
+  }
+  const prompt = fs.readFileSync(resolved, 'utf8').trim();
+  if (!prompt || prompt.includes('\0')) throw new Error('prompt file is empty or contains NUL');
+  return prompt;
+}
+
+function persistPrompt(file, prompt) {
+  if (!file) return;
+  const resolved = path.resolve(file);
+  const dir = path.dirname(resolved);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const temp = path.join(dir, `.${path.basename(resolved)}.${process.pid}.${Date.now()}.tmp`);
+  try {
+    fs.writeFileSync(temp, `${prompt}\n`, { mode: 0o600 });
+    fs.renameSync(temp, resolved);
+  } finally {
+    try {
+      fs.unlinkSync(temp);
+    } catch {
+      // Best-effort cleanup must not mask the original write/rename result.
+    }
+  }
+}
+
 function applyExternalPrompt(customConfig) {
   const promptFile = process.env.LIBRECHAT_PROMPT_FILE;
   if (!promptFile) return customConfig;
+  const targetName = process.env.LIBRECHAT_PROMPT_MODEL_SPEC || DEFAULT_PROMPT_MODEL_SPEC;
+  const target = customConfig?.modelSpecs?.list?.find((spec) => spec?.name === targetName);
+  if (!target?.preset || typeof target.preset !== 'object') {
+    logger.error(
+      `[external-prompt] model spec not found:${targetName}; using embedded promptPrefix`,
+    );
+    return customConfig;
+  }
+
+  const lastGoodFile = process.env.LIBRECHAT_PROMPT_LAST_GOOD_FILE;
   try {
-    const resolved = path.resolve(promptFile);
-    const stat = fs.statSync(resolved);
-    if (!stat.isFile() || stat.size < 1 || stat.size > MAX_EXTERNAL_PROMPT_BYTES) {
-      throw new Error(`prompt file size invalid:${stat.size}`);
-    }
-    const prompt = fs.readFileSync(resolved, 'utf8').trim();
-    if (!prompt || prompt.includes('\0')) throw new Error('prompt file is empty or contains NUL');
-    const targetName = process.env.LIBRECHAT_PROMPT_MODEL_SPEC || DEFAULT_PROMPT_MODEL_SPEC;
-    const target = customConfig?.modelSpecs?.list?.find((spec) => spec?.name === targetName);
-    if (!target?.preset || typeof target.preset !== 'object') {
-      throw new Error(`model spec not found:${targetName}`);
-    }
+    const prompt = readPromptFile(promptFile);
     target.preset.promptPrefix = prompt;
+    try {
+      persistPrompt(lastGoodFile, prompt);
+    } catch (error) {
+      logger.error(
+        `[external-prompt] Failed to persist last-known-good prompt ${lastGoodFile}`,
+        error,
+      );
+    }
     return customConfig;
   } catch (error) {
+    if (lastGoodFile) {
+      try {
+        target.preset.promptPrefix = readPromptFile(lastGoodFile);
+        logger.error(
+          `[external-prompt] Failed to load ${promptFile}; using persisted last-known-good prompt`,
+          error,
+        );
+        return customConfig;
+      } catch (lastGoodError) {
+        logger.error(
+          `[external-prompt] Failed to load persisted prompt ${lastGoodFile}`,
+          lastGoodError,
+        );
+      }
+    }
     logger.error(
       `[external-prompt] Failed to load ${promptFile}; using embedded promptPrefix`,
       error,
