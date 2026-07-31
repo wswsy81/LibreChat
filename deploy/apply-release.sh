@@ -8,6 +8,8 @@ ENGINE_DIR=${ENGINE_DIR_OVERRIDE:-"$(cd -- "$APP_DIR/../future-engine-shim" && p
 RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
 RUNTIME_CONFIG_DIR=${RUNTIME_CONFIG_DIR:-"$APP_DIR/runtime-config"}
 ENGINE_LAST_GOOD_DIR=${ENGINE_LAST_GOOD_DIR:-"$ENGINE_DIR/data/runtime-last-good"}
+RUNTIME_WRITER_UID=${RUNTIME_WRITER_UID:-1000}
+RUNTIME_WRITER_GID=${RUNTIME_WRITER_GID:-1000}
 CANDIDATE=${1:-}
 
 [[ -n "$CANDIDATE" ]] || {
@@ -76,6 +78,12 @@ chmod 644 \
   "$ENGINE_LAST_GOOD_DIR"/runtime-copy.v1.json \
   "$ENGINE_LAST_GOOD_DIR"/rescue-bank.v1.json \
   "$ENGINE_LAST_GOOD_DIR"/topics-bank.v1.json
+
+# last-known-good 快照由容器内的 node(uid/gid 1000) 原子写入。目录只读会让
+# 服务看似健康，却无法更新持久回退点；因此不只检查模式，还必须修复所有权。
+chown -R "$RUNTIME_WRITER_UID:$RUNTIME_WRITER_GID" \
+  "$RUNTIME_CONFIG_DIR/.last-good" \
+  "$ENGINE_LAST_GOOD_DIR"
 
 if [[ "$CANDIDATE" != /* ]]; then
   CANDIDATE="$APP_DIR/$CANDIDATE"

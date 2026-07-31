@@ -73,6 +73,10 @@ export ENGINE_DIR_OVERRIDE="$ENGINE_DIR"
 export RELEASE_ROOT
 export LIBRECHAT_REVISION=test-api-revision
 export ENGINE_REVISION=test-engine-revision
+export RUNTIME_WRITER_UID
+export RUNTIME_WRITER_GID
+RUNTIME_WRITER_UID=$(id -u)
+RUNTIME_WRITER_GID=$(id -g)
 
 RELEASE_SERVICE=api bash "$SCRIPT_DIR/build-release.sh" API-HOTFIX-TEST >/dev/null
 grep -qx "LIBRECHAT_RELEASE_IMAGE=$NEW_API" "$RELEASE_ROOT/API-HOTFIX-TEST.env"
@@ -107,12 +111,22 @@ grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$APP_DIR/.release.env"
 file_mode() {
   stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
 }
+file_uid() {
+  stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1"
+}
+file_gid() {
+  stat -c '%g' "$1" 2>/dev/null || stat -f '%g' "$1"
+}
 [[ $(file_mode "$APP_DIR/runtime-config") == 755 ]]
 [[ $(file_mode "$APP_DIR/runtime-config/runtime-copy.v1.json") == 644 ]]
 [[ $(file_mode "$APP_DIR/runtime-config/.last-good") == 755 ]]
 [[ $(file_mode "$APP_DIR/runtime-config/.last-good/global-prompt.v1.md") == 644 ]]
 [[ $(file_mode "$ENGINE_DIR/data/runtime-last-good") == 755 ]]
 [[ $(file_mode "$ENGINE_DIR/data/runtime-last-good/runtime-copy.v1.json") == 644 ]]
+[[ $(file_uid "$APP_DIR/runtime-config/.last-good") == "$RUNTIME_WRITER_UID" ]]
+[[ $(file_gid "$APP_DIR/runtime-config/.last-good") == "$RUNTIME_WRITER_GID" ]]
+[[ $(file_uid "$ENGINE_DIR/data/runtime-last-good") == "$RUNTIME_WRITER_UID" ]]
+[[ $(file_gid "$ENGINE_DIR/data/runtime-last-good") == "$RUNTIME_WRITER_GID" ]]
 
 : > "$FAKE_LOG"
 set +e
