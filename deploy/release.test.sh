@@ -104,6 +104,16 @@ grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$APP_DIR/.release.env"
 [[ -s "$ENGINE_DIR/data/runtime-last-good/rescue-bank.v1.json" ]]
 [[ -s "$ENGINE_DIR/data/runtime-last-good/topics-bank.v1.json" ]]
 
+file_mode() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
+}
+[[ $(file_mode "$APP_DIR/runtime-config") == 755 ]]
+[[ $(file_mode "$APP_DIR/runtime-config/runtime-copy.v1.json") == 644 ]]
+[[ $(file_mode "$APP_DIR/runtime-config/.last-good") == 755 ]]
+[[ $(file_mode "$APP_DIR/runtime-config/.last-good/global-prompt.v1.md") == 644 ]]
+[[ $(file_mode "$ENGINE_DIR/data/runtime-last-good") == 755 ]]
+[[ $(file_mode "$ENGINE_DIR/data/runtime-last-good/runtime-copy.v1.json") == 644 ]]
+
 : > "$FAKE_LOG"
 set +e
 FAKE_HEALTH_FAIL=1 HEALTH_ATTEMPTS=1 HEALTH_SLEEP_SECONDS=0 \

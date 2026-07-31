@@ -19,15 +19,15 @@ CANDIDATE=${1:-}
   exit 1
 }
 
-install -d -m 700 "$RUNTIME_CONFIG_DIR" "$RUNTIME_CONFIG_DIR/.last-good" "$ENGINE_LAST_GOOD_DIR"
+install -d -m 755 "$RUNTIME_CONFIG_DIR" "$RUNTIME_CONFIG_DIR/.last-good" "$ENGINE_LAST_GOOD_DIR"
 for file in runtime-policy.v1.json security-contract.v1.json product-catalog.v1.json product-experiments.v1.json rules.v1.json; do
   if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
-    install -m 600 "$ENGINE_DIR/../config/$file" "$RUNTIME_CONFIG_DIR/$file"
+    install -m 644 "$ENGINE_DIR/../config/$file" "$RUNTIME_CONFIG_DIR/$file"
   fi
 done
 
 if [[ ! -f "$RUNTIME_CONFIG_DIR/global-prompt.v1.md" ]]; then
-  install -m 600 "$ENGINE_DIR/../config/global-prompt.v1.md" "$RUNTIME_CONFIG_DIR/global-prompt.v1.md"
+  install -m 644 "$ENGINE_DIR/../config/global-prompt.v1.md" "$RUNTIME_CONFIG_DIR/global-prompt.v1.md"
 fi
 for file in \
   runtime-copy.v1.json \
@@ -40,18 +40,42 @@ for file in \
   house-opening-bank.v2.json \
   constitution.v1.json; do
   if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
-    install -m 600 "$ENGINE_DIR/banks/$file" "$RUNTIME_CONFIG_DIR/$file"
+    install -m 644 "$ENGINE_DIR/banks/$file" "$RUNTIME_CONFIG_DIR/$file"
   fi
 done
 
 if [[ ! -f "$RUNTIME_CONFIG_DIR/.last-good/global-prompt.v1.md" ]]; then
-  install -m 600 "$RUNTIME_CONFIG_DIR/global-prompt.v1.md" "$RUNTIME_CONFIG_DIR/.last-good/global-prompt.v1.md"
+  install -m 644 "$RUNTIME_CONFIG_DIR/global-prompt.v1.md" "$RUNTIME_CONFIG_DIR/.last-good/global-prompt.v1.md"
 fi
 for file in runtime-copy.v1.json rescue-bank.v1.json topics-bank.v1.json; do
   if [[ ! -f "$ENGINE_LAST_GOOD_DIR/$file" ]]; then
-    install -m 600 "$RUNTIME_CONFIG_DIR/$file" "$ENGINE_LAST_GOOD_DIR/$file"
+    install -m 644 "$RUNTIME_CONFIG_DIR/$file" "$ENGINE_LAST_GOOD_DIR/$file"
   fi
 done
+
+# 运行时资产不含密钥，且被只读挂载给 uid 1000 的非 root 容器。即使文件已存在，
+# 也要修复旧发布留下的 0600/0700，否则容器启动时会因 EACCES 循环重启。
+chmod 755 "$RUNTIME_CONFIG_DIR" "$RUNTIME_CONFIG_DIR/.last-good" "$ENGINE_LAST_GOOD_DIR"
+chmod 644 \
+  "$RUNTIME_CONFIG_DIR"/runtime-policy.v1.json \
+  "$RUNTIME_CONFIG_DIR"/security-contract.v1.json \
+  "$RUNTIME_CONFIG_DIR"/product-catalog.v1.json \
+  "$RUNTIME_CONFIG_DIR"/product-experiments.v1.json \
+  "$RUNTIME_CONFIG_DIR"/rules.v1.json \
+  "$RUNTIME_CONFIG_DIR"/global-prompt.v1.md \
+  "$RUNTIME_CONFIG_DIR"/runtime-copy.v1.json \
+  "$RUNTIME_CONFIG_DIR"/rescue-bank.v1.json \
+  "$RUNTIME_CONFIG_DIR"/topics-bank.v1.json \
+  "$RUNTIME_CONFIG_DIR"/house-entry-options-bank.v1.json \
+  "$RUNTIME_CONFIG_DIR"/reveal-scenario-registry.v1.json \
+  "$RUNTIME_CONFIG_DIR"/reveal-common-variables.v1.json \
+  "$RUNTIME_CONFIG_DIR"/house-opening-bank.v1.json \
+  "$RUNTIME_CONFIG_DIR"/house-opening-bank.v2.json \
+  "$RUNTIME_CONFIG_DIR"/constitution.v1.json \
+  "$RUNTIME_CONFIG_DIR"/.last-good/global-prompt.v1.md \
+  "$ENGINE_LAST_GOOD_DIR"/runtime-copy.v1.json \
+  "$ENGINE_LAST_GOOD_DIR"/rescue-bank.v1.json \
+  "$ENGINE_LAST_GOOD_DIR"/topics-bank.v1.json
 
 if [[ "$CANDIDATE" != /* ]]; then
   CANDIDATE="$APP_DIR/$CANDIDATE"
