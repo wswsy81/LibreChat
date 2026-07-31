@@ -57,10 +57,14 @@ jest.mock('@librechat/data-schemas', () => {
 });
 
 const axios = require('axios');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { loadYaml } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 const { ReasoningParameterFormat, ReasoningResponseKey } = require('librechat-data-provider');
 const loadCustomConfig = require('./loadCustomConfig');
+const { applyExternalPrompt } = loadCustomConfig;
 
 describe('loadCustomConfig', () => {
   const originalExit = process.exit;
@@ -83,6 +87,38 @@ describe('loadCustomConfig', () => {
       throw new Error(`process.exit called with "${code}"`);
     });
     delete process.env.CONFIG_PATH;
+    delete process.env.LIBRECHAT_PROMPT_FILE;
+    delete process.env.LIBRECHAT_PROMPT_MODEL_SPEC;
+  });
+
+  it('loads the future-lines promptPrefix from a mounted file at startup', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'librechat-prompt-'));
+    const promptFile = path.join(dir, 'global-prompt.v1.md');
+    fs.writeFileSync(promptFile, '外置全局提示词\n');
+    process.env.LIBRECHAT_PROMPT_FILE = promptFile;
+    const config = {
+      modelSpecs: {
+        list: [{ name: 'future-lines', preset: { promptPrefix: '镜像内置提示词' } }],
+      },
+    };
+
+    expect(applyExternalPrompt(config).modelSpecs.list[0].preset.promptPrefix).toBe('外置全局提示词');
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('keeps the embedded promptPrefix when the mounted prompt is unavailable', () => {
+    process.env.LIBRECHAT_PROMPT_FILE = '/nonexistent/global-prompt.v1.md';
+    const config = {
+      modelSpecs: {
+        list: [{ name: 'future-lines', preset: { promptPrefix: '镜像内置提示词' } }],
+      },
+    };
+
+    expect(applyExternalPrompt(config).modelSpecs.list[0].preset.promptPrefix).toBe('镜像内置提示词');
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('using embedded promptPrefix'),
+      expect.objectContaining({ message: expect.stringContaining('ENOENT') }),
+    );
   });
 
   it('should return null and log error if remote config fetch fails', async () => {

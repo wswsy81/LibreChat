@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const axios = require('axios');
 const yaml = require('js-yaml');
 const keyBy = require('lodash/keyBy');
@@ -15,6 +16,8 @@ const {
 
 const projectRoot = path.resolve(__dirname, '..', '..', '..', '..');
 const defaultConfigPath = path.resolve(projectRoot, 'librechat.yaml');
+const DEFAULT_PROMPT_MODEL_SPEC = 'future-lines';
+const MAX_EXTERNAL_PROMPT_BYTES = 256 * 1024;
 
 let i = 0;
 
@@ -58,6 +61,33 @@ function addOpenRouterDefaults(endpoint) {
       ? paramDefinitions
       : [...paramDefinitions, OPENROUTER_PROMPT_CACHE_DEFAULT],
   };
+}
+
+function applyExternalPrompt(customConfig) {
+  const promptFile = process.env.LIBRECHAT_PROMPT_FILE;
+  if (!promptFile) return customConfig;
+  try {
+    const resolved = path.resolve(promptFile);
+    const stat = fs.statSync(resolved);
+    if (!stat.isFile() || stat.size < 1 || stat.size > MAX_EXTERNAL_PROMPT_BYTES) {
+      throw new Error(`prompt file size invalid:${stat.size}`);
+    }
+    const prompt = fs.readFileSync(resolved, 'utf8').trim();
+    if (!prompt || prompt.includes('\0')) throw new Error('prompt file is empty or contains NUL');
+    const targetName = process.env.LIBRECHAT_PROMPT_MODEL_SPEC || DEFAULT_PROMPT_MODEL_SPEC;
+    const target = customConfig?.modelSpecs?.list?.find((spec) => spec?.name === targetName);
+    if (!target?.preset || typeof target.preset !== 'object') {
+      throw new Error(`model spec not found:${targetName}`);
+    }
+    target.preset.promptPrefix = prompt;
+    return customConfig;
+  } catch (error) {
+    logger.error(
+      `[external-prompt] Failed to load ${promptFile}; using embedded promptPrefix`,
+      error,
+    );
+    return customConfig;
+  }
 }
 
 /**
@@ -108,6 +138,8 @@ async function loadCustomConfig(printConfig = true) {
       return null;
     }
   }
+
+  customConfig = applyExternalPrompt(customConfig);
 
   const result = configSchema.strict().safeParse(customConfig);
   if (result?.error?.errors?.some((err) => err?.path && err.path?.includes('imageOutputType'))) {
@@ -225,3 +257,4 @@ function parseCustomParams(endpointName, customParams) {
 }
 
 module.exports = loadCustomConfig;
+module.exports.applyExternalPrompt = applyExternalPrompt;

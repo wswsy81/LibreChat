@@ -45,6 +45,7 @@ services:
       - FUTURE_ENGINE_PRODUCT_CATALOG_FILE=/app/runtime-config/product-catalog.v1.json
       - FUTURE_ENGINE_PRODUCT_EXPERIMENTS_FILE=/app/runtime-config/product-experiments.v1.json
       - FUTURE_ENGINE_RULES_FILE=/app/runtime-config/rules.v1.json
+      - FUTURE_ENGINE_BANK_ROOT=/app/runtime-config
       - FUTURE_ENGINE_PRODUCT_SKILL_ROOT=/app/product-skills
       - FUTURE_ENGINE_PRODUCT_PLUGIN_ROOT=/app/product-plugins
       - ADVISOR_GATEWAY_ENABLED=on
@@ -102,6 +103,7 @@ services:
       # 与 future-engine 的 ADVISOR_PRODUCT_RUNNER_REQUIRED 成对,必须同时切换。
       - FUTURELINE_PRODUCT_RUNNER_ENABLED=${FUTURELINE_PRODUCT_RUNNER_ENABLED:-off}
       - RUNTIME_CONFIG_DIR=/app/runtime-config
+      - LIBRECHAT_PROMPT_FILE=/app/runtime-config/global-prompt.v1.md
       - MONGO_URI=mongodb://librechat:${MONGO_APP_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat
     volumes:
       # 只保留用户产生的可写数据；代码/config/dist 不再从宿主覆盖。
