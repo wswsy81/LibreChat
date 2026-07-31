@@ -76,20 +76,19 @@ describe('public registration policy', () => {
   it('keeps the selected house on the registration action', async () => {
     renderHome();
 
-    const selfPresentation = screen.getAllByRole('button', { name: /自我呈现/ });
-    expect(
-      selfPresentation.every((button) => button.getAttribute('aria-pressed') === 'false'),
-    ).toBe(true);
+    const financial = screen
+      .getAllByText('com_life_map_house_h2')
+      .map((node) => node.closest('[role="button"],button'))
+      .filter((node): node is HTMLElement => node instanceof HTMLElement);
+    expect(financial.every((button) => button.getAttribute('aria-pressed') === 'false')).toBe(true);
 
-    await userEvent.click(selfPresentation[0]);
+    await userEvent.click(financial[0]);
 
     expect(screen.getByRole('link', { name: /com_life_start_first/ })).toHaveAttribute(
       'href',
-      '/register?entryHouse=h1',
+      '/register?entryHouse=h2',
     );
-    expect(selfPresentation.every((button) => button.getAttribute('aria-pressed') === 'true')).toBe(
-      true,
-    );
+    expect(financial.every((button) => button.getAttribute('aria-pressed') === 'true')).toBe(true);
   });
 
   it('explains the product and shows the mist map', () => {
@@ -102,7 +101,7 @@ describe('public registration policy', () => {
     expect(screen.getByText('com_life_line_rupture')).toBeInTheDocument();
     expect(screen.getByText('com_life_line_sample_note')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'com_life_public_map_aria' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '你在这里' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'com_life_map_you_are_here' })).toBeInTheDocument();
     expect(screen.getByText('com_life_public_private')).toBeInTheDocument();
   });
 

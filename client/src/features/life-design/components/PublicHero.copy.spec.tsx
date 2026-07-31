@@ -13,7 +13,14 @@ jest.mock('~/hooks', () => ({
   useLocalize: () => (key: string) => mockTranslation[key] ?? '',
 }));
 
-jest.mock('./PublicMistMap', () => () => <div data-testid="public-mist-map" />);
+jest.mock('./PublicMistMap', () => {
+  const actual = jest.requireActual('./PublicMistMap');
+  return {
+    __esModule: true,
+    ...actual,
+    default: () => <div data-testid="public-mist-map" />,
+  };
+});
 
 test('公开首页三条未来线与报告共用唯一名称，不再暴露内部或旧奥德赛术语', () => {
   render(

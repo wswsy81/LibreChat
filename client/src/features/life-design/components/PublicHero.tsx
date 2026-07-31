@@ -1,10 +1,9 @@
-/* eslint-disable i18next/no-literal-string */
 import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLocalize } from '~/hooks';
 import type { TranslationKeys } from '~/hooks';
-import PublicMistMap from './PublicMistMap';
+import PublicMistMap, { PUBLIC_MAP_LABEL_KEYS } from './PublicMistMap';
 import { HOUSES } from './LifeWheel';
 import type { HouseId } from './LifeWheel';
 
@@ -94,6 +93,7 @@ export default function PublicHero({
   const localize = useLocalize();
   const [selectedId, setSelectedId] = useState<HouseId>(DEFAULT_ISLAND);
   const selected = HOUSES.find((house) => house.id === selectedId) ?? HOUSES[0];
+  const selectedDisplayName = localize(PUBLIC_MAP_LABEL_KEYS[selected.id]);
 
   return (
     <div className="grid items-start gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:gap-14">
@@ -110,9 +110,9 @@ export default function PublicHero({
 
         <div className="mt-6 border border-life-ink/45 bg-[#F7F4EB] p-5 dark:border-white/20 dark:bg-white/5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-life-serif text-life-lead font-black">{selected.publicName}</h2>
+            <h2 className="font-life-serif text-life-lead font-black">{selectedDisplayName}</h2>
             <span className="flex-none border border-life-brass/50 px-2 py-0.5 font-life-mono text-life-meta tracking-[0.1em] text-life-brass">
-              示例
+              {localize('com_life_public_example')}
             </span>
           </div>
           <ul className="mt-4 space-y-3">
@@ -135,7 +135,7 @@ export default function PublicHero({
               to={`/register?entryHouse=${selected.id}`}
               className="inline-flex items-center gap-1 font-life-sans text-life-sm font-semibold text-life-moss underline decoration-life-moss/40 underline-offset-4 transition hover:text-life-moss-deep"
             >
-              看你自己的「{selected.publicName}」
+              {localize('com_life_public_see_yours', { 0: selectedDisplayName })}
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>

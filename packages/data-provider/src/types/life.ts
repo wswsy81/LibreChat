@@ -232,7 +232,27 @@ export interface LifeArchiveResponse {
   schemaVersion: number;
   profileVersion: string | null;
   profile: LifeProfileView;
+  archiveStatus?: LifeArchiveStatus;
+  recentDossier?: LifeDossierPreviewEntry[];
   reports: LifeReportSummary[];
+}
+
+export interface LifeArchiveStatus {
+  variableCount: number;
+  dossierClaimCount: number;
+  latestClaimId: string | null;
+  mapVersion: string;
+  gateReached: boolean;
+  openingAnnouncedAt: string | null;
+}
+
+export interface LifeDossierPreviewEntry {
+  id: string;
+  section: LifeDossierSection;
+  text: string;
+  quote: string | null;
+  status: string;
+  createdAt: string | null;
 }
 
 export interface LifeReportsResponse {

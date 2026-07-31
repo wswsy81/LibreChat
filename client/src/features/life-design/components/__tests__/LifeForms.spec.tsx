@@ -14,6 +14,12 @@ const mockToast = jest.fn();
 
 let mockArchiveData: Record<string, unknown> | undefined;
 
+const mapButton = (label: string) =>
+  screen
+    .getAllByText(label)
+    .map((node) => node.closest('button'))
+    .find((node): node is HTMLButtonElement => node instanceof HTMLButtonElement);
+
 jest.mock('@librechat/client', () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props}>{children}</button>
@@ -79,11 +85,11 @@ test('首次建档按所选领域和本地分钟自动命名', () => {
     </MemoryRouter>,
   );
 
-  fireEvent.click(screen.getByRole('button', { name: /工作与健康/ }));
+  fireEvent.click(mapButton('com_life_map_house_h6') as HTMLButtonElement);
   fireEvent.click(screen.getByRole('button', { name: /com_life_enter_studio/ }));
 
   expect(mockEnterHouse).toHaveBeenCalledWith({
-    archiveName: '工作与健康 · 2026-07-25 14:36',
+    archiveName: 'com_life_map_house_h6 · 2026-07-25 14:36',
     entryHouse: 'h6',
   });
 });
@@ -99,9 +105,23 @@ test('公开页带来的 entryHouse 会预选但仍由用户确认提交', () =>
   fireEvent.click(screen.getByRole('button', { name: /com_life_enter_studio/ }));
 
   expect(mockEnterHouse).toHaveBeenCalledWith({
-    archiveName: '事业与公众 · 2026-07-25 14:36',
+    archiveName: 'com_life_map_house_h10 · 2026-07-25 14:36',
     entryHouse: 'h10',
   });
+});
+
+test('入口只开放财务、工作、情感、事业，健康单独留在雾里', () => {
+  render(
+    <MemoryRouter>
+      <FirstArchiveSetup />
+    </MemoryRouter>,
+  );
+
+  for (const key of ['h2', 'h6', 'h7', 'h10']) {
+    expect(mapButton(`com_life_map_house_${key}`)).not.toBeDisabled();
+  }
+  expect(mapButton('com_life_map_health')).toBeDisabled();
+  expect(mapButton('com_life_map_house_h1')).toBeDisabled();
 });
 
 test('关于我允许用 null 明确清除已保存文本', () => {

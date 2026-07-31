@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useForm } from 'react-hook-form';
 import { Spinner } from '@librechat/client';
@@ -25,6 +25,7 @@ import Header from './Header';
 import Footer from './Footer';
 import { cn } from '~/utils';
 import store from '~/store';
+import LifeArchiveDrawer from '~/features/life-design/components/LifeArchiveDrawer';
 
 function LoadingSpinner() {
   return (
@@ -34,6 +35,24 @@ function LoadingSpinner() {
       </div>
     </div>
   );
+}
+
+function latestAssistantMessageText(messages: TMessage[] | null) {
+  let latest = '';
+  const visit = (items?: TMessage[]) => {
+    for (const message of items ?? []) {
+      if (
+        message.isCreatedByUser === false &&
+        typeof message.text === 'string' &&
+        message.text.trim()
+      ) {
+        latest = message.text;
+      }
+      visit(message.children);
+    }
+  };
+  visit(messages ?? undefined);
+  return latest;
 }
 
 function ChatView({ index = 0, project }: { index?: number; project?: TChatProject }) {
@@ -78,6 +97,10 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
     (conversationId === Constants.NEW_CONVO || !conversationId);
   const isNavigating = (!messagesTree || messagesTree.length === 0) && conversationId != null;
   const isProjectLandingPage = isLandingPage && project != null;
+  const latestAssistantText = useMemo(
+    () => latestAssistantMessageText(messagesTree),
+    [messagesTree],
+  );
 
   if (isLoading && conversationId !== Constants.NEW_CONVO) {
     content = <LoadingSpinner />;
@@ -126,6 +149,12 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
                 </div>
                 {isLandingPage && <Footer />}
               </>
+              {!isLandingPage && (
+                <LifeArchiveDrawer
+                  isSubmitting={isSubmitting}
+                  latestAssistantText={latestAssistantText}
+                />
+              )}
             </div>
           </Presentation>
         </AddedChatContext.Provider>

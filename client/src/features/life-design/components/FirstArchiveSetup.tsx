@@ -5,7 +5,15 @@ import { Button } from '@librechat/client';
 import { useLocalize } from '~/hooks';
 import { track } from '~/utils/track';
 import useHouseEntry from '../hooks/useEntry';
-import { HOUSES, LifeWheel } from './LifeWheel';
+import PublicMistMap, { ACTIVE_PUBLIC_HOUSES, PUBLIC_MAP_LABEL_KEYS } from './PublicMistMap';
+
+const PROMISE_LINE_KEYS = [
+  'com_life_setup_promise_1',
+  'com_life_setup_promise_2',
+  'com_life_setup_promise_3',
+  'com_life_setup_promise_4',
+  'com_life_setup_promise_5',
+] as const;
 
 const readError = (error: Error | null) => {
   const response = (error as Error & { response?: { data?: { error?: { message?: string } } } })
@@ -25,8 +33,10 @@ export default function FirstArchiveSetup({
 }) {
   const localize = useLocalize();
   const { enterHouse, error, isLoading } = useHouseEntry();
-  const [selectedHouse, setSelectedHouse] = useState<LifeHouseId | null>(initialEntryHouse);
-  const selectedName = HOUSES.find((house) => house.id === selectedHouse)?.publicName;
+  const [selectedHouse, setSelectedHouse] = useState<LifeHouseId | null>(
+    initialEntryHouse && ACTIVE_PUBLIC_HOUSES.has(initialEntryHouse) ? initialEntryHouse : null,
+  );
+  const selectedName = selectedHouse ? localize(PUBLIC_MAP_LABEL_KEYS[selectedHouse]) : undefined;
   const isComplete = selectedHouse != null && selectedName != null;
 
   useEffect(() => {
@@ -71,6 +81,21 @@ export default function FirstArchiveSetup({
       </div>
 
       <div className="border border-life-rule bg-[#F7F4EB] p-5 sm:p-8">
+        <div className="mb-7 border-l-2 border-life-cinnabar pl-4 sm:pl-5">
+          <h2 className="font-life-serif text-life-lead font-semibold text-life-ink">
+            {localize('com_life_setup_promise_title')}
+          </h2>
+          <ol className="mt-3 space-y-2 font-life-kai text-life-sm leading-7 text-life-muted">
+            {PROMISE_LINE_KEYS.map((key, index) => (
+              <li key={key} className="flex gap-3">
+                <span className="font-life-mono text-life-meta text-life-brass">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <span>{localize(key)}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
         <div>
           <div className="mb-5">
             <h2 className="font-life-serif text-life-lead font-semibold text-life-ink">
@@ -80,13 +105,7 @@ export default function FirstArchiveSetup({
               {localize('com_life_choose_house_help')}
             </p>
           </div>
-          <LifeWheel
-            mode="interactive"
-            selectedHouse={selectedHouse}
-            onSelectHouse={selectHouse}
-            title={localize('com_life_wheel_select_aria')}
-            className="mx-auto block w-full max-w-[520px]"
-          />
+          <PublicMistMap selectedIsland={selectedHouse} onSelectIsland={selectHouse} />
           <p
             className="mt-4 min-h-6 text-center font-life-mono text-life-meta text-life-brass"
             aria-live="polite"

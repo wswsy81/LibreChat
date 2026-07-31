@@ -1,7 +1,6 @@
-/* eslint-disable i18next/no-literal-string */
 import { useState } from 'react';
 import { useLocalize } from '~/hooks';
-import { HOUSES } from './LifeWheel';
+import type { TranslationKeys } from '~/hooks';
 import type { HouseId } from './LifeWheel';
 
 /**
@@ -18,7 +17,7 @@ interface ContinentDomain {
 
 export interface Continent {
   readonly key: string;
-  readonly name: string;
+  readonly nameKey: TranslationKeys;
   readonly path: string;
   readonly labelX: number;
   readonly labelY: number;
@@ -28,7 +27,7 @@ export interface Continent {
 export const CONTINENTS: readonly Continent[] = [
   {
     key: 'self',
-    name: '发展',
+    nameKey: 'com_life_map_continent_self',
     path: 'M 60,120 Q 40,80 90,64 Q 150,40 226,58 Q 296,72 312,130 Q 326,190 282,236 Q 240,282 168,278 Q 92,274 66,214 Q 48,168 60,120 Z',
     labelX: 88,
     labelY: 96,
@@ -40,7 +39,7 @@ export const CONTINENTS: readonly Continent[] = [
   },
   {
     key: 'living',
-    name: '表达',
+    nameKey: 'com_life_map_continent_living',
     path: 'M 440,80 Q 492,32 584,42 Q 682,52 722,112 Q 756,170 734,244 Q 710,318 620,330 Q 524,340 470,284 Q 420,232 424,158 Q 428,106 440,80 Z',
     labelX: 478,
     labelY: 70,
@@ -52,7 +51,7 @@ export const CONTINENTS: readonly Continent[] = [
   },
   {
     key: 'bonds',
-    name: '扩张',
+    nameKey: 'com_life_map_continent_bonds',
     path: 'M 88,470 Q 60,420 116,398 Q 190,372 262,392 Q 330,410 336,478 Q 340,544 278,576 Q 208,608 136,580 Q 76,554 78,506 Q 78,486 88,470 Z',
     labelX: 110,
     labelY: 426,
@@ -64,7 +63,7 @@ export const CONTINENTS: readonly Continent[] = [
   },
   {
     key: 'world',
-    name: '超越',
+    nameKey: 'com_life_map_continent_world',
     path: 'M 430,430 Q 470,384 556,390 Q 650,396 700,450 Q 748,502 728,576 Q 706,652 616,668 Q 520,682 462,626 Q 408,574 412,500 Q 414,458 430,430 Z',
     labelX: 456,
     labelY: 420,
@@ -76,13 +75,61 @@ export const CONTINENTS: readonly Continent[] = [
   },
 ];
 
-function houseName(id: HouseId): string {
-  return HOUSES.find((house) => house.id === id)?.publicName ?? id;
-}
+export const PUBLIC_MAP_LABEL_KEYS: Readonly<Record<HouseId, TranslationKeys>> = {
+  h1: 'com_life_map_house_h1',
+  h2: 'com_life_map_house_h2',
+  h3: 'com_life_map_house_h3',
+  h4: 'com_life_map_house_h4',
+  h5: 'com_life_map_house_h5',
+  h6: 'com_life_map_house_h6',
+  h7: 'com_life_map_house_h7',
+  h8: 'com_life_map_house_h8',
+  h9: 'com_life_map_house_h9',
+  h10: 'com_life_map_house_h10',
+  h11: 'com_life_map_house_h11',
+  h12: 'com_life_map_house_h12',
+};
+
+export const ACTIVE_PUBLIC_HOUSES: ReadonlySet<HouseId> = new Set<HouseId>([
+  'h2',
+  'h6',
+  'h7',
+  'h10',
+]);
+
+const HEALTH_SPOT = { x: 674, y: 270 } as const;
 
 function territoryPath(x: number, y: number) {
   const r = 46;
   return `M ${x - r},${y} Q ${x - r * 0.7},${y - r * 0.55} ${x},${y - r * 0.48} Q ${x + r * 0.9},${y - r * 0.38} ${x + r * 0.85},${y + r * 0.12} Q ${x + r * 0.6},${y + r * 0.55} ${x - r * 0.2},${y + r * 0.5} Q ${x - r * 0.95},${y + r * 0.42} ${x - r},${y} Z`;
+}
+
+function mobileDomainClass(active: boolean, available: boolean) {
+  if (active) {
+    return 'font-semibold text-life-ink underline decoration-life-cinnabar underline-offset-4';
+  }
+  return available ? 'text-life-ink/75' : 'cursor-not-allowed text-life-muted/55';
+}
+
+function territoryStroke(active: boolean, available: boolean) {
+  if (active) {
+    return '#B94831';
+  }
+  return available ? 'rgba(23,32,26,0.3)' : 'rgba(23,32,26,0.16)';
+}
+
+function territoryDash(active: boolean, available: boolean) {
+  if (active) {
+    return undefined;
+  }
+  return available ? '3 5' : '2 7';
+}
+
+function territoryLabelFill(active: boolean, available: boolean) {
+  if (active) {
+    return '#17201A';
+  }
+  return available ? '#5d5648' : '#948d80';
 }
 
 interface PublicMistMapProps {
@@ -104,7 +151,7 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
         <strong className="font-semibold text-life-brass">
           {localize('com_life_public_map_kicker')}
         </strong>
-        <span>ATLAS / 迷雾图</span>
+        <span>{localize('com_life_public_map_atlas')}</span>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:hidden">
@@ -118,29 +165,47 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
             }`}
           >
             <p className="font-life-mono text-life-meta tracking-[0.15em] text-life-brass">
-              {continent.name}
+              {localize(continent.nameKey)}
             </p>
             <ul className="mt-2 space-y-1.5">
               {continent.domains.map((domain) => {
                 const active = domain.id === selectedIsland;
+                const available = ACTIVE_PUBLIC_HOUSES.has(domain.id);
+                const name = localize(PUBLIC_MAP_LABEL_KEYS[domain.id]);
                 return (
                   <li key={domain.id}>
                     <button
                       type="button"
-                      onClick={interactive ? () => onSelectIsland?.(domain.id) : undefined}
-                      aria-label={`${houseName(domain.id)} · 从这里开始`}
-                      aria-pressed={interactive ? active : undefined}
-                      className={`min-h-11 w-full text-left font-life-serif text-life-sm ${
-                        active
-                          ? 'font-semibold text-life-ink underline decoration-life-cinnabar underline-offset-4'
-                          : 'text-life-ink/75'
-                      }`}
+                      disabled={!available}
+                      onClick={
+                        interactive && available ? () => onSelectIsland?.(domain.id) : undefined
+                      }
+                      aria-label={localize(
+                        available ? 'com_life_map_start_here' : 'com_life_map_still_foggy',
+                        { 0: name },
+                      )}
+                      aria-pressed={interactive && available ? active : undefined}
+                      className={`min-h-11 w-full text-left font-life-serif text-life-sm ${mobileDomainClass(active, available)}`}
                     >
-                      {houseName(domain.id)}
+                      {name}
                     </button>
                   </li>
                 );
               })}
+              {continent.key === 'living' && (
+                <li>
+                  <button
+                    type="button"
+                    disabled
+                    aria-label={localize('com_life_map_still_foggy', {
+                      0: localize('com_life_map_health'),
+                    })}
+                    className="min-h-11 w-full cursor-not-allowed text-left font-life-serif text-life-sm text-life-muted/55"
+                  >
+                    {localize('com_life_map_health')}
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
         ))}
@@ -197,7 +262,7 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
         <g fill="#80602D" className="font-life-mono text-life-lead tracking-[0.18em]">
           {CONTINENTS.map((continent) => (
             <text key={continent.key} x={continent.labelX} y={continent.labelY}>
-              {continent.name}
+              {localize(continent.nameKey)}
             </text>
           ))}
         </g>
@@ -226,26 +291,31 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
         {CONTINENTS.map((continent) =>
           continent.domains.map((domain) => {
             const selected = domain.id === selectedIsland;
-            const active = selected || domain.id === focusedIsland;
-            const name = houseName(domain.id);
+            const available = ACTIVE_PUBLIC_HOUSES.has(domain.id);
+            const active = available && (selected || domain.id === focusedIsland);
+            const name = localize(PUBLIC_MAP_LABEL_KEYS[domain.id]);
             return (
               <g
                 key={domain.id}
-                role={interactive ? 'button' : 'img'}
-                aria-label={`${name} · 从这里开始`}
-                aria-pressed={interactive ? selected : undefined}
-                tabIndex={interactive ? 0 : -1}
-                className={interactive ? 'cursor-pointer outline-none' : undefined}
-                onClick={interactive ? () => onSelectIsland?.(domain.id) : undefined}
-                onFocus={interactive ? () => setFocusedIsland(domain.id) : undefined}
+                role={interactive && available ? 'button' : 'img'}
+                aria-label={localize(
+                  available ? 'com_life_map_start_here' : 'com_life_map_still_foggy',
+                  { 0: name },
+                )}
+                aria-pressed={interactive && available ? selected : undefined}
+                aria-disabled={!available || undefined}
+                tabIndex={interactive && available ? 0 : -1}
+                className={interactive && available ? 'cursor-pointer outline-none' : undefined}
+                onClick={interactive && available ? () => onSelectIsland?.(domain.id) : undefined}
+                onFocus={interactive && available ? () => setFocusedIsland(domain.id) : undefined}
                 onBlur={
-                  interactive
+                  interactive && available
                     ? () =>
                         setFocusedIsland((previous) => (previous === domain.id ? null : previous))
                     : undefined
                 }
                 onKeyDown={
-                  interactive
+                  interactive && available
                     ? (event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault();
@@ -258,16 +328,16 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
                 <path
                   d={territoryPath(domain.x, domain.y - 4)}
                   fill={active ? 'rgba(128,96,45,0.14)' : 'rgba(23,32,26,0.015)'}
-                  stroke={active ? '#B94831' : 'rgba(23,32,26,0.3)'}
+                  stroke={territoryStroke(active, available)}
                   strokeWidth={active ? 1.8 : 1.2}
-                  strokeDasharray={active ? undefined : '3 5'}
+                  strokeDasharray={territoryDash(active, available)}
                   filter="url(#mist-map-wobble)"
                 />
                 <text
                   x={domain.x}
                   y={domain.y}
                   textAnchor="middle"
-                  fill={active ? '#17201A' : '#5d5648'}
+                  fill={territoryLabelFill(active, available)}
                   className="font-life-serif text-life-lead font-semibold"
                 >
                   {name}
@@ -277,11 +347,34 @@ export default function PublicMistMap({ selectedIsland, onSelectIsland }: Public
           }),
         )}
 
+        <g
+          role="img"
+          aria-label={localize('com_life_map_still_foggy', { 0: localize('com_life_map_health') })}
+        >
+          <path
+            d={territoryPath(HEALTH_SPOT.x, HEALTH_SPOT.y)}
+            fill="rgba(23,32,26,0.01)"
+            stroke="rgba(23,32,26,0.16)"
+            strokeWidth="1.2"
+            strokeDasharray="2 7"
+            filter="url(#mist-map-wobble)"
+          />
+          <text
+            x={HEALTH_SPOT.x}
+            y={HEALTH_SPOT.y + 4}
+            textAnchor="middle"
+            fill="#948d80"
+            className="font-life-serif text-life-lead font-semibold"
+          >
+            {localize('com_life_map_health')}
+          </text>
+        </g>
+
         {selectedSpot && (
           <g
             transform={`translate(${selectedSpot.x + 74},${selectedSpot.y + 10})`}
             role="img"
-            aria-label="你在这里"
+            aria-label={localize('com_life_map_you_are_here')}
           >
             <circle cx="0" cy="-14" r="5.2" fill="none" stroke="#17201A" strokeWidth="1.6" />
             <path

@@ -11,12 +11,14 @@ export default function LifeFrame({
   title,
   testId,
   initialHeight = 640,
+  maxHeight,
   onFrameMessage,
 }: {
   html: string;
   title: string;
   testId?: string;
   initialHeight?: number;
+  maxHeight?: number;
   onFrameMessage?: (data: unknown) => void;
 }) {
   const { theme } = useContext(ThemeContext);
@@ -50,7 +52,7 @@ export default function LifeFrame({
       title={title}
       sandbox="allow-scripts"
       srcDoc={themedHtml}
-      style={{ height: frameHeight }}
+      style={{ height: maxHeight ? Math.min(frameHeight, maxHeight) : frameHeight }}
       className="block w-full border-0 bg-transparent"
     />
   );

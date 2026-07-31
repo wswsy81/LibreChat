@@ -11,12 +11,18 @@ const HOUSE_KEY = /^h([1-9]|1[0-2])$/;
 
 const isHouseAction = (value: string): value is LifeMapHouseAction => HOUSE_ACTIONS.has(value);
 
-export default function ArchiveMap() {
+export default function ArchiveMap({
+  compact = false,
+  readOnly = false,
+}: {
+  compact?: boolean;
+  readOnly?: boolean;
+}) {
   const localize = useLocalize();
   const navigate = useNavigate();
   const { showToast } = useToastContext();
-  const full = useLifeMapHtmlQuery('full');
-  const simple = useLifeMapHtmlQuery(undefined, { enabled: full.isError });
+  const full = useLifeMapHtmlQuery('full', { enabled: !readOnly });
+  const simple = useLifeMapHtmlQuery(undefined, { enabled: readOnly || full.isError });
   const annotate = useLifeMapHouseAnnotateMutation();
 
   const handleFrameMessage = useCallback(
@@ -40,7 +46,7 @@ export default function ArchiveMap() {
           ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         return;
       }
-      if (!isHouseAction(action) || !HOUSE_KEY.test(houseKey)) return;
+      if (readOnly || !isHouseAction(action) || !HOUSE_KEY.test(houseKey)) return;
       const text =
         typeof message.payload?.text === 'string' ? message.payload.text.trim() : undefined;
       if (action === 'rewrite' && !text) return;
@@ -54,11 +60,13 @@ export default function ArchiveMap() {
         },
       );
     },
-    [annotate, full, localize, navigate, showToast],
+    [annotate, full, localize, navigate, readOnly, showToast],
   );
 
-  const html = full.data ?? simple.data;
-  const isLoading = full.isLoading || (full.isError && simple.isLoading);
+  const html = readOnly ? simple.data : (full.data ?? simple.data);
+  const isLoading = readOnly
+    ? simple.isLoading
+    : full.isLoading || (full.isError && simple.isLoading);
 
   if (isLoading) {
     return (
@@ -73,7 +81,7 @@ export default function ArchiveMap() {
         {localize('com_life_map_unavailable')}
         <button
           type="button"
-          onClick={() => (full.isError ? simple.refetch() : full.refetch())}
+          onClick={() => (readOnly || full.isError ? simple.refetch() : full.refetch())}
           className="ml-3 min-h-11 underline underline-offset-4 hover:text-life-cinnabar"
         >
           {localize('com_life_retry')}
@@ -87,6 +95,8 @@ export default function ArchiveMap() {
       html={html}
       title={localize('com_life_map')}
       testId="life-map-frame"
+      initialHeight={compact ? 280 : 640}
+      maxHeight={compact ? 320 : undefined}
       onFrameMessage={handleFrameMessage}
     />
   );

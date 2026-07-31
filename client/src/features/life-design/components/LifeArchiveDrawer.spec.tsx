@@ -1,0 +1,130 @@
+/**
+ * @jest-environment @happy-dom/jest-environment
+ */
+import React from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import LifeArchiveDrawer from './LifeArchiveDrawer';
+
+const mockMutate = jest.fn();
+let mockArchive: Record<string, unknown>;
+
+jest.mock('~/data-provider', () => ({
+  useLifeArchiveQuery: () => mockArchive,
+  useLifeDossierAnnotateMutation: () => ({ mutate: mockMutate, isLoading: false }),
+}));
+
+jest.mock('~/hooks', () => ({
+  useLocalize: () => (key: string) =>
+    key === 'com_life_reveal_opening' ? '够了。三个月、一年、三年——三条路都能开了。' : key,
+}));
+
+jest.mock('./ArchiveMap', () => () => <div data-testid="archive-map" />);
+
+const baseStatus = {
+  variableCount: 1,
+  dossierClaimCount: 1,
+  latestClaimId: 'claim-1',
+  mapVersion: 'map-a',
+  gateReached: false,
+  openingAnnouncedAt: null,
+};
+
+const renderDrawer = (props?: Partial<React.ComponentProps<typeof LifeArchiveDrawer>>) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantText="" {...props} />
+    </QueryClientProvider>,
+  );
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  window.localStorage.clear();
+  mockArchive = {
+    data: {
+      archiveStatus: baseStatus,
+      recentDossier: [
+        {
+          id: 'claim-1',
+          section: 'traits',
+          text: '你要先看到能拿出去的东西，才肯停手。',
+          quote: '我一直改，但是没有出产品。',
+          status: 'draft',
+          createdAt: '2026-07-31T00:00:00.000Z',
+        },
+      ],
+    },
+    isLoading: false,
+  };
+});
+
+test('抽屉把手始终可见，普通存档变化只亮一次微光，不自动打开', () => {
+  const view = renderDrawer();
+  expect(
+    screen.getByRole('button', { name: 'com_life_archive_drawer_handle' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByTestId('life-archive-glow')).not.toBeInTheDocument();
+
+  mockArchive = {
+    ...mockArchive,
+    data: {
+      ...(mockArchive.data as object),
+      archiveStatus: { ...baseStatus, variableCount: 2 },
+    },
+  };
+  view.rerender(
+    <QueryClientProvider client={new QueryClient()}>
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantText="普通回复" />
+    </QueryClientProvider>,
+  );
+
+  expect(screen.getByTestId('life-archive-glow')).toBeInTheDocument();
+  expect(screen.queryByTestId('archive-map')).not.toBeInTheDocument();
+});
+
+test('只有开幕宣布会自动打开一次', () => {
+  mockArchive = {
+    ...mockArchive,
+    data: {
+      ...(mockArchive.data as object),
+      archiveStatus: {
+        ...baseStatus,
+        gateReached: true,
+        openingAnnouncedAt: '2026-07-31T00:00:00.000Z',
+      },
+    },
+  };
+  const text = '够了。三个月、一年、三年——三条路都能开了。';
+  const view = renderDrawer({ latestAssistantText: text });
+  expect(screen.getByTestId('archive-map')).toBeInTheDocument();
+
+  fireEvent.click(screen.getAllByRole('button', { name: 'com_life_archive_drawer_close' })[0]);
+  expect(screen.queryByTestId('archive-map')).not.toBeInTheDocument();
+  view.rerender(
+    <QueryClientProvider client={new QueryClient()}>
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantText={text} />
+    </QueryClientProvider>,
+  );
+  expect(screen.queryByTestId('archive-map')).not.toBeInTheDocument();
+});
+
+test('人物志条目可直接留下、改写或划掉', () => {
+  renderDrawer();
+  fireEvent.click(screen.getByRole('button', { name: 'com_life_archive_drawer_handle' }));
+
+  fireEvent.click(screen.getByRole('button', { name: 'com_life_dossier_keep' }));
+  expect(mockMutate).toHaveBeenCalledWith(
+    { section: 'traits', entryId: 'claim-1', action: 'keep', text: undefined },
+    expect.any(Object),
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'com_life_dossier_rewrite' }));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '这是我自己的说法。' } });
+  fireEvent.click(screen.getByRole('button', { name: 'com_life_save' }));
+  expect(mockMutate).toHaveBeenLastCalledWith(
+    { section: 'traits', entryId: 'claim-1', action: 'rewrite', text: '这是我自己的说法。' },
+    expect.any(Object),
+  );
+});
