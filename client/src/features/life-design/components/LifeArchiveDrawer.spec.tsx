@@ -5,6 +5,7 @@ import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
+import type { TMessage } from 'librechat-data-provider';
 import LifeArchiveDrawer from './LifeArchiveDrawer';
 
 const mockMutate = jest.fn();
@@ -35,7 +36,7 @@ const renderDrawer = (props?: Partial<React.ComponentProps<typeof LifeArchiveDra
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <LifeArchiveDrawer isSubmitting={false} latestAssistantText="" {...props} />
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantMessage={null} {...props} />
     </QueryClientProvider>,
   );
 };
@@ -77,7 +78,7 @@ test('抽屉把手始终可见，普通存档变化只亮一次微光，不自�
   };
   view.rerender(
     <QueryClientProvider client={new QueryClient()}>
-      <LifeArchiveDrawer isSubmitting={false} latestAssistantText="普通回复" />
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantMessage={null} />
     </QueryClientProvider>,
   );
 
@@ -98,14 +99,20 @@ test('只有开幕宣布会自动打开一次', () => {
     },
   };
   const text = '够了。三个月、一年、三年——三条路都能开了。';
-  const view = renderDrawer({ latestAssistantText: text });
+  const openingMessage = {
+    messageId: 'opening-1',
+    isCreatedByUser: false,
+    text: '',
+    content: [{ type: 'text', text }],
+  } as TMessage;
+  const view = renderDrawer({ latestAssistantMessage: openingMessage });
   expect(screen.getByTestId('archive-map')).toBeInTheDocument();
 
   fireEvent.click(screen.getAllByRole('button', { name: 'com_life_archive_drawer_close' })[0]);
   expect(screen.queryByTestId('archive-map')).not.toBeInTheDocument();
   view.rerender(
     <QueryClientProvider client={new QueryClient()}>
-      <LifeArchiveDrawer isSubmitting={false} latestAssistantText={text} />
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantMessage={openingMessage} />
     </QueryClientProvider>,
   );
   expect(screen.queryByTestId('archive-map')).not.toBeInTheDocument();
@@ -136,13 +143,13 @@ test('回合结束后持续刷新，后台归纳晚到也会更新抽屉并停�
   const invalidate = jest.spyOn(client, 'invalidateQueries').mockResolvedValue();
   const view = render(
     <QueryClientProvider client={client}>
-      <LifeArchiveDrawer isSubmitting latestAssistantText="" />
+      <LifeArchiveDrawer isSubmitting latestAssistantMessage={null} />
     </QueryClientProvider>,
   );
 
   view.rerender(
     <QueryClientProvider client={client}>
-      <LifeArchiveDrawer isSubmitting={false} latestAssistantText="普通回复" />
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantMessage={null} />
     </QueryClientProvider>,
   );
   expect(invalidate).toHaveBeenCalledWith([QueryKeys.lifeArchive]);
@@ -161,7 +168,7 @@ test('回合结束后持续刷新，后台归纳晚到也会更新抽屉并停�
   };
   view.rerender(
     <QueryClientProvider client={client}>
-      <LifeArchiveDrawer isSubmitting={false} latestAssistantText="普通回复" />
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantMessage={null} />
     </QueryClientProvider>,
   );
   expect(screen.getByTestId('life-archive-glow')).toBeInTheDocument();
@@ -179,13 +186,13 @@ test('人物志没有变化时，后台刷新窗口也会在两分钟后自行�
   const invalidate = jest.spyOn(client, 'invalidateQueries').mockResolvedValue();
   const view = render(
     <QueryClientProvider client={client}>
-      <LifeArchiveDrawer isSubmitting latestAssistantText="" />
+      <LifeArchiveDrawer isSubmitting latestAssistantMessage={null} />
     </QueryClientProvider>,
   );
 
   view.rerender(
     <QueryClientProvider client={client}>
-      <LifeArchiveDrawer isSubmitting={false} latestAssistantText="普通回复" />
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantMessage={null} />
     </QueryClientProvider>,
   );
   act(() => jest.advanceTimersByTime(125_000));

@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useForm } from 'react-hook-form';
 import { Spinner } from '@librechat/client';
@@ -11,6 +11,7 @@ import {
   useResumeOnLoad,
   useAdaptiveSSE,
   useChatHelpers,
+  useLatestMessage,
   useLocalize,
 } from '~/hooks';
 import { ChatContext, AddedChatContext, ChatFormProvider, useFileMapContext } from '~/Providers';
@@ -37,27 +38,10 @@ function LoadingSpinner() {
   );
 }
 
-function latestAssistantMessageText(messages: TMessage[] | null) {
-  let latest = '';
-  const visit = (items?: TMessage[]) => {
-    for (const message of items ?? []) {
-      if (
-        message.isCreatedByUser === false &&
-        typeof message.text === 'string' &&
-        message.text.trim()
-      ) {
-        latest = message.text;
-      }
-      visit(message.children);
-    }
-  };
-  visit(messages ?? undefined);
-  return latest;
-}
-
 function ChatView({ index = 0, project }: { index?: number; project?: TChatProject }) {
   const { conversationId } = useParams();
   const localize = useLocalize();
+  const latestMessage = useLatestMessage(index);
   const rootSubmission = useRecoilValue(store.submissionByIndex(index));
   const isSubmitting = useRecoilValue(store.isSubmittingFamily(index));
 
@@ -97,11 +81,6 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
     (conversationId === Constants.NEW_CONVO || !conversationId);
   const isNavigating = (!messagesTree || messagesTree.length === 0) && conversationId != null;
   const isProjectLandingPage = isLandingPage && project != null;
-  const latestAssistantText = useMemo(
-    () => latestAssistantMessageText(messagesTree),
-    [messagesTree],
-  );
-
   if (isLoading && conversationId !== Constants.NEW_CONVO) {
     content = <LoadingSpinner />;
   } else if ((isLoading || isNavigating) && !isLandingPage) {
@@ -152,7 +131,7 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
               {!isLandingPage && (
                 <LifeArchiveDrawer
                   isSubmitting={isSubmitting}
-                  latestAssistantText={latestAssistantText}
+                  latestAssistantMessage={latestMessage}
                 />
               )}
             </div>

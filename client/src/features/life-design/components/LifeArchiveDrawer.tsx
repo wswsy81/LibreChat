@@ -6,10 +6,11 @@ import type {
   LifeArchiveStatus,
   LifeDossierAction,
   LifeDossierPreviewEntry,
+  TMessage,
 } from 'librechat-data-provider';
 import { useLifeArchiveQuery, useLifeDossierAnnotateMutation } from '~/data-provider';
 import { useLocalize } from '~/hooks';
-import { cn } from '~/utils';
+import { cn, getLatestText } from '~/utils';
 import ArchiveMap from './ArchiveMap';
 
 const statusChanged = (before: LifeArchiveStatus, after: LifeArchiveStatus) =>
@@ -24,10 +25,10 @@ const ARCHIVE_REFRESH_WINDOW_MS = 120_000;
 
 export default function LifeArchiveDrawer({
   isSubmitting,
-  latestAssistantText,
+  latestAssistantMessage,
 }: {
   isSubmitting: boolean;
-  latestAssistantText: string;
+  latestAssistantMessage: TMessage | null;
 }) {
   const localize = useLocalize();
   const queryClient = useQueryClient();
@@ -46,6 +47,8 @@ export default function LifeArchiveDrawer({
   const [rewriteText, setRewriteText] = useState('');
   const [error, setError] = useState('');
   const [refreshUntil, setRefreshUntil] = useState(0);
+  const latestAssistantText =
+    latestAssistantMessage?.isCreatedByUser === false ? getLatestText(latestAssistantMessage) : '';
 
   useEffect(() => {
     const wasSubmitting = previousSubmitting.current;
