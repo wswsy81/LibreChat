@@ -2,8 +2,9 @@
  * @jest-environment @happy-dom/jest-environment
  */
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryKeys } from 'librechat-data-provider';
 import LifeArchiveDrawer from './LifeArchiveDrawer';
 
 const mockMutate = jest.fn();
@@ -127,4 +128,71 @@ test('人物志条目可直接留下、改写或划掉', () => {
     { section: 'traits', entryId: 'claim-1', action: 'rewrite', text: '这是我自己的说法。' },
     expect.any(Object),
   );
+});
+
+test('回合结束后持续刷新，后台归纳晚到也会更新抽屉并停止轮询', () => {
+  jest.useFakeTimers();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const invalidate = jest.spyOn(client, 'invalidateQueries').mockResolvedValue();
+  const view = render(
+    <QueryClientProvider client={client}>
+      <LifeArchiveDrawer isSubmitting latestAssistantText="" />
+    </QueryClientProvider>,
+  );
+
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantText="普通回复" />
+    </QueryClientProvider>,
+  );
+  expect(invalidate).toHaveBeenCalledWith([QueryKeys.lifeArchive]);
+  expect(invalidate).toHaveBeenCalledWith([QueryKeys.lifeMapHtml]);
+
+  invalidate.mockClear();
+  act(() => jest.advanceTimersByTime(70_000));
+  expect(invalidate).toHaveBeenCalledWith([QueryKeys.lifeArchive]);
+
+  mockArchive = {
+    ...mockArchive,
+    data: {
+      ...(mockArchive.data as object),
+      archiveStatus: { ...baseStatus, dossierClaimCount: 2, latestClaimId: 'claim-2' },
+    },
+  };
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantText="普通回复" />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByTestId('life-archive-glow')).toBeInTheDocument();
+
+  invalidate.mockClear();
+  act(() => jest.advanceTimersByTime(10_000));
+  expect(invalidate).not.toHaveBeenCalled();
+  view.unmount();
+  jest.useRealTimers();
+});
+
+test('人物志没有变化时，后台刷新窗口也会在两分钟后自行停止', () => {
+  jest.useFakeTimers();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const invalidate = jest.spyOn(client, 'invalidateQueries').mockResolvedValue();
+  const view = render(
+    <QueryClientProvider client={client}>
+      <LifeArchiveDrawer isSubmitting latestAssistantText="" />
+    </QueryClientProvider>,
+  );
+
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantText="普通回复" />
+    </QueryClientProvider>,
+  );
+  act(() => jest.advanceTimersByTime(125_000));
+
+  invalidate.mockClear();
+  act(() => jest.advanceTimersByTime(10_000));
+  expect(invalidate).not.toHaveBeenCalled();
+  view.unmount();
+  jest.useRealTimers();
 });

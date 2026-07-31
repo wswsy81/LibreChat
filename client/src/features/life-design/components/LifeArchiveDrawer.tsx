@@ -19,6 +19,8 @@ const statusChanged = (before: LifeArchiveStatus, after: LifeArchiveStatus) =>
   (!before.gateReached && after.gateReached);
 
 const openingSeenKey = (announcedAt: string) => `life-archive-opening:${announcedAt}`;
+const ARCHIVE_REFRESH_INTERVAL_MS = 5_000;
+const ARCHIVE_REFRESH_WINDOW_MS = 120_000;
 
 export default function LifeArchiveDrawer({
   isSubmitting,
@@ -43,6 +45,7 @@ export default function LifeArchiveDrawer({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [rewriteText, setRewriteText] = useState('');
   const [error, setError] = useState('');
+  const [refreshUntil, setRefreshUntil] = useState(0);
 
   useEffect(() => {
     const wasSubmitting = previousSubmitting.current;
@@ -54,15 +57,30 @@ export default function LifeArchiveDrawer({
       queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
     };
     refresh();
-    const followUp = window.setTimeout(refresh, 2500);
-    return () => window.clearTimeout(followUp);
+    setRefreshUntil(Date.now() + ARCHIVE_REFRESH_WINDOW_MS);
   }, [isSubmitting, queryClient]);
+
+  useEffect(() => {
+    if (!refreshUntil) return;
+    const interval = window.setInterval(() => {
+      if (Date.now() >= refreshUntil) {
+        setRefreshUntil(0);
+        return;
+      }
+      queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+      queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
+    }, ARCHIVE_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [queryClient, refreshUntil]);
 
   useEffect(() => {
     const status = archive.data?.archiveStatus;
     if (!status) return;
     const before = previousStatus.current;
-    if (before && statusChanged(before, status)) setHasGlow(true);
+    if (before && statusChanged(before, status)) {
+      setHasGlow(true);
+      setRefreshUntil(0);
+    }
     previousStatus.current = status;
 
     const announcedAt = status.openingAnnouncedAt;
