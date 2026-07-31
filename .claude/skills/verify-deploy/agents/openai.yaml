@@ -1,4 +1,0 @@
-interface:
-  display_name: "Verify Deploy"
-  short_description: "Run evidence-backed Future Lines deploy checks"
-  default_prompt: "Use $verify-deploy to run the Future Lines deployment verification gate and report reproducible evidence."

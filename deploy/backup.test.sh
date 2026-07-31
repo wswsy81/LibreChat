@@ -52,6 +52,7 @@ mkdir -p \
   "$app/packages/data-schemas/dist" \
   "$app/packages/data-provider/dist" \
   "$app/runtime-config/.last-good" \
+  "$app/.releases/.build-cache/api" \
   "$engine/data" \
   "$fake_bin" \
   "$backup_root"
@@ -64,6 +65,8 @@ printf 'schemas\n' > "$app/packages/data-schemas/dist/index.js"
 printf 'provider\n' > "$app/packages/data-provider/dist/index.js"
 printf 'hot-copy\n' > "$app/runtime-config/runtime-copy.v1.json"
 printf 'last-good-prompt\n' > "$app/runtime-config/.last-good/global-prompt.v1.md"
+printf 'release metadata\n' > "$app/.releases/TEST.manifest"
+printf 'rebuildable cache\n' > "$app/.releases/.build-cache/api/cache.bin"
 printf 'profile\n' > "$engine/data/profile.json"
 printf 'engine\n' > "$engine/server.js"
 printf 'FROM scratch\n' > "$engine/Dockerfile"
@@ -144,6 +147,11 @@ tar -tzf "$backup/librechat-runtime.tgz" | grep -Fq 'runtime-config/runtime-copy
   fail 'runtime-config hot copy missing from runtime backup'
 tar -tzf "$backup/librechat-runtime.tgz" | grep -Fq 'runtime-config/.last-good/global-prompt.v1.md' ||
   fail 'runtime-config last-known-good prompt missing from runtime backup'
+tar -tzf "$backup/librechat-runtime.tgz" | grep -Fq '.releases/TEST.manifest' ||
+  fail 'release metadata missing from runtime backup'
+if tar -tzf "$backup/librechat-runtime.tgz" | grep -Fq '.releases/.build-cache'; then
+  fail 'rebuildable release build cache leaked into runtime backup'
+fi
 grep -Fq -- '--username librechat' "$fake_docker_log" || fail 'Mongo dump did not authenticate'
 grep -Fq -- 'pg_dump' "$fake_docker_log" || fail 'Umami Postgres was not dumped'
 find "$backup_root" -maxdepth 1 -type d -name '*.partial.*' | grep -q . &&

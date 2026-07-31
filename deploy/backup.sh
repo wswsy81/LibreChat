@@ -146,7 +146,13 @@ for path in \
 done
 [[ ${#runtime_paths[@]} -ge 5 ]] || die 'LibreChat runtime/config coverage is unexpectedly small'
 printf '%s\n' "${runtime_paths[@]}" > "$STAGING/runtime-paths.txt"
-tar -C "$APP_DIR" -czf "$STAGING/librechat-runtime.tgz" "${runtime_paths[@]}"
+# buildx 本地缓存可重建、不属于恢复资产。把它打进每份备份会让单份从约 60MB
+# 膨胀到数 GB，并在 14 天保留期内快速吃满根盘。
+tar \
+  --exclude='.releases/.build-cache' \
+  -C "$APP_DIR" \
+  -czf "$STAGING/librechat-runtime.tgz" \
+  "${runtime_paths[@]}"
 
 {
   for container in \

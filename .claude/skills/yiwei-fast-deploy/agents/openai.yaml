@@ -1,0 +1,4 @@
+interface:
+  display_name: "未来线快速部署"
+  short_description: "Candidate-first production deploys with fail-closed checks"
+  default_prompt: "Use $yiwei-fast-deploy to deploy the current Future Lines changes through the fastest safe release path."

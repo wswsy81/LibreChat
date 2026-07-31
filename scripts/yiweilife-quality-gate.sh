@@ -2,8 +2,8 @@
 set -euo pipefail
 
 MODE=${1:---full}
-if [[ "$MODE" != "--full" && "$MODE" != "--quick" ]]; then
-  echo "usage: yiweilife-quality-gate.sh [--full|--quick]" >&2
+if [[ "$MODE" != "--full" && "$MODE" != "--quick" && "$MODE" != "--release" ]]; then
+  echo "usage: yiweilife-quality-gate.sh [--full|--quick|--release]" >&2
   exit 2
 fi
 
@@ -16,12 +16,14 @@ run() {
 }
 
 cd "$REPO_ROOT"
-run npm run lint
-run npm run typecheck --workspace @librechat/frontend
-run npm run build:data-provider
-run npm run build:data-schemas
-run npm run build:api
-run npm run build:client-package
+if [[ "$MODE" != "--release" ]]; then
+  run npm run lint
+  run npm run typecheck --workspace @librechat/frontend
+  run npm run build:data-provider
+  run npm run build:data-schemas
+  run npm run build:api
+  run npm run build:client-package
+fi
 
 if [[ "$MODE" == "--full" ]]; then
   export NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=8192}
@@ -52,11 +54,15 @@ if [[ "$MODE" == "--full" ]]; then
   run npm run test:config -- --runInBand
 fi
 
-run npm run build:client
-run node client/scripts/smoke-production-build.cjs
+if [[ "$MODE" != "--release" ]]; then
+  run npm run build:client
+  run node client/scripts/smoke-production-build.cjs
+fi
 run bash -n deploy/build-release.sh
 run bash -n deploy/apply-release.sh
+run bash -n deploy/verify-local.sh
 run bash -n deploy/compose.sh
+run bash deploy/release.test.sh
 run bash deploy/backup.test.sh
 
 if [[ "$MODE" == "--full" ]]; then
