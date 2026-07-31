@@ -14,6 +14,8 @@ RELEASE_MODE=${RELEASE_MODE:-full}
 SELECTED_CHANNEL=${SELECTED_CHANNEL:-$RELEASE_MODE}
 SELECTED_BY=${SELECTED_BY:-owner}
 BUILD_CACHE_DIR=${BUILD_CACHE_DIR:-"$RELEASE_ROOT/.build-cache"}
+BUILD_CPU_QUOTA=${BUILD_CPU_QUOTA:-}
+BUILD_CPU_PERIOD=${BUILD_CPU_PERIOD:-100000}
 CORPUS_SCHEMA_REL=library/corpora/schemas/bank-item.schema.json
 CORPUS_SCHEMA_IN_CONTEXT="$PROJECT_DIR/$CORPUS_SCHEMA_REL"
 GENERATED_CORPUS_SCHEMA=false
@@ -128,6 +130,19 @@ if "${DOCKER[@]}" buildx version >/dev/null 2>&1; then
   BUILDX_AVAILABLE=true
 fi
 
+BUILD_RESOURCE_ARGS=()
+if [[ -n "$BUILD_CPU_QUOTA" ]]; then
+  [[ "$BUILD_CPU_QUOTA" =~ ^[1-9][0-9]*$ && "$BUILD_CPU_PERIOD" =~ ^[1-9][0-9]*$ ]] || {
+    echo "BUILD_CPU_QUOTA and BUILD_CPU_PERIOD must be positive integers" >&2
+    exit 1
+  }
+  [[ "$DOCKER_BUILDKIT" == 0 ]] || {
+    echo "BUILD_CPU_QUOTA requires DOCKER_BUILDKIT=0 because buildx has no cpu-quota flag" >&2
+    exit 1
+  }
+  BUILD_RESOURCE_ARGS=(--cpu-period "$BUILD_CPU_PERIOD" --cpu-quota "$BUILD_CPU_QUOTA")
+fi
+
 cache_args() {
   local name=$1
   $BUILDX_AVAILABLE || return 0
@@ -150,6 +165,7 @@ if [[ "$RELEASE_SERVICE" != future-engine ]]; then
   echo "Building immutable LibreChat release image: $API_TAG"
   mapfile -t API_CACHE_ARGS < <(cache_args api)
   "${DOCKER[@]}" build \
+    ${BUILD_RESOURCE_ARGS[@]+"${BUILD_RESOURCE_ARGS[@]}"} \
     ${API_CACHE_ARGS[@]+"${API_CACHE_ARGS[@]}"} \
     --build-arg "BUILD_COMMIT=$LIBRECHAT_REVISION" \
     --build-arg "BUILD_BRANCH=$(git -C "$APP_DIR" branch --show-current 2>/dev/null || printf unknown)" \
@@ -167,6 +183,7 @@ if [[ "$RELEASE_SERVICE" != api ]]; then
     mapfile -t ENGINE_TEST_CACHE_ARGS < <(cache_args engine-test)
     echo "Running future-engine full test stage"
     "${DOCKER[@]}" build \
+      ${BUILD_RESOURCE_ARGS[@]+"${BUILD_RESOURCE_ARGS[@]}"} \
       --file "$ENGINE_DIR/Dockerfile" \
       --target test \
       ${ENGINE_TEST_CACHE_ARGS[@]+"${ENGINE_TEST_CACHE_ARGS[@]}"} \
@@ -176,6 +193,7 @@ if [[ "$RELEASE_SERVICE" != api ]]; then
   mapfile -t ENGINE_CACHE_ARGS < <(cache_args engine)
   echo "Building immutable future-engine release image: $ENGINE_TAG"
   "${DOCKER[@]}" build \
+    ${BUILD_RESOURCE_ARGS[@]+"${BUILD_RESOURCE_ARGS[@]}"} \
     --file "$ENGINE_DIR/Dockerfile" \
     --target runtime \
     ${ENGINE_CACHE_ARGS[@]+"${ENGINE_CACHE_ARGS[@]}"} \

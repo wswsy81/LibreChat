@@ -81,6 +81,11 @@ grep -qx 'release_service=api' "$RELEASE_ROOT/API-HOTFIX-TEST.manifest"
 [[ $(grep -c '^build ' "$FAKE_LOG") -eq 1 ]]
 
 : > "$FAKE_LOG"
+DOCKER_BUILDKIT=0 BUILD_CPU_QUOTA=60000 RELEASE_SERVICE=api \
+  bash "$SCRIPT_DIR/build-release.sh" API-CPU-LIMIT-TEST >/dev/null
+grep -q '^build --cpu-period 100000 --cpu-quota 60000 ' "$FAKE_LOG"
+
+: > "$FAKE_LOG"
 RELEASE_SERVICE=future-engine bash "$SCRIPT_DIR/build-release.sh" ENGINE-HOTFIX-TEST >/dev/null
 grep -qx "LIBRECHAT_RELEASE_IMAGE=$CURRENT_API" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
 grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
