@@ -126,7 +126,7 @@ BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # 旧版 `docker build` 见到 --cache-to 直接 unknown flag 退出。没有 buildx 时降级成
 # 普通构建:只是慢一点,不影响产物,总比发布通道在服务器上根本跑不起来强。
 BUILDX_AVAILABLE=false
-if "${DOCKER[@]}" buildx version >/dev/null 2>&1; then
+if [[ "$DOCKER_BUILDKIT" != 0 ]] && "${DOCKER[@]}" buildx version >/dev/null 2>&1; then
   BUILDX_AVAILABLE=true
 fi
 

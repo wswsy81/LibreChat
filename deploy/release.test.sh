@@ -84,6 +84,7 @@ grep -qx 'release_service=api' "$RELEASE_ROOT/API-HOTFIX-TEST.manifest"
 DOCKER_BUILDKIT=0 BUILD_CPU_QUOTA=60000 RELEASE_SERVICE=api \
   bash "$SCRIPT_DIR/build-release.sh" API-CPU-LIMIT-TEST >/dev/null
 grep -q '^build --cpu-period 100000 --cpu-quota 60000 ' "$FAKE_LOG"
+! grep -q -- '--cache-to' "$FAKE_LOG"
 
 : > "$FAKE_LOG"
 RELEASE_SERVICE=future-engine bash "$SCRIPT_DIR/build-release.sh" ENGINE-HOTFIX-TEST >/dev/null
