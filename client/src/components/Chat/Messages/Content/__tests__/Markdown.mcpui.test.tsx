@@ -22,6 +22,9 @@ jest.mock('~/Providers', () => ({
 }));
 jest.mock('~/data-provider');
 jest.mock('~/hooks');
+jest.mock('react-router-dom', () => ({
+  useNavigate: () => jest.fn(),
+}));
 
 // Mock @mcp-ui/client to render identifiable elements for assertions
 jest.mock('@mcp-ui/client', () => ({

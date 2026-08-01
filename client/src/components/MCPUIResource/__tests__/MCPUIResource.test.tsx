@@ -1,7 +1,9 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import type { UIActionResult } from '@mcp-ui/client';
 import { RecoilRoot } from 'recoil';
 import { MCPUIResource } from '../MCPUIResource';
+import { CHAPTER_CONTINUE_PROMPT } from '../useUIResourceAction';
 import {
   useMessageContext,
   useOptionalMessagesConversation,
@@ -10,20 +12,29 @@ import {
 import { useLocalize } from '~/hooks';
 import { handleUIAction } from '~/utils';
 
+const mockNavigate = jest.fn();
+let mockInlineOnUIAction: ((result: UIActionResult) => Promise<void> | void) | undefined;
+
 // Mock dependencies
 jest.mock('~/Providers');
 jest.mock('~/hooks');
 jest.mock('~/utils');
+jest.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+}));
 
 jest.mock('@mcp-ui/client', () => ({
-  UIResourceRenderer: ({ resource, onUIAction }: any) => (
-    <div
-      data-testid="ui-resource-renderer"
-      data-resource-uri={resource?.uri}
-      data-has-blob={String(Object.prototype.hasOwnProperty.call(resource, 'blob'))}
-      onClick={() => onUIAction({ action: 'test' })}
-    />
-  ),
+  UIResourceRenderer: ({ resource, onUIAction }: any) => {
+    mockInlineOnUIAction = onUIAction;
+    return (
+      <div
+        data-testid="ui-resource-renderer"
+        data-resource-uri={resource?.uri}
+        data-has-blob={String(Object.prototype.hasOwnProperty.call(resource, 'blob'))}
+        onClick={() => onUIAction({ action: 'test' })}
+      />
+    );
+  },
 }));
 
 const mockUseMessageContext = useMessageContext as jest.MockedFunction<typeof useMessageContext>;
@@ -54,6 +65,7 @@ describe('MCPUIResource', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockInlineOnUIAction = undefined;
     currentTestMessages = [];
     mockUseMessageContext.mockReturnValue({ messageId: 'msg123', isLatestMessage: true } as any);
     mockUseMessagesConversation.mockReturnValue({
@@ -297,6 +309,43 @@ describe('MCPUIResource', () => {
       renderer.click();
 
       expect(mockHandleUIAction).toHaveBeenCalledWith({ action: 'test' }, mockAskFn);
+    });
+
+    it('submits legacy chapter continuation links from a single inline resource', async () => {
+      currentTestMessages = [
+        {
+          messageId: 'msg123',
+          attachments: [
+            {
+              type: 'ui_resources',
+              ui_resources: [
+                {
+                  resourceId: 'resource-1',
+                  uri: 'ui://future-lines/report',
+                  mimeType: 'text/html',
+                  text: '<p>Interactive Resource</p>',
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      renderWithRecoil(<MCPUIResource node={{ properties: { resourceId: 'resource-1' } }} />);
+
+      const params = new URLSearchParams({
+        q: CHAPTER_CONTINUE_PROMPT,
+        submit: 'true',
+      });
+      await act(async () => {
+        await mockInlineOnUIAction?.({
+          type: 'link',
+          payload: { url: `https://yiweilife.com/c/new?${params.toString()}` },
+        });
+      });
+
+      expect(mockAskFn).toHaveBeenCalledWith({ text: CHAPTER_CONTINUE_PROMPT });
+      expect(mockNavigate).not.toHaveBeenCalled();
     });
   });
 

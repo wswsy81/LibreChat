@@ -1,38 +1,15 @@
-import { useNavigate } from 'react-router-dom';
 import { UIResourceRenderer } from '@mcp-ui/client';
-import { Constants, Tools, trySanitizeMCPUIResource } from 'librechat-data-provider';
+import { Tools, trySanitizeMCPUIResource } from 'librechat-data-provider';
 import type { TAttachment, UIResource } from 'librechat-data-provider';
-import type { UIActionResult } from '@mcp-ui/client';
 import {
   useMessageContext,
   useOptionalMessagesConversation,
   useOptionalMessagesOperations,
 } from '~/Providers';
 import StanceFeedbackShell from '~/features/life-design/components/StanceFeedbackShell';
+import useUIResourceAction from '~/components/MCPUIResource/useUIResourceAction';
 import { shouldRenderUIResource } from '~/components/MCPUIResource/lifecycle';
 import UIResourceCarousel from './UIResourceCarousel';
-import { handleUIAction } from '~/utils';
-
-const CHAPTER_CONTINUE_PROMPT = [
-  '[trigger:chapter_continue] ',
-  String.fromCodePoint(0x7ee7, 0x7eed),
-  ',',
-  String.fromCodePoint(0x8fdb, 0x5165, 0x4e0b, 0x4e00, 0x7ae0, 0x3002),
-].join('');
-
-export function legacyChapterContinuation(url: string): string | null {
-  try {
-    const parsed = new URL(url, window.location.origin);
-    if (parsed.pathname !== '/c/new') {
-      return null;
-    }
-    const prompt = parsed.searchParams.get('prompt') || parsed.searchParams.get('q');
-    const submit = parsed.searchParams.get('submit');
-    return prompt === CHAPTER_CONTINUE_PROMPT && submit?.toLowerCase() === 'true' ? prompt : null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * 人生设计室:MCP(mingli)工具的"运行 X in Y"噪音卡在 Part.tsx 里被隐藏,
@@ -53,28 +30,7 @@ export default function McpUIResources({
   const { isLatestMessage } = useMessageContext();
   const { conversationId } = useOptionalMessagesConversation();
   const { ask } = useOptionalMessagesOperations();
-  const navigate = useNavigate();
-
-  // 沙箱 iframe(存档面板等)里的链接靠 postMessage {type:'link'} 上来:
-  // 站内路径走 SPA 跳转,站外开新窗;其余动作(prompt/tool/intent)照旧交给 handleUIAction。
-  const onUIAction = async (result: UIActionResult) => {
-    if (result.type === 'link') {
-      const url = String(result.payload.url);
-      const continuation = legacyChapterContinuation(url);
-      if (continuation && conversationId && conversationId !== Constants.NEW_CONVO) {
-        ask({ text: continuation });
-        return;
-      }
-      const path = url.replace(/^https?:\/\/[^/]+/, '');
-      if (path.startsWith('/')) {
-        navigate(path);
-      } else {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
-      return;
-    }
-    return handleUIAction(result, ask);
-  };
+  const onUIAction = useUIResourceAction({ ask, conversationId });
 
   const uiResources: UIResource[] = (
     attachments

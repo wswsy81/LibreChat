@@ -1,24 +1,37 @@
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { UIActionResult } from '@mcp-ui/client';
 import type { UIResource } from 'librechat-data-provider';
 import UIResourceCarousel from '~/components/Chat/Messages/Content/UIResourceCarousel';
+import { CHAPTER_CONTINUE_PROMPT } from '~/components/MCPUIResource/useUIResourceAction';
 import { handleUIAction } from '~/utils';
+
+const mockAsk = jest.fn();
+const mockNavigate = jest.fn();
+const mockOnUIActions: Array<(result: UIActionResult) => Promise<void> | void> = [];
 
 // Mock the UIResourceRenderer component
 jest.mock('@mcp-ui/client', () => ({
-  UIResourceRenderer: ({ resource, onUIAction }: any) => (
-    <div data-testid="ui-resource-renderer" onClick={() => onUIAction({ action: 'test' })}>
-      {resource.text || 'UI Resource'}
-    </div>
-  ),
+  UIResourceRenderer: ({ resource, onUIAction }: any) => {
+    mockOnUIActions.push(onUIAction);
+    return (
+      <div data-testid="ui-resource-renderer" onClick={() => onUIAction({ action: 'test' })}>
+        {resource.text || 'UI Resource'}
+      </div>
+    );
+  },
 }));
 
 // Mock useOptionalMessagesOperations hook
-const mockAsk = jest.fn();
 jest.mock('~/Providers', () => ({
   useOptionalMessagesOperations: () => ({
     ask: mockAsk,
   }),
+  useOptionalMessagesConversation: () => ({ conversationId: 'conv123' }),
+}));
+
+jest.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
 }));
 
 // Mock handleUIAction utility
@@ -46,6 +59,7 @@ describe('UIResourceCarousel', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockOnUIActions.length = 0;
     mockAsk.mockClear();
     mockHandleUIAction.mockClear();
     // Reset scroll properties
@@ -200,6 +214,24 @@ describe('UIResourceCarousel', () => {
       expect(mockHandleUIAction).toHaveBeenCalledWith({ action: 'test' }, mockAsk);
       expect(mockHandleUIAction).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('submits legacy chapter continuation links from an inline carousel resource', async () => {
+    render(<UIResourceCarousel uiResources={mockUIResources.slice(0, 2)} />);
+
+    const params = new URLSearchParams({
+      prompt: CHAPTER_CONTINUE_PROMPT,
+      submit: 'true',
+    });
+    await act(async () => {
+      await mockOnUIActions[1]?.({
+        type: 'link',
+        payload: { url: `https://yiweilife.com/c/new?${params.toString()}` },
+      });
+    });
+
+    expect(mockAsk).toHaveBeenCalledWith({ text: CHAPTER_CONTINUE_PROMPT });
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('applies correct dimensions to resource containers', () => {

@@ -28,6 +28,11 @@ jest.mock('~/Providers', () => ({
   useOptionalMessagesOperations: () => ({
     ask: jest.fn(),
   }),
+  useOptionalMessagesConversation: () => ({ conversationId: 'conv789' }),
+}));
+
+jest.mock('react-router-dom', () => ({
+  useNavigate: () => jest.fn(),
 }));
 
 jest.mock('@mcp-ui/client', () => ({

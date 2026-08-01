@@ -3,10 +3,11 @@ import { ChevronDown } from 'lucide-react';
 import { Tools, trySanitizeMCPUIResource } from 'librechat-data-provider';
 import { UIResourceRenderer } from '@mcp-ui/client';
 import type { TAttachment, UIResource } from 'librechat-data-provider';
-import { useOptionalMessagesOperations } from '~/Providers';
+import useUIResourceAction from '~/components/MCPUIResource/useUIResourceAction';
+import { useOptionalMessagesConversation, useOptionalMessagesOperations } from '~/Providers';
 import { useLocalize, useExpandCollapse } from '~/hooks';
 import UIResourceCarousel from './UIResourceCarousel';
-import { handleUIAction, cn } from '~/utils';
+import { cn } from '~/utils';
 import { OutputRenderer } from './ToolOutput';
 
 function isSimpleObject(obj: unknown): obj is Record<string, string | number | boolean | null> {
@@ -102,7 +103,9 @@ export default function ToolCallInfo({
   attachments?: TAttachment[];
 }) {
   const localize = useLocalize();
+  const { conversationId } = useOptionalMessagesConversation();
   const { ask } = useOptionalMessagesOperations();
+  const onUIAction = useUIResourceAction({ ask, conversationId });
   const [showParams, setShowParams] = useState(false);
   const { style: paramsExpandStyle, ref: paramsExpandRef } = useExpandCollapse(showParams);
 
@@ -169,7 +172,7 @@ export default function ToolCallInfo({
           {uiResources.length === 1 && (
             <UIResourceRenderer
               resource={uiResources[0]}
-              onUIAction={async (result) => handleUIAction(result, ask)}
+              onUIAction={onUIAction}
               htmlProps={{
                 autoResizeIframe: { width: true, height: true },
               }}

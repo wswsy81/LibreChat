@@ -128,11 +128,34 @@ describe('McpUIResources one-shot lifecycle', () => {
     await act(async () => {
       await mockOnUIAction?.({
         type: 'link',
-        payload: { url: 'https://yiweilife.com/archive' },
+        payload: { url: `${window.location.origin}/archive` },
       });
     });
 
     expect(mockNavigate).toHaveBeenCalledWith('/archive');
     expect(mockAsk).not.toHaveBeenCalled();
+  });
+
+  it('opens external links outside the SPA', async () => {
+    const open = jest.spyOn(window, 'open').mockImplementation(() => null);
+    mockUseMessageContext.mockReturnValue({ isLatestMessage: false } as never);
+    render(
+      <McpUIResources attachments={attachment('ui://future-lines/report')} toolCallId="tool-1" />,
+    );
+
+    await act(async () => {
+      await mockOnUIAction?.({
+        type: 'link',
+        payload: { url: 'https://example.com/report' },
+      });
+    });
+
+    expect(open).toHaveBeenCalledWith(
+      'https://example.com/report',
+      '_blank',
+      'noopener,noreferrer',
+    );
+    expect(mockNavigate).not.toHaveBeenCalled();
+    open.mockRestore();
   });
 });

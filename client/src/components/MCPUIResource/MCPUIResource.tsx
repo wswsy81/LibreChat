@@ -9,7 +9,7 @@ import {
 } from '~/Providers';
 import { useConversationUIResources } from '~/hooks/Messages/useConversationUIResources';
 import { shouldRenderUIResource } from './lifecycle';
-import { handleUIAction } from '~/utils';
+import useUIResourceAction from './useUIResourceAction';
 import { useLocalize } from '~/hooks';
 
 interface MCPUIResourceProps {
@@ -25,8 +25,9 @@ export function MCPUIResource(props: MCPUIResourceProps) {
   const { resourceId } = props.node.properties;
   const { isLatestMessage } = useMessageContext();
   const localize = useLocalize();
-  const { ask } = useOptionalMessagesOperations();
   const { conversationId } = useOptionalMessagesConversation();
+  const { ask } = useOptionalMessagesOperations();
+  const onUIAction = useUIResourceAction({ ask, conversationId });
 
   const conversationResourceMap = useConversationUIResources(conversationId ?? undefined);
 
@@ -63,7 +64,7 @@ export function MCPUIResource(props: MCPUIResourceProps) {
       <span className="mx-1 inline-block w-full align-middle">
         <UIResourceRenderer
           resource={safeResource}
-          onUIAction={async (result) => handleUIAction(result, ask)}
+          onUIAction={onUIAction}
           htmlProps={{
             autoResizeIframe: { width: true, height: true },
             sandboxPermissions: 'allow-popups',
