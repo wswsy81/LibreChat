@@ -10,19 +10,25 @@ import HomeRoute from '../HomeRoute';
 
 const mockStartupConfig = { data: { registrationEnabled: false } };
 const mockTrack = jest.fn();
+let mockAuth: {
+  user: { id: string; name: string } | null;
+  isAuthenticated: boolean;
+  isAuthReady: boolean;
+} = { user: null, isAuthenticated: false, isAuthReady: true };
+let mockBootstrap: Record<string, unknown> = { isLoading: false };
 
 jest.mock('@librechat/client', () => ({
   Button: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 jest.mock('~/hooks', () => ({
-  useAuthContext: () => ({ user: null, isAuthenticated: false, isAuthReady: true }),
+  useAuthContext: () => mockAuth,
   useLocalize: () => (key: string) => key,
 }));
 
 jest.mock('~/data-provider', () => ({
   useGetStartupConfig: () => mockStartupConfig,
-  useLifeBootstrapQuery: () => ({ isLoading: false }),
+  useLifeBootstrapQuery: () => mockBootstrap,
 }));
 
 jest.mock('~/utils/track', () => ({ track: (...args: unknown[]) => mockTrack(...args) }));
@@ -50,6 +56,8 @@ describe('public registration policy', () => {
   beforeEach(() => {
     sessionStorage.clear();
     mockTrack.mockClear();
+    mockAuth = { user: null, isAuthenticated: false, isAuthReady: true };
+    mockBootstrap = { isLoading: false };
   });
 
   it('keeps one registration action when public registration requires an invite', () => {
@@ -125,5 +133,24 @@ describe('public registration policy', () => {
     await userEvent.click(screen.getByRole('link', { name: /com_life_start_first/ }));
 
     expect(mockTrack).toHaveBeenCalledWith('invite_registration_started');
+  });
+
+  it('已有档案默认回首页，但可显式从承诺屏开新存档', () => {
+    mockAuth = {
+      user: { id: 'user-1', name: 'L1验收' },
+      isAuthenticated: true,
+      isAuthReady: true,
+    };
+    mockBootstrap = {
+      isLoading: false,
+      data: { hasSubstantiveProfile: true },
+    };
+
+    const current = renderHome('/home');
+    expect(screen.getByTestId('returning')).toBeInTheDocument();
+    current.unmount();
+
+    renderHome('/home?new=1');
+    expect(screen.getByTestId('setup')).toBeInTheDocument();
   });
 });

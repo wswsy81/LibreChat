@@ -124,6 +124,33 @@ test('入口只开放财务、工作、情感、事业，健康单独留在雾�
   expect(mapButton('com_life_map_house_h1')).toBeDisabled();
 });
 
+test('承诺屏五句与三张前台示例卡同屏，内部线名不出现', () => {
+  render(
+    <MemoryRouter>
+      <FirstArchiveSetup />
+    </MemoryRouter>,
+  );
+
+  for (const key of [
+    'com_life_setup_promise_1',
+    'com_life_setup_promise_2',
+    'com_life_setup_promise_3',
+    'com_life_setup_promise_4',
+    'com_life_setup_promise_5',
+    'com_life_line_inertia',
+    'com_life_line_intervention',
+    'com_life_line_rupture',
+    'com_life_setup_line_inertia_help',
+    'com_life_setup_line_intervention_help',
+    'com_life_setup_line_rupture_help',
+  ]) {
+    expect(screen.getByText(key)).toBeInTheDocument();
+  }
+  expect(screen.queryByText('惯性线')).not.toBeInTheDocument();
+  expect(screen.queryByText('干预线')).not.toBeInTheDocument();
+  expect(screen.queryByText('断裂线')).not.toBeInTheDocument();
+});
+
 test('关于我允许用 null 明确清除已保存文本', () => {
   mockArchiveData = {
     profile: { basics: { occupation: '顾问', city: '厦门' } },

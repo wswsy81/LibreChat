@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { easings } from '@react-spring/web';
 import { EModelEndpoint } from 'librechat-data-provider';
-import { BirthdayIcon, TooltipAnchor, SplitText } from '@librechat/client';
+import { SplitText } from '@librechat/client';
 import {
   getIconEndpoint,
   getEntity,
@@ -13,11 +13,31 @@ import {
 import { useChatContext, useAgentsMapContext, useAssistantsMapContext } from '~/Providers';
 import { useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
 import AgentContact from '~/components/Agents/AgentContact';
-import ConvoIcon from '~/components/Endpoints/ConvoIcon';
 import { useLocalize, useAuthContext } from '~/hooks';
 
-const containerClassName =
-  'shadow-stroke relative flex h-full items-center justify-center rounded-full bg-white dark:bg-presentation dark:text-white text-black dark:after:shadow-none ';
+const FUTURE_LINE_GREETING_KEYS = [
+  'com_life_chat_greeting_1',
+  'com_life_chat_greeting_2',
+  'com_life_chat_greeting_3',
+  'com_life_chat_greeting_4',
+  'com_life_chat_greeting_5',
+  'com_life_chat_greeting_6',
+  'com_life_chat_greeting_7',
+  'com_life_chat_greeting_8',
+  'com_life_chat_greeting_9',
+  'com_life_chat_greeting_10',
+  'com_life_chat_greeting_11',
+  'com_life_chat_greeting_12',
+] as const;
+
+const FUTURE_LINE_GREETING_INDEX_KEY = 'life:chat-greeting-index';
+
+export function nextFutureLineGreetingIndex(storage: Pick<Storage, 'getItem' | 'setItem'>) {
+  const stored = Number.parseInt(storage.getItem(FUTURE_LINE_GREETING_INDEX_KEY) ?? '', 10);
+  const next = Number.isInteger(stored) ? (stored + 1) % FUTURE_LINE_GREETING_KEYS.length : 0;
+  storage.setItem(FUTURE_LINE_GREETING_INDEX_KEY, String(next));
+  return next;
+}
 
 function getTextSizeClass(text: string | undefined | null) {
   // 人生设计室:欢迎语用统一字号梯度,不再飙到 4xl/5xl(见 DESIGN.md 字号梯度)
@@ -48,6 +68,9 @@ export default function Landing() {
   const [textHasMultipleLines, setTextHasMultipleLines] = useState(false);
   const [lineCount, setLineCount] = useState(1);
   const [contentHeight, setContentHeight] = useState(0);
+  const [futureLineGreetingIndex] = useState(() =>
+    nextFutureLineGreetingIndex(window.sessionStorage),
+  );
   const contentRef = useRef<HTMLDivElement>(null);
 
   const endpointType = useMemo(() => {
@@ -77,6 +100,7 @@ export default function Landing() {
 
   const brandedSpecLabel = modelSpec?.showOnLanding ? modelSpec.label : '';
   const brandedSpecDescription = (modelSpec?.showOnLanding && modelSpec.description) || '';
+  const isFutureLines = conversation?.spec === 'future-lines' || brandedSpecLabel === '人生设计室';
   const name = entity?.name ?? brandedSpecLabel;
   const description =
     (entity?.description || brandedSpecDescription || conversation?.greeting) ?? '';
@@ -161,10 +185,14 @@ export default function Landing() {
     return margin;
   }, [lineCount, description, textHasMultipleLines, contentHeight]);
 
-  const greetingText =
-    typeof startupConfig?.interface?.customWelcome === 'string'
-      ? getGreeting()
-      : getGreeting() + (user?.name ? ', ' + user.name : '');
+  const futureLineGreeting = localize(FUTURE_LINE_GREETING_KEYS[futureLineGreetingIndex]);
+  let greetingText = getGreeting() + (user?.name ? ', ' + user.name : '');
+  if (typeof startupConfig?.interface?.customWelcome === 'string') {
+    greetingText = getGreeting();
+  }
+  if (isFutureLines) {
+    greetingText = user?.name ? `${user.name}，${futureLineGreeting}` : futureLineGreeting;
+  }
 
   return (
     <div

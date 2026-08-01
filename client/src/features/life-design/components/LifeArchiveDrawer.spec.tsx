@@ -13,6 +13,9 @@ let mockArchive: Record<string, unknown>;
 
 jest.mock('~/data-provider', () => ({
   useLifeArchiveQuery: () => mockArchive,
+  useLifeBootstrapQuery: () => ({
+    data: { summary: { lifeWheel: { lanternHouse: 'h6', houses: [] } } },
+  }),
   useLifeDossierAnnotateMutation: () => ({ mutate: mockMutate, isLoading: false }),
 }));
 
@@ -21,7 +24,7 @@ jest.mock('~/hooks', () => ({
     key === 'com_life_reveal_opening' ? '够了。三个月、一年、三年——三条路都能开了。' : key,
 }));
 
-jest.mock('./ArchiveMap', () => () => <div data-testid="archive-map" />);
+jest.mock('./ArchiveMistMap', () => () => <div data-testid="archive-map" />);
 
 const baseStatus = {
   variableCount: 1,
@@ -153,7 +156,7 @@ test('回合结束后持续刷新，后台归纳晚到也会更新抽屉并停�
     </QueryClientProvider>,
   );
   expect(invalidate).toHaveBeenCalledWith([QueryKeys.lifeArchive]);
-  expect(invalidate).toHaveBeenCalledWith([QueryKeys.lifeMapHtml]);
+  expect(invalidate).toHaveBeenCalledWith([QueryKeys.lifeBootstrap]);
 
   invalidate.mockClear();
   act(() => jest.advanceTimersByTime(70_000));

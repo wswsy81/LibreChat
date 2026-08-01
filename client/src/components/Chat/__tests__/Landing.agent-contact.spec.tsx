@@ -52,6 +52,8 @@ jest.mock('~/hooks', () => ({
       com_ui_good_evening: 'Good evening',
       com_ui_late_night: 'Good evening',
       com_ui_weekend_morning: 'Good morning',
+      com_life_chat_greeting_1: 'Greeting one',
+      com_life_chat_greeting_2: 'Greeting two',
     };
     return translations[key] || key;
   },
@@ -94,6 +96,7 @@ describe('Landing agent contact', () => {
     mockConversation = null;
     mockAgentsMap = undefined;
     mockAssistantMap = undefined;
+    window.sessionStorage.clear();
   });
 
   it('shows contact for the selected agent from agentsMap', () => {
@@ -175,5 +178,16 @@ describe('Landing agent contact', () => {
     expect(landing).not.toHaveClass('h-full');
     expect(landing).not.toHaveClass('sm:max-h-0');
     expect(content).not.toHaveClass('my-auto');
+  });
+
+  it('未来线新对话按次轮换赌注句，不再固定为时段问候', () => {
+    mockConversation = { endpoint: 'openAI', spec: 'future-lines' };
+    const first = render(<Landing />);
+    expect(screen.getByText('Greeting one')).toBeInTheDocument();
+    first.unmount();
+
+    render(<Landing />);
+    expect(screen.getByText('Greeting two')).toBeInTheDocument();
+    expect(screen.queryByText('Good morning')).not.toBeInTheDocument();
   });
 });

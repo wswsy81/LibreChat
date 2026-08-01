@@ -103,6 +103,7 @@ export default function HomeRoute() {
   const bootstrap = useLifeBootstrapQuery({ enabled: isAuthReady && isAuthenticated });
   const requestedEntryHouse = getEntryHouseFromSearch(location.search);
   const initialEntryHouse = requestedEntryHouse ?? getStoredEntryHouse();
+  const newArchiveRequested = new URLSearchParams(location.search).get('new') === '1';
 
   useEffect(() => {
     const inviteCode = getInviteCodeFromHash(location.hash);
@@ -139,7 +140,7 @@ export default function HomeRoute() {
         onContinue={() => navigate('/resume')}
       />
     );
-  } else if (bootstrap.data?.hasSubstantiveProfile) {
+  } else if (bootstrap.data?.hasSubstantiveProfile && !newArchiveRequested) {
     content = <ReturningHome bootstrap={bootstrap.data} />;
   } else {
     content = (

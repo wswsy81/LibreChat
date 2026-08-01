@@ -4,7 +4,7 @@ import { Button } from '@librechat/client';
 import { useLifeArchiveQuery, useLifeBootstrapQuery } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import ArchiveDossier from '../components/ArchiveDossier';
-import ArchiveMap from '../components/ArchiveMap';
+import ArchiveMistMap from '../components/ArchiveMistMap';
 import BasicsForm from '../components/BasicsForm';
 import { Explorer } from '../components/LifeWheel';
 import { LifeError, LifeLoading } from '../components/PageState';
@@ -244,7 +244,7 @@ export default function ArchiveRoute() {
               title={localize('com_life_map')}
               sectionLabel={localize('com_life_archive_section_count', { 0: '03' })}
             >
-              <ArchiveMap />
+              <ArchiveMistMap wheel={bootstrap.data?.summary?.lifeWheel} />
             </ArchiveSection>
 
             <ArchiveSection

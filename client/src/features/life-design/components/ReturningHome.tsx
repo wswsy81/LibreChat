@@ -211,6 +211,12 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
           >
             {localize('com_life_archive_card')} →
           </Link>
+          <Link
+            to="/home?new=1"
+            className="font-life-sans text-life-sm text-life-ink underline decoration-life-rule underline-offset-4 hover:decoration-life-ink dark:text-gray-200"
+          >
+            {localize('com_life_start_new_archive')} →
+          </Link>
           {bootstrap.latestReportId && (
             <Link
               to={`/archive/reports/${bootstrap.latestReportId}`}

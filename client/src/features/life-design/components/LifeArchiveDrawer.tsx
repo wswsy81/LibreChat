@@ -8,10 +8,14 @@ import type {
   LifeDossierPreviewEntry,
   TMessage,
 } from 'librechat-data-provider';
-import { useLifeArchiveQuery, useLifeDossierAnnotateMutation } from '~/data-provider';
+import {
+  useLifeArchiveQuery,
+  useLifeBootstrapQuery,
+  useLifeDossierAnnotateMutation,
+} from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import { cn, getLatestText } from '~/utils';
-import ArchiveMap from './ArchiveMap';
+import ArchiveMistMap from './ArchiveMistMap';
 
 const statusChanged = (before: LifeArchiveStatus, after: LifeArchiveStatus) =>
   after.variableCount > before.variableCount ||
@@ -37,6 +41,11 @@ export default function LifeArchiveDrawer({
     refetchOnWindowFocus: false,
     retry: 0,
   });
+  const bootstrap = useLifeBootstrapQuery({
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    retry: 0,
+  });
   const annotate = useLifeDossierAnnotateMutation();
   const previousStatus = useRef<LifeArchiveStatus | null>(null);
   const previousSubmitting = useRef(isSubmitting);
@@ -57,7 +66,7 @@ export default function LifeArchiveDrawer({
 
     const refresh = () => {
       queryClient.invalidateQueries([QueryKeys.lifeArchive]);
-      queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
+      queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
     };
     refresh();
     setRefreshUntil(Date.now() + ARCHIVE_REFRESH_WINDOW_MS);
@@ -71,7 +80,7 @@ export default function LifeArchiveDrawer({
         return;
       }
       queryClient.invalidateQueries([QueryKeys.lifeArchive]);
-      queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
+      queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
     }, ARCHIVE_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [queryClient, refreshUntil]);
@@ -219,7 +228,7 @@ export default function LifeArchiveDrawer({
                   <Map className="h-4 w-4 text-life-brass" />
                   {localize('com_life_map')}
                 </h3>
-                <ArchiveMap compact readOnly />
+                <ArchiveMistMap wheel={bootstrap.data?.summary?.lifeWheel} />
               </section>
 
               <section className="py-5" aria-labelledby="life-drawer-dossier-title">

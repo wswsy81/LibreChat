@@ -121,3 +121,16 @@ test('老用户点击当前亮灯领域时恢复最近对话', () => {
   expect(mockNavigate).toHaveBeenCalledWith('/resume');
   expect(mockEnter).not.toHaveBeenCalled();
 });
+
+test('老用户可从首页进入承诺屏开新存档', () => {
+  render(
+    <MemoryRouter>
+      <ReturningHome bootstrap={bootstrap} />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /com_life_start_new_archive/ })).toHaveAttribute(
+    'href',
+    '/home?new=1',
+  );
+});
