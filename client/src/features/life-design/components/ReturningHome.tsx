@@ -156,9 +156,9 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
           </section>
         </div>
 
-        <section className="mt-12" aria-labelledby="life-wheel-title">
+        <section className="mt-12" aria-labelledby="life-map-title">
           <h2
-            id="life-wheel-title"
+            id="life-map-title"
             className="font-life-serif text-life-lead font-semibold text-life-ink dark:text-gray-100"
           >
             {localize('com_life_wheel_title')}

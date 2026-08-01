@@ -8,9 +8,8 @@ import { useLocalize } from '~/hooks';
 import { track } from '~/utils/track';
 import useHouseEntry from '../../hooks/useEntry';
 import { formatLifeDate } from '../../utils/date';
-import LifeWheel from './LifeWheel';
-import { HOUSES } from './contract';
-import type { ConditionLevel, HouseId, HouseState, Recognition, Trend } from './contract';
+import PublicMistMap, { PUBLIC_MAP_LABEL_KEYS } from '../PublicMistMap';
+import type { ConditionLevel, HouseId, Recognition, Trend } from './contract';
 
 const RECOGNITION_KEYS: Record<Recognition, TranslationKeys> = {
   unknown: 'com_life_recognition_unknown',
@@ -47,48 +46,6 @@ const TREND_GLYPHS: Partial<Record<Trend, string>> = {
   worsening: '↘',
 };
 
-const LEGEND_SWATCHES = [
-  {
-    key: 'com_life_recognition_unknown',
-    className: 'border border-dashed border-life-ink/30 bg-transparent',
-  },
-  { key: 'com_life_recognition_draft', className: 'border border-life-brass/55 bg-life-brass/15' },
-  { key: 'com_life_recognition_owned', className: 'border border-life-moss bg-life-moss/20' },
-] as const;
-
-function WheelLegend() {
-  const localize = useLocalize();
-  return (
-    <p className="mx-auto mt-2 flex max-w-[520px] flex-wrap items-center gap-x-4 gap-y-1.5 font-life-mono text-life-meta leading-6 text-life-muted">
-      {LEGEND_SWATCHES.map((swatch) => (
-        <span key={swatch.key} className="inline-flex items-center gap-1.5">
-          <i
-            aria-hidden="true"
-            className={`inline-block h-2.5 w-2.5 flex-none rounded-full ${swatch.className}`}
-          />
-          {localize(swatch.key)}
-        </span>
-      ))}
-      <span>{localize('com_life_legend_lantern')}</span>
-      <span>{localize('com_life_legend_marker')}</span>
-    </p>
-  );
-}
-
-function wheelStates(wheel?: LifeWheelView): Partial<Record<HouseId, HouseState>> {
-  return (wheel?.houses ?? []).reduce<Partial<Record<HouseId, HouseState>>>(
-    (states, house) => ({
-      ...states,
-      [house.id]: {
-        recognition: house.recognition,
-        conditionLevel: house.condition.level,
-        trend: house.condition.trend,
-      },
-    }),
-    {},
-  );
-}
-
 export default function Explorer({
   wheel,
   archiveName,
@@ -101,7 +58,7 @@ export default function Explorer({
   const { enterHouse, error, isLoading } = useHouseEntry();
   const [selectedHouse, setSelectedHouse] = useState<HouseId | null>(wheel?.lanternHouse ?? null);
   const selected = wheel?.houses.find((house) => house.id === selectedHouse);
-  const selectedName = HOUSES.find((house) => house.id === selectedHouse)?.publicName;
+  const selectedName = selectedHouse ? localize(PUBLIC_MAP_LABEL_KEYS[selectedHouse]) : undefined;
 
   const selectHouse = (entryHouse: HouseId) => {
     setSelectedHouse(entryHouse);
@@ -121,18 +78,7 @@ export default function Explorer({
 
   return (
     <div className="grid gap-7 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)] lg:items-center">
-      <div>
-        <LifeWheel
-          mode="interactive"
-          houseStates={wheelStates(wheel)}
-          lanternHouse={wheel?.lanternHouse ?? null}
-          selectedHouse={selectedHouse}
-          onSelectHouse={selectHouse}
-          title={localize('com_life_wheel_home_aria')}
-          className="mx-auto block w-full max-w-[520px]"
-        />
-        <WheelLegend />
-      </div>
+      <PublicMistMap selectedIsland={selectedHouse} onSelectIsland={selectHouse} />
 
       <div className="min-h-[250px] border border-life-rule bg-[#F7F4EB] p-5 sm:p-6">
         {selectedHouse && selectedName ? (

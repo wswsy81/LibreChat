@@ -102,7 +102,9 @@ test('renders a natural-language timeline date without crashing the returning ho
 
   expect(screen.getByText('两周前至今')).toBeInTheDocument();
   expect(screen.getByText('顾问工作结束后仍在推进自己的系统')).toBeInTheDocument();
-  expect(screen.getAllByText('工作与健康')).toHaveLength(2);
+  expect(
+    screen.getByRole('heading', { level: 3, name: 'com_life_map_house_h6' }),
+  ).toBeInTheDocument();
   expect(screen.getByText('com_life_condition_strained')).toBeInTheDocument();
   expect(screen.getByText('com_life_trend_improving')).toBeInTheDocument();
 });
