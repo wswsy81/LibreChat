@@ -10,6 +10,7 @@ ENGINE_DIR=${ENGINE_DIR:-$(cd "$APP_DIR/../future-engine-shim" && pwd)}
 ENV_FILE=${ENV_FILE:-$APP_DIR/.env}
 BACKUP_DIR=${BACKUP_DIR:-$HOME/backups}
 KEEP_DAYS=${KEEP_DAYS:-14}
+KEEP_COUNT=${KEEP_COUNT:-2}
 MONGO_CONTAINER=${MONGO_CONTAINER:-chat-mongodb}
 POSTGRES_CONTAINER=${POSTGRES_CONTAINER:-umami-db}
 API_CONTAINER=${API_CONTAINER:-LibreChat}
@@ -75,6 +76,7 @@ command -v sha256sum >/dev/null 2>&1 || die 'sha256sum unavailable'
 [[ -f "$ENV_FILE" ]] || die "environment file not found: $ENV_FILE"
 [[ -d "$ENGINE_DIR/data" ]] || die "future-engine data directory not found: $ENGINE_DIR/data"
 [[ "$KEEP_DAYS" =~ ^[0-9]+$ ]] || die 'KEEP_DAYS must be a non-negative integer'
+[[ "$KEEP_COUNT" =~ ^[1-9][0-9]*$ ]] || die 'KEEP_COUNT must be a positive integer'
 
 if [[ -n "$OFFSITE_GPG_RECIPIENT" || -n "$OFFSITE_RSYNC_TARGET" ]]; then
   [[ -n "$OFFSITE_GPG_RECIPIENT" && -n "$OFFSITE_RSYNC_TARGET" ]] ||
@@ -176,6 +178,7 @@ tar \
   printf 'mongo_database=LibreChat\n'
   printf 'postgres_database=umami\n'
   printf 'local_retention_days=%s\n' "$KEEP_DAYS"
+  printf 'local_retention_count=%s\n' "$KEEP_COUNT"
   if [[ -n "$OFFSITE_RSYNC_TARGET" ]]; then
     printf 'offsite=encrypted-rsync-configured\n'
   else
@@ -264,12 +267,24 @@ find "$BACKUP_DIR" -maxdepth 1 -type f \
   \( -name 'mongo-LibreChat-*.archive.gz' -o -name 'shim-data-*.tgz' \) \
   -mtime +"$KEEP_DAYS" -delete 2>/dev/null || true
 
-find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -name 'yiweilife-*' \
-  -mtime +"$KEEP_DAYS" -print | while IFS= read -r candidate; do
-  [[ "$candidate" == "$BACKUP_DIR"/yiweilife-* ]] || die "unsafe retention path: $candidate"
-  [[ -f "$candidate/VERIFIED" ]] || continue
-  find "$candidate" -depth -delete
+# 验证备份按名称中的时间戳倒序，仅保留最近 KEEP_COUNT 份。KEEP_DAYS 只负责
+# 清理旧版散落文件；完整恢复包始终按数量保留，避免低频期把第二恢复点误删。
+verified_backups=()
+for candidate in "$BACKUP_DIR"/yiweilife-*; do
+  [[ -d "$candidate" && -f "$candidate/VERIFIED" ]] || continue
+  verified_backups+=("$candidate")
 done
+if [[ ${#verified_backups[@]} -gt "$KEEP_COUNT" ]]; then
+  kept=0
+  printf '%s\n' "${verified_backups[@]}" | sort -r | while IFS= read -r candidate; do
+    if [[ $kept -lt "$KEEP_COUNT" ]]; then
+      kept=$((kept + 1))
+      continue
+    fi
+    [[ "$candidate" == "$BACKUP_DIR"/yiweilife-* ]] || die "unsafe count-retention path: $candidate"
+    find "$candidate" -depth -delete
+  done
+fi
 
 trap - ERR
 echo "[$(date)] 备份完成 -> $FINAL"

@@ -9,7 +9,7 @@ umask 077
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 APP_DIR=${APP_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}
-BACKUP_DIR=${BACKUP_DIR:-/home/ubuntu/backups}
+BACKUP_DIR=${BACKUP_DIR:-/root/backups}
 ENGINE_DIR=${ENGINE_DIR:-$(cd "$APP_DIR/../future-engine-shim" && pwd)}
 CRON_FILE=${CRON_FILE:-/etc/cron.d/yiwei-backup}
 LOG_FILE=${LOG_FILE:-$BACKUP_DIR/backup.log}

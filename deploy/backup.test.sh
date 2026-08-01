@@ -16,7 +16,11 @@ file_mode() {
 }
 
 SCRIPT=$(cd "$(dirname "$0")" && pwd)/backup.sh
+CRON_INSTALLER=$(cd "$(dirname "$0")" && pwd)/install-backup-cron.sh
 bash -n "$SCRIPT"
+bash -n "$CRON_INSTALLER"
+grep -Fq 'BACKUP_DIR=${BACKUP_DIR:-/root/backups}' "$CRON_INSTALLER" ||
+  fail 'cron installer must use the canonical root backup directory'
 
 for contract in \
   'umask 077' \
@@ -26,6 +30,7 @@ for contract in \
   'pg_restore' \
   'SHA256SUMS' \
   'VERIFIED' \
+  'KEEP_COUNT' \
   'uploads' \
   '.env' \
   'OFFSITE_GPG_RECIPIENT' \
@@ -56,6 +61,15 @@ mkdir -p \
   "$engine/data" \
   "$fake_bin" \
   "$backup_root"
+
+for old_backup in \
+  yiweilife-20200101-000000 \
+  yiweilife-20210101-000000 \
+  yiweilife-20220101-000000; do
+  mkdir -p "$backup_root/$old_backup"
+  printf 'verified\n' > "$backup_root/$old_backup/VERIFIED"
+  touch -t 202001010000 "$backup_root/$old_backup" "$backup_root/$old_backup/VERIFIED"
+done
 
 printf 'upload\n' > "$app/uploads/example.txt"
 printf 'image\n' > "$app/images/example.txt"
@@ -115,11 +129,15 @@ ENGINE_DIR="$engine" \
 ENV_FILE="$app/.env" \
 BACKUP_DIR="$backup_root" \
 KEEP_DAYS=14 \
+KEEP_COUNT=2 \
 bash "$SCRIPT" >/dev/null
 
 backup_count=$(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'yiweilife-*' | wc -l | tr -d ' ')
-[[ $backup_count -eq 1 ]] || fail "expected one atomic backup directory"
-backup=$(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'yiweilife-*' | head -1)
+[[ $backup_count -eq 2 ]] || fail "expected two retained backup directories"
+[[ -d "$backup_root/yiweilife-20220101-000000" ]] || fail 'newest prior verified backup was not retained'
+[[ ! -e "$backup_root/yiweilife-20210101-000000" ]] || fail 'older verified backup was not pruned'
+[[ ! -e "$backup_root/yiweilife-20200101-000000" ]] || fail 'oldest verified backup was not pruned'
+backup=$(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name 'yiweilife-*' | sort -r | head -1)
 
 for file in \
   mongodb-LibreChat.archive.gz \
