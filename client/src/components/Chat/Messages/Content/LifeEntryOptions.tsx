@@ -10,8 +10,6 @@ export type LifeEntryCard = {
   escape: string;
 };
 
-const ENTRY_OPTIONS_HEADER = '可以先选一句最像你的：';
-
 function validCard(value: Partial<LifeEntryCard>): value is LifeEntryCard {
   return (
     value.version === 1 &&
@@ -26,10 +24,10 @@ function validCard(value: Partial<LifeEntryCard>): value is LifeEntryCard {
 }
 
 function parseReadableEntryOptions(text: string): { text: string; card: LifeEntryCard | null } {
-  const match = new RegExp(
-    `\\n{2}${ENTRY_OPTIONS_HEADER}\\n- ([^\\r\\n]+)\\n- ([^\\r\\n]+)\\n- ([^\\r\\n]+)\\n([^\\r\\n]+)\\s*$`,
-    'u',
-  ).exec(text);
+  const match =
+    /(?:\r?\n){2}(?!-\s)[^\r\n]+\r?\n- ([^\r\n]+)\r?\n- ([^\r\n]+)\r?\n- ([^\r\n]+)\r?\n([^\r\n]+)\s*$/u.exec(
+      text,
+    );
   if (!match) return { text, card: null };
   const [, first, second, third, escape] = match;
   return {

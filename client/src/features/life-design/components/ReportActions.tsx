@@ -9,11 +9,11 @@ import {
 } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 
-const safeName = (value: string) =>
-  (value || '人生存档报告')
+const safeName = (value: string, fallback: string) =>
+  (value || fallback)
     .replace(/[\\/:*?"<>|]/g, '-')
     .trim()
-    .slice(0, 80) || '人生存档报告';
+    .slice(0, 80) || fallback;
 
 export default function ReportActions({ reportId, title }: { reportId: string; title: string }) {
   const localize = useLocalize();
@@ -32,7 +32,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
         const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = `${safeName(title)}.html`;
+        anchor.download = `${safeName(title, localize('com_life_report_filename_fallback'))}.html`;
         document.body.appendChild(anchor);
         anchor.click();
         anchor.remove();

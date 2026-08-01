@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { useLocalize } from '~/hooks';
 import {
   HOUSES,
-  RECOGNITION_LABEL,
-  CONDITION_LABEL,
-  TREND_LABEL,
+  HOUSE_LABEL_KEYS,
+  RECOGNITION_LABEL_KEYS,
+  CONDITION_LABEL_KEYS,
+  TREND_LABEL_KEYS,
   UNKNOWN_HOUSE_STATE,
 } from './contract';
 import type { ConditionLevel, HouseId, HouseState, Recognition, Trend } from './contract';
@@ -86,13 +88,25 @@ function sectorStrokeWidth(active: boolean, axisBoundary: boolean): number {
   return 1;
 }
 
-function houseAriaLabel(name: string, state: HouseState): string {
-  const parts = [name, RECOGNITION_LABEL[state.recognition]];
+function houseAriaLabel(
+  name: string,
+  state: HouseState,
+  localize: ReturnType<typeof useLocalize>,
+): string {
+  const parts = [name, localize(RECOGNITION_LABEL_KEYS[state.recognition])];
   if (state.conditionLevel !== 'unknown') {
-    parts.push(`当前${CONDITION_LABEL[state.conditionLevel]}`);
+    parts.push(
+      localize('com_life_wheel_current_state', {
+        0: localize(CONDITION_LABEL_KEYS[state.conditionLevel]),
+      }),
+    );
   }
   if (state.trend !== 'unknown') {
-    parts.push(`较上次${TREND_LABEL[state.trend]}`);
+    parts.push(
+      localize('com_life_wheel_previous_trend', {
+        0: localize(TREND_LABEL_KEYS[state.trend]),
+      }),
+    );
   }
   return parts.join(' · ');
 }
@@ -100,10 +114,6 @@ function houseAriaLabel(name: string, state: HouseState): string {
 function houseLabelLines(name: string): string[] {
   if (name.length <= 3) {
     return [name];
-  }
-  const conjunction = name.indexOf('与');
-  if (conjunction > 0) {
-    return [name.slice(0, conjunction + 1), name.slice(conjunction + 1)];
   }
   const midpoint = Math.ceil(name.length / 2);
   return [name.slice(0, midpoint), name.slice(midpoint)];
@@ -131,9 +141,10 @@ export default function LifeWheel({
   lanternHouse = null,
   selectedHouse = null,
   onSelectHouse,
-  title = '人生之轮',
+  title,
   className,
 }: LifeWheelProps) {
+  const localize = useLocalize();
   const [focusedHouse, setFocusedHouse] = useState<HouseId | null>(null);
 
   const resolveState = useCallback(
@@ -165,7 +176,12 @@ export default function LifeWheel({
     : { x: CENTER, y: CENTER };
 
   return (
-    <svg viewBox={`0 0 ${VIEW} ${VIEW}`} role="group" aria-label={title} className={className}>
+    <svg
+      viewBox={`0 0 ${VIEW} ${VIEW}`}
+      role="group"
+      aria-label={title ?? localize('com_life_wheel_title')}
+      className={className}
+    >
       <defs>
         <filter id="life-wheel-wobble" x="-6%" y="-6%" width="112%" height="112%">
           <feTurbulence
@@ -187,7 +203,8 @@ export default function LifeWheel({
           const isFog = state.recognition === 'unknown' || state.recognition === 'dismissed';
           const active = house.id === selectedHouse || house.id === focusedHouse;
           const label = polarPoint(CENTER, CENTER, LABEL_R, house.centerAngleDeg);
-          const labelLines = houseLabelLines(house.publicName);
+          const houseName = localize(HOUSE_LABEL_KEYS[house.id]);
+          const labelLines = houseLabelLines(houseName);
           const marker = polarPoint(CENTER, CENTER, MARKER_R, house.centerAngleDeg);
           const glyph = trendGlyph(state.trend);
           const hasSnapshot = state.conditionLevel !== 'unknown';
@@ -196,7 +213,7 @@ export default function LifeWheel({
             <g
               key={house.id}
               role={interactive ? 'button' : 'img'}
-              aria-label={houseAriaLabel(house.publicName, state)}
+              aria-label={houseAriaLabel(houseName, state, localize)}
               aria-pressed={interactive ? house.id === selectedHouse : undefined}
               tabIndex={interactive ? 0 : -1}
               className={interactive ? 'cursor-pointer outline-none' : undefined}
@@ -242,7 +259,7 @@ export default function LifeWheel({
                 className="hidden font-life-serif text-life-sm font-semibold sm:block"
                 pointerEvents="none"
               >
-                {house.publicName}
+                {houseName}
               </text>
               {hasSnapshot && (
                 <g transform={`translate(${marker.x},${marker.y})`} pointerEvents="none">

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useLocalize } from '~/hooks';
 import type { TranslationKeys } from '~/hooks';
-import type { HouseId } from './LifeWheel';
+import { HOUSE_LABEL_KEYS } from './LifeWheel/contract';
+import type { HouseId } from './LifeWheel/contract';
 
 /**
  * 公开首页手绘迷雾舆图：四大块（象限分组 1-3/4-6/7-9/10-12），每块里三小块。
@@ -75,20 +76,7 @@ export const CONTINENTS: readonly Continent[] = [
   },
 ];
 
-export const PUBLIC_MAP_LABEL_KEYS: Readonly<Record<HouseId, TranslationKeys>> = {
-  h1: 'com_life_map_house_h1',
-  h2: 'com_life_map_house_h2',
-  h3: 'com_life_map_house_h3',
-  h4: 'com_life_map_house_h4',
-  h5: 'com_life_map_house_h5',
-  h6: 'com_life_map_house_h6',
-  h7: 'com_life_map_house_h7',
-  h8: 'com_life_map_house_h8',
-  h9: 'com_life_map_house_h9',
-  h10: 'com_life_map_house_h10',
-  h11: 'com_life_map_house_h11',
-  h12: 'com_life_map_house_h12',
-};
+export const PUBLIC_MAP_LABEL_KEYS = HOUSE_LABEL_KEYS;
 
 export const ACTIVE_PUBLIC_HOUSES: ReadonlySet<HouseId> = new Set<HouseId>([
   'h2',
@@ -98,6 +86,7 @@ export const ACTIVE_PUBLIC_HOUSES: ReadonlySet<HouseId> = new Set<HouseId>([
 ]);
 
 const HEALTH_SPOT = { x: 674, y: 270 } as const;
+const LANTERN_OFFSET = { x: 34, y: 10 } as const;
 
 function territoryPath(x: number, y: number) {
   const r = 46;
@@ -392,7 +381,7 @@ export default function PublicMistMap({
 
         {selectedSpot && (
           <g
-            transform={`translate(${selectedSpot.x + 74},${selectedSpot.y + 10})`}
+            transform={`translate(${selectedSpot.x + LANTERN_OFFSET.x},${selectedSpot.y + LANTERN_OFFSET.y})`}
             role="img"
             aria-label={localize('com_life_map_you_are_here')}
           >

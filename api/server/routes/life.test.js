@@ -2,7 +2,8 @@ const express = require('express');
 const request = require('supertest');
 
 const mockEngine = { json: jest.fn(), text: jest.fn() };
-const mockFindOne = jest.fn();
+const mockConversationFind = jest.fn();
+const mockMessageFind = jest.fn();
 const mockLogger = { error: jest.fn() };
 const mockLifeShareLimiter = jest.fn((_req, _res, next) => next());
 const mockRunLifeOperation = jest.fn();
@@ -31,7 +32,11 @@ jest.mock('mongoose', () => {
   const actual = jest.requireActual('mongoose');
   return {
     ...actual,
-    models: { ...actual.models, Conversation: { findOne: (...args) => mockFindOne(...args) } },
+    models: {
+      ...actual.models,
+      Conversation: { find: (...args) => mockConversationFind(...args) },
+      Message: { find: (...args) => mockMessageFind(...args) },
+    },
   };
 });
 jest.mock('~/server/middleware/limiters', () => ({
@@ -50,8 +55,16 @@ const lifeRouter = require('./life');
 function conversationQuery(value) {
   return {
     sort: jest.fn(() => ({
-      select: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(value) })),
+      select: jest.fn(() => ({
+        limit: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(value) })),
+      })),
     })),
+  };
+}
+
+function messageQuery(value) {
+  return {
+    select: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(value) })),
   };
 }
 
@@ -68,7 +81,8 @@ function buildApp(user) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockFindOne.mockReturnValue(conversationQuery(null));
+  mockConversationFind.mockReturnValue(conversationQuery([]));
+  mockMessageFind.mockReturnValue(messageQuery([]));
   mockReadRedactedPolicyBundle.mockResolvedValue({ runtime: {}, security: {} });
   mockRunLifeOperation.mockImplementation(async ({ executor, operation }) => ({
     ...(await executor({
@@ -306,11 +320,14 @@ test('authenticated bootstrap merges archive state with the latest valid convers
     hasSubstantiveProfile: true,
     summary: { lastSurface: '转型后收入不稳定' },
   });
-  mockFindOne.mockReturnValue(
-    conversationQuery({
-      conversationId: 'conversation-1',
-      title: '转型后的现金流',
-    }),
+  mockConversationFind.mockReturnValue(
+    conversationQuery([
+      {
+        conversationId: 'conversation-1',
+        title: '转型后的现金流',
+        messages: ['root', 'assistant', 'followup'],
+      },
+    ]),
   );
 
   const response = await request(
@@ -322,14 +339,139 @@ test('authenticated bootstrap merges archive state with the latest valid convers
   expect(response.body.lastConversationId).toBe('conversation-1');
   expect(response.body.summary.lastSurface).toBe('转型后收入不稳定');
   expect(mockEngine.json).toHaveBeenCalledWith('/internal/bootstrap', { userId: 'user-1' });
-  expect(mockFindOne).toHaveBeenCalledWith(
+  expect(mockConversationFind).toHaveBeenCalledWith(
     expect.objectContaining({
       user: 'user-1',
       spec: 'future-lines',
       isTemporary: { $ne: true },
-      'messages.2': { $exists: true },
+      'messages.1': { $exists: true },
     }),
   );
+});
+
+test('authenticated bootstrap restores a two-message conversation whose assistant content is structured', async () => {
+  mockEngine.json.mockResolvedValue({
+    profileState: 'ready',
+    hasSubstantiveProfile: true,
+    summary: {},
+  });
+  mockConversationFind.mockReturnValue(
+    conversationQuery([
+      {
+        conversationId: 'conversation-two-message',
+        title: '刚完成的开场',
+        messages: ['root-message', 'assistant-message'],
+      },
+    ]),
+  );
+  mockMessageFind.mockReturnValue(
+    messageQuery([
+      {
+        _id: 'assistant-message',
+        isCreatedByUser: false,
+        error: false,
+        unfinished: false,
+        text: '',
+        content: [{ type: 'text', text: '这是一条完整回答。' }],
+      },
+    ]),
+  );
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' })).get(
+    '/api/life/bootstrap',
+  );
+
+  expect(response.status).toBe(200);
+  expect(response.body.lastConversationId).toBe('conversation-two-message');
+  expect(mockMessageFind).toHaveBeenCalledWith({ _id: { $in: ['assistant-message'] } });
+});
+
+test('authenticated bootstrap restores a two-message conversation whose assistant content is a resource', async () => {
+  mockConversationFind.mockReturnValue(
+    conversationQuery([
+      {
+        conversationId: 'conversation-resource-message',
+        messages: ['root-message', 'assistant-message'],
+      },
+    ]),
+  );
+  mockMessageFind.mockReturnValue(
+    messageQuery([
+      {
+        _id: 'assistant-message',
+        isCreatedByUser: false,
+        error: false,
+        unfinished: false,
+        text: '',
+        content: [{ type: 'resource', resource: { uri: 'ui://life/report', text: '' } }],
+      },
+    ]),
+  );
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' })).get(
+    '/api/life/bootstrap',
+  );
+
+  expect(response.status).toBe(200);
+  expect(response.body.lastConversationId).toBe('conversation-resource-message');
+});
+
+test.each([
+  ['missing assistant', []],
+  [
+    'errored assistant',
+    [
+      {
+        _id: 'assistant-message',
+        isCreatedByUser: false,
+        error: true,
+        unfinished: false,
+        text: '不应恢复',
+      },
+    ],
+  ],
+  [
+    'unfinished assistant',
+    [
+      {
+        _id: 'assistant-message',
+        isCreatedByUser: false,
+        error: false,
+        unfinished: true,
+        text: '不应恢复',
+      },
+    ],
+  ],
+  [
+    'empty assistant',
+    [
+      {
+        _id: 'assistant-message',
+        isCreatedByUser: false,
+        error: false,
+        unfinished: false,
+        text: '   ',
+        content: [],
+      },
+    ],
+  ],
+])('resume ignores a two-message placeholder with %s', async (_label, messages) => {
+  mockConversationFind.mockReturnValue(
+    conversationQuery([
+      {
+        conversationId: 'conversation-placeholder',
+        messages: ['root-message', 'assistant-message'],
+      },
+    ]),
+  );
+  mockMessageFind.mockReturnValue(messageQuery(messages));
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' }))
+    .post('/api/life/resume')
+    .set('Idempotency-Key', `resume-${_label}`);
+
+  expect(response.status).toBe(200);
+  expect(response.body.action).toBe('new');
 });
 
 test('onboarding accepts archiveName + entryHouse and returns a one-time house trigger route', async () => {
@@ -363,10 +505,7 @@ test('onboarding accepts archiveName + entryHouse and returns a one-time house t
   const prompt = new URL(valid.body.route, 'https://yiweilife.test').searchParams.get('q');
   expect(prompt).toBe('[trigger:house_entered] entryHouse=h10;visitMode=first_entry');
   expect(valid.body.entryEvent.entryHouse).toBe('h10');
-  expect(mockEngine.json).toHaveBeenCalledWith(
-    '/internal/bootstrap',
-    { userId: 'user-1' },
-  );
+  expect(mockEngine.json).toHaveBeenCalledWith('/internal/bootstrap', { userId: 'user-1' });
   expect(mockEngine.json).toHaveBeenCalledWith(
     '/internal/onboarding',
     expect.objectContaining({ body: { archiveName: '张东', entryHouse: 'h10' } }),
@@ -391,7 +530,14 @@ test('onboarding accepts archiveName + entryHouse and returns a one-time house t
 
 test('cached current-house entry restores latest substantive conversation', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
-  mockFindOne.mockReturnValueOnce(conversationQuery({ conversationId: 'conversation-real' }));
+  mockConversationFind.mockReturnValueOnce(
+    conversationQuery([
+      {
+        conversationId: 'conversation-real',
+        messages: ['root', 'assistant', 'followup'],
+      },
+    ]),
+  );
   mockEngine.json.mockResolvedValueOnce({
     profileVersion: 'v1',
     summary: {
@@ -420,31 +566,29 @@ test('cached current-house entry restores latest substantive conversation', asyn
   expect(mockRunLifeOperation).not.toHaveBeenCalled();
   expect(mockEngine.json).toHaveBeenCalledTimes(1);
   expect(mockEngine.json).toHaveBeenCalledWith('/internal/bootstrap', { userId: 'user-1' });
-  expect(mockFindOne).toHaveBeenCalledWith(
+  expect(mockConversationFind).toHaveBeenCalledWith(
     expect.objectContaining({
       user: 'user-1',
       spec: 'future-lines',
       isTemporary: { $ne: true },
-      'messages.2': { $exists: true },
+      'messages.1': { $exists: true },
     }),
   );
 });
 
 test('onboarding falls back to the original house entry path when bootstrap is unavailable', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
-  mockEngine.json
-    .mockRejectedValueOnce(new Error('bootstrap unavailable'))
-    .mockResolvedValueOnce({
-      ok: true,
-      profileVersion: 'v1',
-      applied: 1,
-      entryEvent: {
-        kind: 'house_entered',
-        entryHouse: 'h6',
-        visitMode: 'return_entry',
-        at: '2026-07-30T03:50:00.000Z',
-      },
-    });
+  mockEngine.json.mockRejectedValueOnce(new Error('bootstrap unavailable')).mockResolvedValueOnce({
+    ok: true,
+    profileVersion: 'v1',
+    applied: 1,
+    entryEvent: {
+      kind: 'house_entered',
+      entryHouse: 'h6',
+      visitMode: 'return_entry',
+      at: '2026-07-30T03:50:00.000Z',
+    },
+  });
 
   const response = await request(app)
     .post('/api/life/onboarding')
@@ -471,7 +615,14 @@ test('onboarding falls back to the original house entry path when bootstrap is u
 
 test('resume restores an existing conversation and only creates D-mode when none exists', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
-  mockFindOne.mockReturnValueOnce(conversationQuery({ conversationId: 'conversation-1' }));
+  mockConversationFind.mockReturnValueOnce(
+    conversationQuery([
+      {
+        conversationId: 'conversation-1',
+        messages: ['root', 'assistant', 'followup'],
+      },
+    ]),
+  );
   const restored = await request(app).post('/api/life/resume').set('Idempotency-Key', 'resume-1');
   expect(restored.body).toEqual({
     action: 'restored',
@@ -479,7 +630,7 @@ test('resume restores an existing conversation and only creates D-mode when none
     route: '/c/conversation-1',
   });
 
-  mockFindOne.mockReturnValueOnce(conversationQuery(null));
+  mockConversationFind.mockReturnValueOnce(conversationQuery([]));
   const created = await request(app).post('/api/life/resume').set('Idempotency-Key', 'resume-2');
   expect(created.body.action).toBe('new');
   expect(decodeURIComponent(created.body.route)).toContain('先读回我的人生存档');

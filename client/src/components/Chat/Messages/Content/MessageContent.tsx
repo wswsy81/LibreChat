@@ -95,6 +95,7 @@ export const ErrorMessage = ({
 const DisplayMessage = ({ text, isCreatedByUser, message, showCursor }: TDisplayProps) => {
   const { isSubmitting = false, isLatestMessage = false } = useMessageContext();
   const enableUserMsgMarkdown = useRecoilValue(store.enableUserMsgMarkdown);
+  const localize = useLocalize();
 
   const showCursorState = useMemo(
     () => showCursor === true && isSubmitting,
@@ -106,12 +107,12 @@ const DisplayMessage = ({ text, isCreatedByUser, message, showCursor }: TDisplay
       return <Markdown content={text} isLatestMessage={isLatestMessage} />;
     }
     // system-tag 触发消息剥前缀显示(开场编排协议 §2):用户看到人话,证据层看到标记。
-    const displayText = stripTriggerTag(text);
+    const displayText = stripTriggerTag(text, localize);
     if (enableUserMsgMarkdown) {
       return <MarkdownLite content={displayText} />;
     }
     return <>{displayText}</>;
-  }, [isCreatedByUser, enableUserMsgMarkdown, text, isLatestMessage]);
+  }, [isCreatedByUser, enableUserMsgMarkdown, text, isLatestMessage, localize]);
 
   return (
     <Container message={message}>

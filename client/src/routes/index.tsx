@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import type { ComponentType } from 'react';
 import LegacyRouteGate from '~/features/life-design/components/LegacyRouteGate';
+import { useLocalize } from '~/hooks';
 import dashboardRoutes from './Dashboard';
 
 type DefaultComponentModule = { default: ComponentType };
@@ -41,16 +42,19 @@ const LazyOptionalAuthLayout = lazy(() =>
   import('./Layouts/Auth').then(({ OptionalAuthLayout }) => ({ default: OptionalAuthLayout })),
 );
 
-const RouteFallback = () => (
-  <div
-    className="flex min-h-screen items-center justify-center bg-life-paper font-life-sans text-life-muted"
-    aria-busy="true"
-    aria-live="polite"
-    data-lc-route-fallback="true"
-  >
-    正在恢复页面...
-  </div>
-);
+const RouteFallback = () => {
+  const localize = useLocalize();
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center bg-life-paper font-life-sans text-life-muted"
+      aria-busy="true"
+      aria-live="polite"
+      data-lc-route-fallback="true"
+    >
+      {localize('com_life_route_restoring')}
+    </div>
+  );
+};
 
 const EntryRoute = () => (
   <Suspense fallback={<RouteFallback />}>

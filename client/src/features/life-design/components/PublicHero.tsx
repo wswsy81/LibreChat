@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import { useLocalize } from '~/hooks';
 import type { TranslationKeys } from '~/hooks';
 import PublicMistMap, { PUBLIC_MAP_LABEL_KEYS } from './PublicMistMap';
-import { HOUSES } from './LifeWheel';
 import type { HouseId } from './LifeWheel';
 
 /**
@@ -15,66 +14,33 @@ import type { HouseId } from './LifeWheel';
 
 const DEFAULT_ISLAND: HouseId = 'h6';
 
-const SAMPLE_LINES: Record<HouseId, readonly [string, string, string]> = {
-  h1: [
-    '照这样下去，别人眼里的你，还是那个「看不太透」的人。',
-    '如果把一直藏着的那一面拿出来见一次光，局面会变。',
-    '如果你真的按自己的样子活一次……',
-  ],
-  h2: [
-    '照这样下去，钱还是月月过手，存不下的原因一直没变过。',
-    '如果把「我不值这个价」那句话换掉，账本会跟着变。',
-    '如果你真的开口要了那个数……',
-  ],
-  h3: [
-    '照这样下去，想说的话烂在肚子里，收藏的课在吃灰。',
-    '如果把「改天再说」换成今天说半句，事情会松动。',
-    '如果那句一直没说出口的话真的说了……',
-  ],
-  h4: [
-    '照这样下去，回家还是那顿沉默的饭，谁也不先开口。',
-    '如果先问一句一直没问的事，桌上的空气会变。',
-    '如果你真的离开——或者回去——那个家……',
-  ],
-  h5: [
-    '照这样下去，心动还是只发生在别人的故事里。',
-    '如果把周末那两小时还给真正想做的事，人会亮起来。',
-    '如果你真的对那个人说了……',
-  ],
-  h6: [
-    '照这样下去，还是每天救火，身体会先替你喊停。',
-    '如果先停掉最耗神的那一件事——不是辞职，是那件小事——路会岔开。',
-    '如果「换一种活法」这个念头真的落了地……',
-  ],
-  h7: [
-    '照这样下去，你们还是「挺好的」，也只是「挺好的」。',
-    '如果把那件一直绕开的事摆上桌，关系会换一档。',
-    '如果你真的问出那句「我们算什么」……',
-  ],
-  h8: [
-    '照这样下去，那件压在心口的事，还是谁也不提。',
-    '如果先把一半的担子说出口，肩膀会轻一格。',
-    '如果你真的把底牌摊开……',
-  ],
-  h9: [
-    '照这样下去，那个地方还是只存在于收藏夹里。',
-    '如果先去最近的那一站，世界会裂开一条缝。',
-    '如果你真的换个地方重新开始……',
-  ],
+const SAMPLE_LINE_KEYS: Record<
+  HouseId,
+  readonly [TranslationKeys, TranslationKeys, TranslationKeys]
+> = {
+  h1: ['com_life_public_sample_h1_1', 'com_life_public_sample_h1_2', 'com_life_public_sample_h1_3'],
+  h2: ['com_life_public_sample_h2_1', 'com_life_public_sample_h2_2', 'com_life_public_sample_h2_3'],
+  h3: ['com_life_public_sample_h3_1', 'com_life_public_sample_h3_2', 'com_life_public_sample_h3_3'],
+  h4: ['com_life_public_sample_h4_1', 'com_life_public_sample_h4_2', 'com_life_public_sample_h4_3'],
+  h5: ['com_life_public_sample_h5_1', 'com_life_public_sample_h5_2', 'com_life_public_sample_h5_3'],
+  h6: ['com_life_public_sample_h6_1', 'com_life_public_sample_h6_2', 'com_life_public_sample_h6_3'],
+  h7: ['com_life_public_sample_h7_1', 'com_life_public_sample_h7_2', 'com_life_public_sample_h7_3'],
+  h8: ['com_life_public_sample_h8_1', 'com_life_public_sample_h8_2', 'com_life_public_sample_h8_3'],
+  h9: ['com_life_public_sample_h9_1', 'com_life_public_sample_h9_2', 'com_life_public_sample_h9_3'],
   h10: [
-    '照这样下去，五年后你还是「有潜力」的那一个。',
-    '如果把手里的东西拿出去见一次人，牌局会重洗。',
-    '如果你真的走上那条没人看好的路……',
+    'com_life_public_sample_h10_1',
+    'com_life_public_sample_h10_2',
+    'com_life_public_sample_h10_3',
   ],
   h11: [
-    '照这样下去，聚会照旧，散场后还是那阵空。',
-    '如果主动约一次真想见的人，圈子会慢慢换血。',
-    '如果你真的退出那个待腻了的群……',
+    'com_life_public_sample_h11_1',
+    'com_life_public_sample_h11_2',
+    'com_life_public_sample_h11_3',
   ],
   h12: [
-    '照这样下去，那个声音还是只在失眠的夜里出现。',
-    '如果每天留十分钟给自己，那个声音会开始说人话。',
-    '如果你真的停下来，什么都不做一阵子……',
+    'com_life_public_sample_h12_1',
+    'com_life_public_sample_h12_2',
+    'com_life_public_sample_h12_3',
   ],
 };
 
@@ -92,8 +58,7 @@ export default function PublicHero({
 }) {
   const localize = useLocalize();
   const [selectedId, setSelectedId] = useState<HouseId>(DEFAULT_ISLAND);
-  const selected = HOUSES.find((house) => house.id === selectedId) ?? HOUSES[0];
-  const selectedDisplayName = localize(PUBLIC_MAP_LABEL_KEYS[selected.id]);
+  const selectedDisplayName = localize(PUBLIC_MAP_LABEL_KEYS[selectedId]);
 
   return (
     <div className="grid items-start gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:gap-14">
@@ -116,13 +81,13 @@ export default function PublicHero({
             </span>
           </div>
           <ul className="mt-4 space-y-3">
-            {SAMPLE_LINES[selected.id].map((text, index) => (
+            {SAMPLE_LINE_KEYS[selectedId].map((textKey, index) => (
               <li key={LINE_TAG_KEYS[index]} className="flex gap-3">
                 <span className="mt-[3px] flex-none font-life-mono text-life-meta tracking-[0.08em] text-life-cinnabar">
                   {localize(LINE_TAG_KEYS[index])}
                 </span>
                 <span className="font-life-kai text-life-sm leading-7 text-life-ink dark:text-[#e7ddcf]">
-                  {text}
+                  {localize(textKey)}
                 </span>
               </li>
             ))}
@@ -132,7 +97,7 @@ export default function PublicHero({
               {localize('com_life_line_sample_note')}
             </p>
             <Link
-              to={`/register?entryHouse=${selected.id}`}
+              to={`/register?entryHouse=${selectedId}`}
               className="inline-flex items-center gap-1 font-life-sans text-life-sm font-semibold text-life-moss underline decoration-life-moss/40 underline-offset-4 transition hover:text-life-moss-deep"
             >
               {localize('com_life_public_see_yours', { 0: selectedDisplayName })}
@@ -141,7 +106,7 @@ export default function PublicHero({
           </div>
         </div>
 
-        {children?.(selected.id)}
+        {children?.(selectedId)}
       </section>
 
       <PublicMistMap selectedIsland={selectedId} onSelectIsland={setSelectedId} />

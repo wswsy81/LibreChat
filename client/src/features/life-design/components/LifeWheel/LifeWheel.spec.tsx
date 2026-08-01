@@ -27,10 +27,10 @@ describe('LifeWheel component', () => {
       />,
     );
     expect(
-      screen.getByRole('button', { name: '工作与健康 · 已认领 · 当前明显耗损 · 较上次在变差' }),
+      screen.getByRole('button', { name: '工作 · 已认领 · 当前明显耗损 · 较上次在变差' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: '事业与公众 · 已认领 · 当前明显供能 · 较上次在变好' }),
+      screen.getByRole('button', { name: '事业 · 已认领 · 当前明显供能 · 较上次在变好' }),
     ).toBeInTheDocument();
   });
 
@@ -41,13 +41,13 @@ describe('LifeWheel component', () => {
         houseStates={{ h9: { recognition: 'draft', conditionLevel: 'unknown', trend: 'unknown' } }}
       />,
     );
-    expect(screen.getByRole('img', { name: '远方与信念 · 有一页草稿' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '远方 · 有一页草稿' })).toBeInTheDocument();
   });
 
   test('点扇区回调对应 house id（entryHouse 由上层带走）', async () => {
     const onSelect = jest.fn();
     render(<LifeWheel mode="public" onSelectHouse={onSelect} />);
-    await userEvent.click(screen.getByRole('button', { name: /^事业与公众/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^事业/ }));
     expect(onSelect).toHaveBeenCalledWith('h10');
   });
 
@@ -55,8 +55,8 @@ describe('LifeWheel component', () => {
     const onSelect = jest.fn();
     render(<LifeWheel mode="interactive" selectedHouse="h6" onSelectHouse={onSelect} />);
 
-    const selected = screen.getByRole('button', { name: /^工作与健康/ });
-    const other = screen.getByRole('button', { name: /^事业与公众/ });
+    const selected = screen.getByRole('button', { name: /^工作/ });
+    const other = screen.getByRole('button', { name: /^事业/ });
     expect(selected).toHaveAttribute('aria-pressed', 'true');
     expect(other).toHaveAttribute('aria-pressed', 'false');
 
@@ -66,13 +66,12 @@ describe('LifeWheel component', () => {
     expect(onSelect).toHaveBeenNthCalledWith(2, 'h10');
   });
 
-  test('移动端长域名拆成两行，短域名保持单行', () => {
+  test('移动端与桌面共用热轨短名，不再渲染旧复合域名', () => {
     render(<LifeWheel mode="interactive" />);
 
-    expect(screen.getAllByText('工作与健康')).toHaveLength(1);
-    expect(screen.getByText('工作与')).toBeInTheDocument();
-    expect(screen.getByText('健康')).toBeInTheDocument();
-    expect(screen.getAllByText('家与根')).toHaveLength(2);
+    expect(screen.getAllByText('工作')).toHaveLength(2);
+    expect(screen.queryByText('工作与健康')).not.toBeInTheDocument();
+    expect(screen.getAllByText('家庭')).toHaveLength(2);
   });
 
   test('390px h6 提灯与两行域名保留明确水平间隔（Q10）', () => {

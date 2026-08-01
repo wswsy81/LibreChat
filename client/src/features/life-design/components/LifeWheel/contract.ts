@@ -5,8 +5,11 @@
  *
  * The fixture is the source of truth (owned by Codex / future-engine C0). This
  * mirror is verified verbatim by geometry.spec.ts. Do NOT hand-edit the house
- * angles or public names — they are frozen upstream (C 环双层表, 07-24 二次修订).
+ * angles. User-facing names live in translation keys so CopyPanel remains the
+ * single hot-copy source.
  */
+
+import type { TranslationKeys } from '~/hooks';
 
 export type HouseId =
   | 'h1'
@@ -38,7 +41,6 @@ export type VisitMode = 'first_entry' | 'return_entry' | 'continue';
 
 export interface HouseGeometry {
   readonly id: HouseId;
-  readonly publicName: string;
   readonly startAngleDeg: number;
   readonly endAngleDeg: number;
   readonly centerAngleDeg: number;
@@ -63,7 +65,6 @@ export const WHEEL_GEOMETRY = {
 export const HOUSES: readonly HouseGeometry[] = [
   {
     id: 'h1',
-    publicName: '自我呈现',
     startAngleDeg: 180,
     endAngleDeg: 150,
     centerAngleDeg: 165,
@@ -72,7 +73,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h2',
-    publicName: '钱与价值感',
     startAngleDeg: 150,
     endAngleDeg: 120,
     centerAngleDeg: 135,
@@ -81,7 +81,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h3',
-    publicName: '沟通与学习',
     startAngleDeg: 120,
     endAngleDeg: 90,
     centerAngleDeg: 105,
@@ -90,7 +89,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h4',
-    publicName: '家与根',
     startAngleDeg: 90,
     endAngleDeg: 60,
     centerAngleDeg: 75,
@@ -99,7 +97,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h5',
-    publicName: '恋爱与创造',
     startAngleDeg: 60,
     endAngleDeg: 30,
     centerAngleDeg: 45,
@@ -108,7 +105,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h6',
-    publicName: '工作与健康',
     startAngleDeg: 30,
     endAngleDeg: 0,
     centerAngleDeg: 15,
@@ -117,7 +113,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h7',
-    publicName: '亲密与伙伴',
     startAngleDeg: 0,
     endAngleDeg: -30,
     centerAngleDeg: -15,
@@ -126,7 +121,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h8',
-    publicName: '共担与蜕变',
     startAngleDeg: -30,
     endAngleDeg: -60,
     centerAngleDeg: -45,
@@ -135,7 +129,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h9',
-    publicName: '远方与信念',
     startAngleDeg: -60,
     endAngleDeg: -90,
     centerAngleDeg: -75,
@@ -144,7 +137,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h10',
-    publicName: '事业与公众',
     startAngleDeg: -90,
     endAngleDeg: -120,
     centerAngleDeg: -105,
@@ -153,7 +145,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h11',
-    publicName: '朋友与群体',
     startAngleDeg: -120,
     endAngleDeg: -150,
     centerAngleDeg: -135,
@@ -162,7 +153,6 @@ export const HOUSES: readonly HouseGeometry[] = [
   },
   {
     id: 'h12',
-    publicName: '独处与内心',
     startAngleDeg: -150,
     endAngleDeg: -180,
     centerAngleDeg: -165,
@@ -170,6 +160,21 @@ export const HOUSES: readonly HouseGeometry[] = [
     axisBoundary: false,
   },
 ];
+
+export const HOUSE_LABEL_KEYS: Readonly<Record<HouseId, TranslationKeys>> = {
+  h1: 'com_life_map_house_h1',
+  h2: 'com_life_map_house_h2',
+  h3: 'com_life_map_house_h3',
+  h4: 'com_life_map_house_h4',
+  h5: 'com_life_map_house_h5',
+  h6: 'com_life_map_house_h6',
+  h7: 'com_life_map_house_h7',
+  h8: 'com_life_map_house_h8',
+  h9: 'com_life_map_house_h9',
+  h10: 'com_life_map_house_h10',
+  h11: 'com_life_map_house_h11',
+  h12: 'com_life_map_house_h12',
+};
 
 export const CONDITION_VALUES: Record<ConditionLevel, number | null> = {
   unknown: null,
@@ -180,25 +185,25 @@ export const CONDITION_VALUES: Record<ConditionLevel, number | null> = {
   energizing: 2,
 };
 
-export const RECOGNITION_LABEL: Record<Recognition, string> = {
-  unknown: '还没聊到',
-  draft: '有一页草稿',
-  owned: '已认领',
-  dismissed: '已划掉',
+export const RECOGNITION_LABEL_KEYS: Record<Recognition, TranslationKeys> = {
+  unknown: 'com_life_recognition_unknown',
+  draft: 'com_life_recognition_draft',
+  owned: 'com_life_recognition_owned',
+  dismissed: 'com_life_recognition_dismissed',
 };
 
-export const CONDITION_LABEL: Record<Exclude<ConditionLevel, 'unknown'>, string> = {
-  depleted: '明显耗损',
-  strained: '比较吃力',
-  mixed: '有些拉扯',
-  steady: '基本稳定',
-  energizing: '明显供能',
+export const CONDITION_LABEL_KEYS: Record<Exclude<ConditionLevel, 'unknown'>, TranslationKeys> = {
+  depleted: 'com_life_condition_depleted',
+  strained: 'com_life_condition_strained',
+  mixed: 'com_life_condition_mixed',
+  steady: 'com_life_condition_steady',
+  energizing: 'com_life_condition_energizing',
 };
 
-export const TREND_LABEL: Record<Exclude<Trend, 'unknown'>, string> = {
-  improving: '在变好',
-  stable: '变化不大',
-  worsening: '在变差',
+export const TREND_LABEL_KEYS: Record<Exclude<Trend, 'unknown'>, TranslationKeys> = {
+  improving: 'com_life_trend_improving',
+  stable: 'com_life_trend_stable',
+  worsening: 'com_life_trend_worsening',
 };
 
 export const UNKNOWN_HOUSE_STATE: HouseState = {

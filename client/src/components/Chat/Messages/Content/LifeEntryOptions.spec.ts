@@ -46,4 +46,22 @@ describe('parseLifeEntryCard', () => {
     ]);
     expect(result.card?.escape).toBe('不想从工作说起也行，先讲件别的。');
   });
+
+  it('treats the readable heading as hot copy instead of a hard-coded protocol token', () => {
+    const result = parseLifeEntryCard(
+      [
+        '先说说最近最耗你的那件事。',
+        '',
+        '写不出来时，挑一句接近的：',
+        '- 每天都在忙，说不出忙了什么',
+        '- 脑子停不下来，睡也睡不好',
+        '- 身体先撑不住了，事还在',
+        '也可以直接讲另一件事。',
+      ].join('\n'),
+    );
+
+    expect(result.text).toBe('先说说最近最耗你的那件事。');
+    expect(result.card?.options).toHaveLength(3);
+    expect(result.card?.escape).toBe('也可以直接讲另一件事。');
+  });
 });

@@ -100,7 +100,8 @@ export default function Landing() {
 
   const brandedSpecLabel = modelSpec?.showOnLanding ? modelSpec.label : '';
   const brandedSpecDescription = (modelSpec?.showOnLanding && modelSpec.description) || '';
-  const isFutureLines = conversation?.spec === 'future-lines' || brandedSpecLabel === '人生设计室';
+  const isFutureLines =
+    conversation?.spec === 'future-lines' || brandedSpecLabel === localize('com_life_brand');
   const name = entity?.name ?? brandedSpecLabel;
   const description =
     (entity?.description || brandedSpecDescription || conversation?.greeting) ?? '';

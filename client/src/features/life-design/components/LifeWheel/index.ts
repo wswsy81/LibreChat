@@ -3,11 +3,12 @@ export { default as Explorer } from './Explorer';
 export type { LifeWheelMode, LifeWheelProps } from './LifeWheel';
 export {
   HOUSES,
+  HOUSE_LABEL_KEYS,
   WHEEL_GEOMETRY,
   CONDITION_VALUES,
-  RECOGNITION_LABEL,
-  CONDITION_LABEL,
-  TREND_LABEL,
+  RECOGNITION_LABEL_KEYS,
+  CONDITION_LABEL_KEYS,
+  TREND_LABEL_KEYS,
   UNKNOWN_HOUSE_STATE,
 } from './contract';
 export type {

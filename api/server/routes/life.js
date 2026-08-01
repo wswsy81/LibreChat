@@ -51,13 +51,14 @@ async function latestLifeConversation(id) {
   if (!id) return null;
   const Conversation = mongoose.models.Conversation;
   if (!Conversation) return null;
-  return Conversation.findOne({
+  const candidates = await Conversation.find({
     user: id,
     spec: 'future-lines',
     isTemporary: { $ne: true },
-    // future-lines conversations usually begin with a system trigger and the opening answer.
-    // Require a third message so resume ignores empty "entry only" conversations.
-    'messages.2': { $exists: true },
+    // A complete opening can legitimately be exactly root + assistant.
+    // Fetch those candidates, then inspect the assistant message instead of
+    // using a third-message proxy that creates a second root conversation.
+    'messages.1': { $exists: true },
     $or: [
       { expiredAt: { $exists: false } },
       { expiredAt: null },
@@ -65,8 +66,55 @@ async function latestLifeConversation(id) {
     ],
   })
     .sort({ updatedAt: -1, _id: -1 })
-    .select({ _id: 0, conversationId: 1, title: 1, updatedAt: 1 })
+    .select({ _id: 0, conversationId: 1, title: 1, updatedAt: 1, messages: 1 })
+    .limit(20)
     .lean();
+
+  if (!Array.isArray(candidates) || candidates.length === 0) return null;
+  if (candidates[0]?.messages?.length >= 3) return candidates[0];
+
+  const Message = mongoose.models.Message;
+  const assistantMessageIds = candidates
+    .filter((conversation) => conversation?.messages?.length === 2)
+    .map((conversation) => conversation.messages[1])
+    .filter(Boolean);
+  const messages =
+    Message && assistantMessageIds.length
+      ? await Message.find({ _id: { $in: assistantMessageIds } })
+          .select({ _id: 1, isCreatedByUser: 1, error: 1, unfinished: 1, text: 1, content: 1 })
+          .lean()
+      : [];
+  const messageById = new Map(messages.map((message) => [String(message._id), message]));
+  const hasContent = (message) => {
+    if (typeof message?.text === 'string' && message.text.trim()) return true;
+    return (
+      Array.isArray(message?.content) &&
+      message.content.some((part) => {
+        if (part?.type === 'text')
+          return typeof part.text === 'string' && Boolean(part.text.trim());
+        if (part?.type !== 'resource' || !part.resource || typeof part.resource !== 'object') {
+          return false;
+        }
+        return Object.values(part.resource).some((value) =>
+          typeof value === 'string' ? Boolean(value.trim()) : value != null,
+        );
+      })
+    );
+  };
+  const isCompleteAssistant = (message) =>
+    message &&
+    message.isCreatedByUser !== true &&
+    !message.error &&
+    message.unfinished !== true &&
+    hasContent(message);
+
+  for (const conversation of candidates) {
+    if (conversation?.messages?.length >= 3) return conversation;
+    if (conversation?.messages?.length !== 2) continue;
+    const assistant = messageById.get(String(conversation.messages[1]));
+    if (isCompleteAssistant(assistant)) return conversation;
+  }
+  return null;
 }
 
 function currentLanternHouse(bootstrap) {

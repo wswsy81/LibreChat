@@ -1,19 +1,20 @@
-import { HOUSES, WHEEL_GEOMETRY } from './contract';
+import translation from '~/locales/en/translation.json';
+import { HOUSES, HOUSE_LABEL_KEYS, WHEEL_GEOMETRY } from './contract';
 import { houseById, polarPoint, sectorPath } from './geometry';
 
 const PUBLIC_NAMES = [
-  '自我呈现',
-  '钱与价值感',
-  '沟通与学习',
-  '家与根',
-  '恋爱与创造',
-  '工作与健康',
-  '亲密与伙伴',
-  '共担与蜕变',
-  '远方与信念',
-  '事业与公众',
-  '朋友与群体',
-  '独处与内心',
+  '自我',
+  '财务',
+  '学习',
+  '家庭',
+  '创造',
+  '工作',
+  '情感',
+  '共担',
+  '远方',
+  '事业',
+  '朋友',
+  '内心',
 ];
 
 // 废止旧名（含首次修订与旧四大洲标签），前台任何位置都不得出现。
@@ -31,7 +32,7 @@ const RETIRED_NAMES = [
 const close = (a: number, b: number) => Math.abs(a - b) < 1e-6;
 
 describe('LifeWheel geometry contract', () => {
-  test('十二域顺序与前台名逐字冻结（含 07-24 二次修订 h5/h6/h11）', () => {
+  test('十二域顺序与唯一热轨前台名逐字冻结', () => {
     expect(HOUSES.map((h) => h.id)).toEqual([
       'h1',
       'h2',
@@ -46,11 +47,12 @@ describe('LifeWheel geometry contract', () => {
       'h11',
       'h12',
     ]);
-    expect(HOUSES.map((h) => h.publicName)).toEqual(PUBLIC_NAMES);
+    expect(HOUSES.map((house) => translation[HOUSE_LABEL_KEYS[house.id]])).toEqual(PUBLIC_NAMES);
+    expect(HOUSES.every((house) => !Object.hasOwn(house, 'publicName'))).toBe(true);
   });
 
   test('无任何废止旧名', () => {
-    const names = HOUSES.map((h) => h.publicName);
+    const names = HOUSES.map((house) => translation[HOUSE_LABEL_KEYS[house.id]]);
     for (const retired of RETIRED_NAMES) {
       expect(names).not.toContain(retired);
     }

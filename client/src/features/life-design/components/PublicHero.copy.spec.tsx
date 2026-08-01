@@ -39,3 +39,23 @@ test('公开首页三条未来线与报告共用唯一名称，不再暴露内�
   expect(screen.queryByText('如果这条没了')).not.toBeInTheDocument();
   expect(screen.queryByText('不计代价')).not.toBeInTheDocument();
 });
+
+test('公开首页三线示例从 translation key 读取，可被 CopyPanel 热覆写', () => {
+  mockTranslation.com_life_public_sample_h6_1 = '热轨替换后的工作示例一';
+  mockTranslation.com_life_public_sample_h6_2 = '热轨替换后的工作示例二';
+  mockTranslation.com_life_public_sample_h6_3 = '热轨替换后的工作示例三';
+
+  render(
+    <MemoryRouter>
+      <PublicHero />
+    </MemoryRouter>,
+  );
+
+  for (const text of [
+    '热轨替换后的工作示例一',
+    '热轨替换后的工作示例二',
+    '热轨替换后的工作示例三',
+  ]) {
+    expect(screen.getByText(text)).toBeInTheDocument();
+  }
+});
