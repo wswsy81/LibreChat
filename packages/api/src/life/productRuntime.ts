@@ -21,7 +21,11 @@ const FACT_PATH_PATTERN = /^[a-z][a-z0-9_]{0,63}(?:\.[a-z][a-z0-9_]{0,63})*$/;
 const DATA_SCOPES = new Set(['profile.read', 'profile.write', 'conversation.read', 'report.write']);
 const CONDITION_OPERATORS = new Set(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'exists']);
 
-export type ProductDataScope = 'profile.read' | 'profile.write' | 'conversation.read' | 'report.write';
+export type ProductDataScope =
+  | 'profile.read'
+  | 'profile.write'
+  | 'conversation.read'
+  | 'report.write';
 export type FlowConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'exists';
 
 export interface ProductAssetVersion {
@@ -46,7 +50,7 @@ export interface ProductSnapshot {
   createdAt: string;
 }
 
-export interface ProductSnapshotInput extends Omit<ProductSnapshot, 'snapshotId'> {}
+export type ProductSnapshotInput = Omit<ProductSnapshot, 'snapshotId'>;
 
 export type ProductPluginManifest = SharedProductPluginManifest;
 
@@ -175,7 +179,11 @@ function isRuntimeValue(value: unknown): value is ProductRuntimeValue {
 }
 
 function assertScopes(value: unknown, label: string): asserts value is ProductDataScope[] {
-  contract(Array.isArray(value) && value.every((scope) => typeof scope === 'string' && DATA_SCOPES.has(scope)), `${label} has invalid scope`);
+  contract(
+    Array.isArray(value) &&
+      value.every((scope) => typeof scope === 'string' && DATA_SCOPES.has(scope)),
+    `${label} has invalid scope`,
+  );
   contract(new Set(value).size === value.length, `${label} has duplicate scopes`);
 }
 
@@ -241,7 +249,11 @@ export function validateProductPluginManifest(value: unknown): ProductPluginMani
 }
 
 export function validateProductFlow(value: unknown): ProductFlow {
-  const flow = exactKeys(value, ['schemaVersion', 'id', 'version', 'entry', 'permissions', 'nodes', 'edges'], 'flow');
+  const flow = exactKeys(
+    value,
+    ['schemaVersion', 'id', 'version', 'entry', 'permissions', 'nodes', 'edges'],
+    'flow',
+  );
   contract(flow.schemaVersion === 1, 'flow.schemaVersion must be 1');
   assertId(flow.id, 'flow.id');
   assertVersion(flow.version, 'flow.version');
@@ -249,15 +261,32 @@ export function validateProductFlow(value: unknown): ProductFlow {
   assertScopes(flow.permissions, 'flow.permissions');
   contract(Array.isArray(flow.nodes) && flow.nodes.length > 0, 'flow.nodes is required');
   const nodes = flow.nodes.map((node, index) => {
-    const item = exactKeys(node, ['id', 'actionId', 'input', 'pause'], `flow.nodes[${index}]`, ['input', 'pause']);
+    const item = exactKeys(node, ['id', 'actionId', 'input', 'pause'], `flow.nodes[${index}]`, [
+      'input',
+      'pause',
+    ]);
     assertId(item.id, `flow.nodes[${index}].id`);
     assertId(item.actionId, `flow.nodes[${index}].actionId`, ACTION_ID_PATTERN);
-    if (item.input !== undefined) contract(isObject(item.input) && isRuntimeValue(item.input), `flow.nodes[${index}].input is invalid`);
+    if (item.input !== undefined)
+      contract(
+        isObject(item.input) && isRuntimeValue(item.input),
+        `flow.nodes[${index}].input is invalid`,
+      );
     if (item.pause !== undefined) {
-      const pause = exactKeys(item.pause, ['kind', 'payload', 'fact'], `flow.nodes[${index}].pause`);
-      contract(['choice', 'input', 'approval'].includes(String(pause.kind)), `flow.nodes[${index}].pause.kind is invalid`);
+      const pause = exactKeys(
+        item.pause,
+        ['kind', 'payload', 'fact'],
+        `flow.nodes[${index}].pause`,
+      );
+      contract(
+        ['choice', 'input', 'approval'].includes(String(pause.kind)),
+        `flow.nodes[${index}].pause.kind is invalid`,
+      );
       contract(isRuntimeValue(pause.payload), `flow.nodes[${index}].pause.payload is invalid`);
-      contract(typeof pause.fact === 'string' && FACT_PATH_PATTERN.test(pause.fact), `flow.nodes[${index}].pause.fact is invalid`);
+      contract(
+        typeof pause.fact === 'string' && FACT_PATH_PATTERN.test(pause.fact),
+        `flow.nodes[${index}].pause.fact is invalid`,
+      );
     }
     return item as unknown as ProductFlowNode;
   });
@@ -268,15 +297,34 @@ export function validateProductFlow(value: unknown): ProductFlow {
   const edges = flow.edges.map((edge, index) => {
     const item = exactKeys(edge, ['from', 'to', 'when'], `flow.edges[${index}]`, ['when']);
     assertId(item.from, `flow.edges[${index}].from`);
-    contract(typeof item.to === 'string' && (item.to === 'END' || ID_PATTERN.test(item.to)), `flow.edges[${index}].to is invalid`);
+    contract(
+      typeof item.to === 'string' && (item.to === 'END' || ID_PATTERN.test(item.to)),
+      `flow.edges[${index}].to is invalid`,
+    );
     contract(nodeIds.has(item.from), `flow.edges[${index}].from is unknown`);
     contract(item.to === 'END' || nodeIds.has(item.to), `flow.edges[${index}].to is unknown`);
     if (item.when !== undefined) {
-      const when = exactKeys(item.when, ['fact', 'op', 'value'], `flow.edges[${index}].when`, ['value']);
-      contract(typeof when.fact === 'string' && FACT_PATH_PATTERN.test(when.fact), `flow.edges[${index}].when.fact is invalid`);
-      contract(typeof when.op === 'string' && CONDITION_OPERATORS.has(when.op), `flow.edges[${index}].when.op is invalid`);
-      if (when.op === 'exists') contract(when.value === undefined, `flow.edges[${index}].when.value is forbidden for exists`);
-      else contract(when.value === null || ['string', 'number', 'boolean'].includes(typeof when.value), `flow.edges[${index}].when.value is invalid`);
+      const when = exactKeys(item.when, ['fact', 'op', 'value'], `flow.edges[${index}].when`, [
+        'value',
+      ]);
+      contract(
+        typeof when.fact === 'string' && FACT_PATH_PATTERN.test(when.fact),
+        `flow.edges[${index}].when.fact is invalid`,
+      );
+      contract(
+        typeof when.op === 'string' && CONDITION_OPERATORS.has(when.op),
+        `flow.edges[${index}].when.op is invalid`,
+      );
+      if (when.op === 'exists')
+        contract(
+          when.value === undefined,
+          `flow.edges[${index}].when.value is forbidden for exists`,
+        );
+      else
+        contract(
+          when.value === null || ['string', 'number', 'boolean'].includes(typeof when.value),
+          `flow.edges[${index}].when.value is invalid`,
+        );
     }
     return item as unknown as ProductFlowEdge;
   });
@@ -291,7 +339,10 @@ export function createProductActionRegistry(
     assertId(definition.id, 'action.id', ACTION_ID_PATTERN);
     assertVersion(definition.version, `action ${definition.id}.version`);
     assertScopes(definition.scopes, `action ${definition.id}.scopes`);
-    contract(typeof definition.execute === 'function', `action ${definition.id}.execute is required`);
+    contract(
+      typeof definition.execute === 'function',
+      `action ${definition.id}.execute is required`,
+    );
     contract(!registry.has(definition.id), `action ${definition.id} is duplicated`);
     registry.set(definition.id, Object.freeze({ ...definition, scopes: [...definition.scopes] }));
   }
@@ -305,22 +356,52 @@ function readFact(facts: ProductRuntimeObject, path: string): ProductRuntimeValu
   }, facts);
 }
 
-function matchesCondition(facts: ProductRuntimeObject, condition: ProductFlowCondition | undefined): boolean {
+function matchesCondition(
+  facts: ProductRuntimeObject,
+  condition: ProductFlowCondition | undefined,
+): boolean {
   if (!condition) return true;
   const actual = readFact(facts, condition.fact);
   if (condition.op === 'exists') return actual !== undefined && actual !== null;
   switch (condition.op) {
-    case 'eq': return actual === condition.value;
-    case 'neq': return actual !== condition.value;
-    case 'gt': return typeof actual === 'number' && typeof condition.value === 'number' && actual > condition.value;
-    case 'gte': return typeof actual === 'number' && typeof condition.value === 'number' && actual >= condition.value;
-    case 'lt': return typeof actual === 'number' && typeof condition.value === 'number' && actual < condition.value;
-    case 'lte': return typeof actual === 'number' && typeof condition.value === 'number' && actual <= condition.value;
-    default: return false;
+    case 'eq':
+      return actual === condition.value;
+    case 'neq':
+      return actual !== condition.value;
+    case 'gt':
+      return (
+        typeof actual === 'number' &&
+        typeof condition.value === 'number' &&
+        actual > condition.value
+      );
+    case 'gte':
+      return (
+        typeof actual === 'number' &&
+        typeof condition.value === 'number' &&
+        actual >= condition.value
+      );
+    case 'lt':
+      return (
+        typeof actual === 'number' &&
+        typeof condition.value === 'number' &&
+        actual < condition.value
+      );
+    case 'lte':
+      return (
+        typeof actual === 'number' &&
+        typeof condition.value === 'number' &&
+        actual <= condition.value
+      );
+    default:
+      return false;
   }
 }
 
-function writeFact(facts: ProductRuntimeObject, path: string, value: ProductRuntimeValue): ProductRuntimeObject {
+function writeFact(
+  facts: ProductRuntimeObject,
+  path: string,
+  value: ProductRuntimeValue,
+): ProductRuntimeObject {
   const next = structuredClone(facts);
   const parts = path.split('.');
   let current = next;
@@ -334,7 +415,12 @@ function writeFact(facts: ProductRuntimeObject, path: string, value: ProductRunt
 }
 
 function actionKey(state: ProductRunState, actionId: string, nodeId: string): string {
-  return digest({ runId: state.runId, snapshotId: state.productSnapshot.snapshotId, actionId, nodeId });
+  return digest({
+    runId: state.runId,
+    snapshotId: state.productSnapshot.snapshotId,
+    actionId,
+    nodeId,
+  });
 }
 
 /**
@@ -352,7 +438,10 @@ function withProductCheckpointMetadata(checkpointer: unknown): unknown {
       }
       return async (...args: unknown[]) => {
         const checkpoint = args[1] as { channel_values?: Partial<ProductRunState> } | undefined;
-        const metadata = (args[2] && typeof args[2] === 'object' ? args[2] : {}) as Record<string, unknown>;
+        const metadata = (args[2] && typeof args[2] === 'object' ? args[2] : {}) as Record<
+          string,
+          unknown
+        >;
         const state = checkpoint?.channel_values;
         return Reflect.apply(member, target, [
           args[0],
@@ -379,9 +468,19 @@ const ProductState = Annotation.Root({
   facts: Annotation<ProductRuntimeObject>,
   materialRefs: Annotation<string[]>,
   rendered: Annotation<Array<{ component: string; payloadRef: string }>>,
-  pendingInterrupt: Annotation<{ kind: 'choice' | 'input' | 'approval'; nodeId: string } | undefined>,
+  pendingInterrupt: Annotation<
+    { kind: 'choice' | 'input' | 'approval'; nodeId: string } | undefined
+  >,
   effects: Annotation<ProductRunEffect[]>,
 });
+
+type DynamicProductGraph = StateGraph<
+  typeof ProductState,
+  ProductRunState,
+  Partial<ProductRunState>,
+  string
+>;
+type CompiledProductGraph = ReturnType<DynamicProductGraph['compile']>;
 
 export interface FuturelineProductRunnerOptions {
   flow: unknown;
@@ -405,7 +504,7 @@ export class FuturelineProductRunner {
   readonly flow: ProductFlow;
   readonly snapshot: ProductSnapshot;
   private readonly actions: ReadonlyMap<string, ProductActionDefinition>;
-  private readonly graph: any;
+  private readonly graph: CompiledProductGraph;
 
   constructor({ flow, snapshot, actions, checkpointer }: FuturelineProductRunnerOptions) {
     this.flow = validateProductFlow(flow);
@@ -415,13 +514,16 @@ export class FuturelineProductRunner {
       const action = this.actions.get(node.actionId);
       contract(action, `flow node ${node.id} references unregistered action ${node.actionId}`);
       for (const scope of action.scopes) {
-        contract(this.flow.permissions.includes(scope), `flow node ${node.id} exceeds permission ${scope}`);
+        contract(
+          this.flow.permissions.includes(scope),
+          `flow node ${node.id} exceeds permission ${scope}`,
+        );
       }
     }
 
     // Node ids are supplied by a validated product asset at runtime, while LangGraph's
     // generic builder infers only literal ids known at declaration time.
-    let graph: any = new StateGraph(ProductState);
+    let graph = new StateGraph(ProductState) as DynamicProductGraph;
     for (const node of this.flow.nodes) {
       const action = this.actions.get(node.actionId)!;
       graph = graph.addNode(node.id, async (state: ProductRunState) => {
@@ -471,7 +573,9 @@ export class FuturelineProductRunner {
         });
       }
     }
-    this.graph = graph.compile({ checkpointer: withProductCheckpointMetadata(checkpointer) as never });
+    this.graph = graph.compile({
+      checkpointer: withProductCheckpointMetadata(checkpointer) as never,
+    });
   }
 
   private config(conversationId: string, runId?: string) {
@@ -487,8 +591,14 @@ export class FuturelineProductRunner {
 
   async invoke(input: ProductRunInput): Promise<ProductRunState> {
     assertId(input.runId, 'runId');
-    contract(typeof input.conversationId === 'string' && input.conversationId.length > 0, 'conversationId is required');
-    contract(typeof input.principalId === 'string' && input.principalId.length > 0, 'principalId is required');
+    contract(
+      typeof input.conversationId === 'string' && input.conversationId.length > 0,
+      'conversationId is required',
+    );
+    contract(
+      typeof input.principalId === 'string' && input.principalId.length > 0,
+      'principalId is required',
+    );
     const initial: ProductRunState = {
       runId: input.runId,
       conversationId: input.conversationId,
@@ -500,7 +610,10 @@ export class FuturelineProductRunner {
       rendered: [],
       effects: [],
     };
-    return (await this.graph.invoke(initial, this.config(input.conversationId, input.runId))) as ProductRunState;
+    return (await this.graph.invoke(
+      initial,
+      this.config(input.conversationId, input.runId),
+    )) as ProductRunState;
   }
 
   async resume(conversationId: string, value: ProductRuntimeValue): Promise<ProductRunState> {
@@ -509,7 +622,9 @@ export class FuturelineProductRunner {
     const state = current.values as Partial<ProductRunState>;
     contract(state.productSnapshot, 'no resumable product run exists');
     if (state.productSnapshot.snapshotId !== this.snapshot.snapshotId) {
-      throw new ProductSnapshotMismatchError('resuming a product run requires its original Product Snapshot');
+      throw new ProductSnapshotMismatchError(
+        'resuming a product run requires its original Product Snapshot',
+      );
     }
     return (await this.graph.invoke(new Command({ resume: value }), config)) as ProductRunState;
   }
