@@ -30,7 +30,7 @@ describe('parseLifeEntryCard', () => {
       [
         '这块是工作与健康。\n每天忙的这些里，现在最耗你的是哪件？',
         '',
-        '可以先选一句最像你的：',
+        '工作与健康 · 可以先选一句最像你的：',
         '- 每天都在忙，说不出忙了什么',
         '- 脑子停不下来，睡也睡不好',
         '- 身体先撑不住了，事还在',
@@ -44,6 +44,7 @@ describe('parseLifeEntryCard', () => {
       '脑子停不下来，睡也睡不好',
       '身体先撑不住了，事还在',
     ]);
+    expect(result.card?.areaLabel).toBe('工作与健康');
     expect(result.card?.escape).toBe('不想从工作说起也行，先讲件别的。');
   });
 

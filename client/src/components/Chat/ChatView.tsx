@@ -18,13 +18,14 @@ import { ChatContext, AddedChatContext, ChatFormProvider, useFileMapContext } fr
 import ConversationStarters from './Input/ConversationStarters';
 import { useGetMessagesByConvoId } from '~/data-provider';
 import ProjectLandingChip from './ProjectLandingChip';
+import { parseLifeEntryCard } from './Messages/Content/LifeEntryOptions';
 import MessagesView from './Messages/MessagesView';
 import Presentation from './Presentation';
 import ChatForm from './Input/ChatForm';
 import Landing from './Landing';
 import Header from './Header';
 import Footer from './Footer';
-import { cn } from '~/utils';
+import { cn, getLatestText } from '~/utils';
 import store from '~/store';
 import LifeArchiveDrawer from '~/features/life-design/components/LifeArchiveDrawer';
 
@@ -91,10 +92,17 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
     content = <Landing />;
   }
 
-  const chatFormPlaceholder =
-    isProjectLandingPage && project
-      ? localize('com_ui_new_chat_in_project', { name: project.name })
-      : undefined;
+  const latestAssistantText =
+    latestMessage?.isCreatedByUser === false ? getLatestText(latestMessage) : '';
+  const isLifeEntryTurn = Boolean(
+    latestAssistantText && parseLifeEntryCard(latestAssistantText).card,
+  );
+  let chatFormPlaceholder: string | undefined;
+  if (isLifeEntryTurn) {
+    chatFormPlaceholder = localize('com_life_entry_composer_placeholder');
+  } else if (isProjectLandingPage && project) {
+    chatFormPlaceholder = localize('com_ui_new_chat_in_project', { name: project.name });
+  }
 
   return (
     <ChatFormProvider {...methods}>

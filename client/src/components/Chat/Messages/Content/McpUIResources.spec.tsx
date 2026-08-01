@@ -36,7 +36,7 @@ jest.mock('./UIResourceCarousel', () => () => <div data-testid="ui-resource-caro
 
 const mockUseMessageContext = useMessageContext as jest.MockedFunction<typeof useMessageContext>;
 
-function attachment(uri: string): TAttachment[] {
+function attachment(uri: string, text = '<p>Resource</p>'): TAttachment[] {
   return [
     {
       type: Tools.ui_resources,
@@ -47,7 +47,7 @@ function attachment(uri: string): TAttachment[] {
           resourceId: 'resource-1',
           uri,
           mimeType: 'text/html',
-          text: '<p>Resource</p>',
+          text,
         },
       ],
     },
@@ -75,6 +75,41 @@ describe('McpUIResources one-shot lifecycle', () => {
     expect(screen.getByTestId('ui-resource-renderer')).toHaveAttribute(
       'data-resource-uri',
       'ui://future-lines/report',
+    );
+  });
+
+  it('never mounts the S1 chapter iframe when the native entry heading owns the opening', () => {
+    mockUseMessageContext.mockReturnValue({ isLatestMessage: true } as never);
+
+    const { container } = render(
+      <McpUIResources
+        attachments={attachment(
+          'ui://future-lines/chapter/opening',
+          '<main data-progress="opening" data-entry-renderer="native">Opening</main>',
+        )}
+        toolCallId="tool-1"
+      />,
+    );
+
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('keeps later chapter opening artifacts', () => {
+    mockUseMessageContext.mockReturnValue({ isLatestMessage: true } as never);
+
+    render(
+      <McpUIResources
+        attachments={attachment(
+          'ui://future-lines/chapter/opening',
+          '<main data-progress="opening">Opening</main>',
+        )}
+        toolCallId="tool-1"
+      />,
+    );
+
+    expect(screen.getByTestId('ui-resource-renderer')).toHaveAttribute(
+      'data-resource-uri',
+      'ui://future-lines/chapter/opening',
     );
   });
 });

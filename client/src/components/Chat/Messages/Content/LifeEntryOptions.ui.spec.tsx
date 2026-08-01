@@ -5,11 +5,28 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import LifeEntryOptions from './LifeEntryOptions';
 
-const mockSubmitMessage = jest.fn();
+const mockSetValue = jest.fn();
+
+jest.mock('~/Providers', () => ({
+  useChatFormContext: () => ({ setValue: mockSetValue }),
+  useMessageContext: () => ({ isLatestMessage: true }),
+}));
 
 jest.mock('~/hooks', () => ({
-  useSubmitMessage: () => ({ submitMessage: mockSubmitMessage }),
-  useLocalize: () => (key: string) => key,
+  useLocalize: () => (key: string, values?: Record<number, string>) => {
+    const copy: Record<string, string> = {
+      com_life_entry_options_helper: '写不出来？先借一句开头。',
+      com_life_entry_recent_days: '最近的日子',
+      com_life_entry_suggestion_note: '点一下只会放进输入框，不会直接发出。',
+      com_life_entry_suggestion_refresh: '换一句',
+      com_life_entry_suggestion_dismiss: '都不对，我自己说',
+      com_life_entry_suggestion_reopen: '给我一句开头',
+      com_life_map_house_h6: '工作',
+    };
+    if (key === 'com_life_entry_suggestion_use') return `用这句开头：${values?.[0] ?? ''}`;
+    if (key === 'com_life_entry_suggestion_quote') return `「${values?.[0] ?? ''}」`;
+    return copy[key] ?? key;
+  },
 }));
 
 const card = {
@@ -23,35 +40,59 @@ const card = {
   escape: '不想从工作说起也行，先讲件别的。',
 };
 
+let composer: HTMLTextAreaElement;
+
 beforeEach(() => {
   jest.clearAllMocks();
-  mockSubmitMessage.mockReturnValue(true);
+  composer = document.createElement('textarea');
+  composer.id = 'prompt-textarea';
+  document.body.appendChild(composer);
 });
 
-test('大输入框在主位，选项只作为写不出来时的引子', () => {
-  render(<LifeEntryOptions card={card} />);
-
-  const textbox = screen.getByRole('textbox');
-  const firstOption = screen.getByRole('button', { name: card.options[0].text });
-  expect(textbox).toHaveAttribute('placeholder', 'com_life_entry_freeform_placeholder');
-  expect(
-    textbox.compareDocumentPosition(firstOption) & Node.DOCUMENT_POSITION_FOLLOWING,
-  ).toBeTruthy();
-  expect(screen.getByText('com_life_entry_options_helper')).toBeInTheDocument();
+afterEach(() => {
+  composer.remove();
 });
 
-test('自由讲述沿用现有 submitMessage，提交时去掉首尾空白', () => {
-  render(<LifeEntryOptions card={card} />);
+test('原生轻题头保留完整开场，但组件自身不再创建第二个输入框', () => {
+  const { container } = render(<LifeEntryOptions card={card} prompt="先从最近这段工作聊起。" />);
 
-  fireEvent.change(screen.getByRole('textbox'), {
-    target: { value: '  我一直在改，却没有一版敢交出去。  ' },
+  expect(container.querySelector('textarea')).toBeNull();
+  expect(screen.getByText('工作')).toBeInTheDocument();
+  expect(screen.getByText('最近的日子')).toBeInTheDocument();
+  expect(screen.getByText('先从最近这段工作聊起。')).toBeInTheDocument();
+  expect(screen.getByText(`「${card.options[0].text}」`)).toBeInTheDocument();
+  expect(screen.queryByText(`「${card.options[1].text}」`)).not.toBeInTheDocument();
+});
+
+test('点建议只写入唯一 ChatForm 草稿并聚焦，不调用发送链', () => {
+  render(<LifeEntryOptions card={card} prompt="先从最近这段工作聊起。" />);
+
+  fireEvent.click(screen.getByRole('button', { name: `用这句开头：${card.options[0].text}` }));
+
+  expect(mockSetValue).toHaveBeenCalledWith('text', card.options[0].text, {
+    shouldDirty: true,
+    shouldTouch: true,
+    shouldValidate: true,
   });
-  fireEvent.click(screen.getByRole('button', { name: 'com_life_entry_freeform_submit' }));
-  expect(mockSubmitMessage).toHaveBeenCalledWith({ text: '我一直在改，却没有一版敢交出去。' });
+  expect(document.activeElement).toBe(composer);
 });
 
-test('仍可点一句引子进入对话', () => {
-  render(<LifeEntryOptions card={card} />);
-  fireEvent.click(screen.getByRole('button', { name: card.options[1].text }));
-  expect(mockSubmitMessage).toHaveBeenCalledWith({ text: card.options[1].text });
+test('换一句只轮换当前单句，不覆盖已有草稿', () => {
+  render(<LifeEntryOptions card={card} prompt="先从最近这段工作聊起。" />);
+
+  fireEvent.click(screen.getByRole('button', { name: '换一句' }));
+
+  expect(screen.getByText(`「${card.options[1].text}」`)).toBeInTheDocument();
+  expect(screen.queryByText(`「${card.options[0].text}」`)).not.toBeInTheDocument();
+  expect(mockSetValue).not.toHaveBeenCalled();
+});
+
+test('都不对时建议退场并把焦点交还输入框，也可以重新打开', () => {
+  render(<LifeEntryOptions card={card} prompt="先从最近这段工作聊起。" />);
+
+  fireEvent.click(screen.getByRole('button', { name: '都不对，我自己说' }));
+
+  expect(screen.queryByText(`「${card.options[0].text}」`)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '给我一句开头' })).toBeInTheDocument();
+  expect(document.activeElement).toBe(composer);
 });
