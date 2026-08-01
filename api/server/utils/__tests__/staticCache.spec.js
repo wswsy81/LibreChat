@@ -18,6 +18,7 @@ describe('staticCache', () => {
   let indexFile;
   let manifestFile;
   let swFile;
+  let swHealFile;
 
   beforeAll(() => {
     // Create a test directory and files
@@ -31,6 +32,7 @@ describe('staticCache', () => {
     indexFile = path.join(testDir, 'index.html');
     manifestFile = path.join(testDir, 'manifest.json');
     swFile = path.join(testDir, 'sw.js');
+    swHealFile = path.join(testDir, 'sw-heal.js');
 
     const jsContent = 'console.log("test");';
     const htmlContent = '<html><body>Test</body></html>';
@@ -41,6 +43,7 @@ describe('staticCache', () => {
     fs.writeFileSync(indexFile, htmlContent);
     fs.writeFileSync(manifestFile, jsonContent);
     fs.writeFileSync(swFile, swContent);
+    fs.writeFileSync(swHealFile, swContent);
 
     // Create precompressed versions of some files
     fs.writeFileSync(testFile + '.gz', zlib.gzipSync(jsContent));
@@ -113,6 +116,14 @@ describe('staticCache', () => {
       app.use(staticCache(testDir));
 
       const response = await request(app).get('/sw.js').expect(200);
+
+      expect(response.headers['cache-control']).toBe('no-store, no-cache, must-revalidate');
+    });
+
+    it('should set no-cache headers for sw-heal.js', async () => {
+      app.use(staticCache(testDir));
+
+      const response = await request(app).get('/sw-heal.js').expect(200);
 
       expect(response.headers['cache-control']).toBe('no-store, no-cache, must-revalidate');
     });

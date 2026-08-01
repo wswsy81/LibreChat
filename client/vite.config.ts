@@ -114,9 +114,8 @@ export default defineConfig(({ command }) => ({
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         /** LibreChat mutates index.html per request for subpath and language support. */
         navigateFallback: null,
-        /** Reloads window clients that cannot answer a ping after activation —
-         * pages stuck on a previous build's purged precache (stale index.html)
-         * have no working code of their own to recover with. */
+        /** Reloads window clients that are silent or report a different build ID.
+         * A responsive old SPA is still stale and must not survive a release. */
         importScripts: ['sw-heal.js'],
         runtimeCaching: [
           {

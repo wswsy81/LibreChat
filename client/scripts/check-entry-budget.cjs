@@ -39,6 +39,11 @@ if (!fs.existsSync(manifestPath)) {
 
 const html = fs.readFileSync(htmlPath, 'utf8');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const swHealPath = path.join(DIST_DIR, 'sw-heal.js');
+if (!fs.existsSync(swHealPath)) {
+  throw new Error('client/dist/sw-heal.js is missing; run the production build first');
+}
+const swHeal = fs.readFileSync(swHealPath, 'utf8');
 const entry = html.match(/<script[^>]+type="module"[^>]+src="\.\/(assets\/[^"]+\.js)"/)?.[1];
 if (!entry) {
   throw new Error('production entry module was not found in client/dist/index.html');
@@ -106,6 +111,20 @@ for (const asset of assets.sort((left, right) => right.gzip - left.gzip).slice(0
 }
 
 const failures = [];
+const pageBuildId = html.match(/window\.__LC_BUILD_ID__\s*=\s*['"]([a-f0-9]{16})['"]/u)?.[1];
+const workerBuildId = swHeal.match(/const ACTIVE_BUILD_ID\s*=\s*['"]([a-f0-9]{16})['"]/u)?.[1];
+if (!pageBuildId || !workerBuildId || pageBuildId !== workerBuildId) {
+  failures.push('page and service worker must share one stamped client build ID');
+}
+if (!html.includes('buildId: window.__LC_BUILD_ID__')) {
+  failures.push('service-worker pong does not report the page build ID');
+}
+if (!html.includes('registration.update()')) {
+  failures.push('long-lived pages do not check for a newer service worker');
+}
+if (!swHeal.includes('clientBuildId === ACTIVE_BUILD_ID')) {
+  failures.push('service worker does not reject responsive clients from a stale build');
+}
 if (manifest.name !== '人生设计室' || manifest.short_name !== '人生设计室') {
   failures.push('installed PWA brand must be 人生设计室 without the upstream LibreChat name');
 }
@@ -113,7 +132,9 @@ if (!html.includes('id="loading-label"') || !html.includes('>人生设计室</sp
   failures.push('production shell has no contentful branded loading state');
 }
 if (modulePreloads.length === 0) {
-  failures.push('production entry has no modulepreload hints; high-latency ESM waterfall will regress');
+  failures.push(
+    'production entry has no modulepreload hints; high-latency ESM waterfall will regress',
+  );
 }
 for (const preload of modulePreloads) {
   if (/(?:mermaid|sandpack|nodebox|heic-converter|rum)\./.test(preload)) {

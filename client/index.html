@@ -126,6 +126,8 @@
       document.head.appendChild(loadingContainerStyle);
     </script>
     <script>
+      window.__LC_BUILD_ID__ = '__LC_BUILD_ID_VALUE__';
+
       (function () {
         var KEY = 'lc-asset-recovery-at';
         var RUM_QUEUE_KEY = 'lc-rum-queue';
@@ -211,15 +213,42 @@
           return true;
         };
         if (navigator.serviceWorker) {
+          var lastWorkerUpdateAt = 0;
+          var requestWorkerUpdate = function () {
+            if (document.visibilityState === 'hidden' || Date.now() - lastWorkerUpdateAt < 60000) {
+              return;
+            }
+            lastWorkerUpdateAt = Date.now();
+            navigator.serviceWorker
+              .getRegistration()
+              .then(function (registration) {
+                if (registration) {
+                  return registration.update();
+                }
+              })
+              .catch(function () {
+                /* The existing asset recovery remains the fail-closed path. */
+              });
+          };
           navigator.serviceWorker.addEventListener('message', function (event) {
             if (!event.data || event.data.type !== 'LC_SW_PING') {
               return;
             }
             var source = event.source || navigator.serviceWorker.controller;
             if (source) {
-              source.postMessage({ type: 'LC_SW_PONG' });
+              source.postMessage({
+                type: 'LC_SW_PONG',
+                buildId: window.__LC_BUILD_ID__,
+              });
             }
           });
+          window.addEventListener('focus', requestWorkerUpdate);
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+              requestWorkerUpdate();
+            }
+          });
+          window.setInterval(requestWorkerUpdate, 5 * 60 * 1000);
         }
         window.addEventListener(
           'error',

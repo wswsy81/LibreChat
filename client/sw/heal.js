@@ -1,12 +1,13 @@
 /* Runs inside the generated service worker via workbox `importScripts`.
- * When a new build's worker activates, pages served from a previous build
- * can no longer load their hashed chunks (the old precache is purged) and
- * carry no recovery code of their own — the worker is the only code path
- * stale clients fetch fresh. Ping every window client; reload the ones
- * that cannot answer. */
+ * A page can keep executing an old, fully responsive SPA after production
+ * switches to a new build. A generic ping therefore cannot prove that the
+ * page is current. Ping every window client with this worker's build ID and
+ * navigate clients that are silent, predate the ID protocol, or report a
+ * different build. */
 const PING_TYPE = 'LC_SW_PING';
 const PONG_TYPE = 'LC_SW_PONG';
 const PONG_TIMEOUT_MS = 1500;
+const ACTIVE_BUILD_ID = '__LC_BUILD_ID_VALUE__';
 
 const pendingPongs = new Map();
 
@@ -17,7 +18,7 @@ self.addEventListener('message', (event) => {
   const resolvePong = pendingPongs.get(event.source.id);
   if (resolvePong) {
     pendingPongs.delete(event.source.id);
-    resolvePong(true);
+    resolvePong(typeof event.data.buildId === 'string' ? event.data.buildId : null);
   }
 });
 
@@ -26,14 +27,14 @@ function pingClient(client) {
     pendingPongs.set(client.id, resolve);
     setTimeout(() => {
       if (pendingPongs.delete(client.id)) {
-        resolve(false);
+        resolve(null);
       }
     }, PONG_TIMEOUT_MS);
-    client.postMessage({ type: PING_TYPE });
+    client.postMessage({ type: PING_TYPE, buildId: ACTIVE_BUILD_ID });
   });
 }
 
-async function reloadUnresponsiveClients() {
+async function reloadStaleClients() {
   await self.clients.claim();
   const windowClients = await self.clients.matchAll({
     type: 'window',
@@ -42,8 +43,8 @@ async function reloadUnresponsiveClients() {
   const topLevelClients = windowClients.filter((client) => client.frameType !== 'nested');
   await Promise.all(
     topLevelClients.map(async (client) => {
-      const responsive = await pingClient(client);
-      if (responsive) {
+      const clientBuildId = await pingClient(client);
+      if (clientBuildId === ACTIVE_BUILD_ID) {
         return;
       }
       try {
@@ -56,5 +57,5 @@ async function reloadUnresponsiveClients() {
 }
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(reloadUnresponsiveClients());
+  event.waitUntil(reloadStaleClients());
 });
