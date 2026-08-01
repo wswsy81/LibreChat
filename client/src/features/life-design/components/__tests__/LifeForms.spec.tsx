@@ -2,8 +2,8 @@
  * @jest-environment @happy-dom/jest-environment
  */
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { fireEvent, render, screen } from '@testing-library/react';
 import FirstArchiveSetup from '../FirstArchiveSetup';
 import BasicsForm from '../BasicsForm';
 
@@ -149,6 +149,42 @@ test('承诺屏五句与三张前台示例卡同屏，内部线名不出现', ()
   expect(screen.queryByText('惯性线')).not.toBeInTheDocument();
   expect(screen.queryByText('干预线')).not.toBeInTheDocument();
   expect(screen.queryByText('断裂线')).not.toBeInTheDocument();
+});
+
+test('“说件新事”不重复首次建档承诺，并沿用原来的人物档案名', () => {
+  render(
+    <MemoryRouter>
+      <FirstArchiveSetup
+        mode="new_matter"
+        archiveName="修文"
+        domainConversations={[{ entryHouse: 'h6', conversationId: 'work-conversation' }]}
+      />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('com_life_new_matter_title')).toBeInTheDocument();
+  expect(screen.queryByText('com_life_setup_promise_title')).not.toBeInTheDocument();
+  expect(screen.queryByText('com_life_setup_lines_title')).not.toBeInTheDocument();
+
+  fireEvent.click(mapButton('com_life_map_house_h6') as HTMLButtonElement);
+  expect(screen.getByText('com_life_new_matter_selected_existing')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /com_life_new_matter_resume/ }));
+
+  expect(mockEnterHouse).toHaveBeenCalledWith({ archiveName: '修文', entryHouse: 'h6' });
+});
+
+test('“说件新事”选择没聊过的领域时从新的一页开始', () => {
+  render(
+    <MemoryRouter>
+      <FirstArchiveSetup mode="new_matter" archiveName="修文" />
+    </MemoryRouter>,
+  );
+
+  fireEvent.click(mapButton('com_life_map_house_h2') as HTMLButtonElement);
+  expect(screen.getByText('com_life_new_matter_selected_new')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /com_life_new_matter_start/ }));
+
+  expect(mockEnterHouse).toHaveBeenCalledWith({ archiveName: '修文', entryHouse: 'h2' });
 });
 
 test('关于我允许用 null 明确清除已保存文本', () => {

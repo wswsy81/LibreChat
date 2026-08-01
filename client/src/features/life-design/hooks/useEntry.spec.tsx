@@ -9,6 +9,7 @@ const mockMutate = jest.fn();
 const mockNavigate = jest.fn();
 const mockTrack = jest.fn();
 const mockMarkConsumed = jest.fn();
+const mockIsConsumed = jest.fn((_key: string) => false);
 
 jest.mock('~/data-provider', () => ({
   useLifeOnboardingMutation: () => ({
@@ -26,12 +27,13 @@ jest.mock('react-router-dom', () => ({
 jest.mock('~/utils/track', () => ({ track: (...args: unknown[]) => mockTrack(...args) }));
 
 jest.mock('../oneShot', () => ({
-  isConsumed: () => false,
-  markConsumed: (...args: unknown[]) => mockMarkConsumed(...args),
+  isConsumed: (key: string) => mockIsConsumed(key),
+  markConsumed: (key: string) => mockMarkConsumed(key),
 }));
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockIsConsumed.mockReturnValue(false);
   sessionStorage.clear();
 });
 
@@ -51,6 +53,8 @@ test('successful return entry clears the stored selection and records reentry', 
       ok: true,
       profileVersion: 'v2',
       applied: 0,
+      action: 'new',
+      conversationId: null,
       entryEvent: {
         kind: 'house_entered',
         entryHouse: 'h6',
@@ -70,4 +74,79 @@ test('successful return entry clears the stored selection and records reentry', 
   });
   expect(mockMarkConsumed).toHaveBeenCalledWith('life:onboarding:operation-1');
   expect(mockNavigate).toHaveBeenCalledWith('/c/new?prompt=house', { replace: true });
+});
+
+test('restored domain goes straight back to its page without consuming a new-page marker', () => {
+  const { result } = renderHook(() => useHouseEntry());
+
+  act(() => {
+    result.current.enterHouse({ archiveName: '修文', entryHouse: 'h2' });
+  });
+
+  const callbacks = mockMutate.mock.calls[0][1] as {
+    onSuccess: (response: LifeOnboardingResponse) => void;
+  };
+  act(() => {
+    callbacks.onSuccess({
+      ok: true,
+      profileVersion: 'v2',
+      applied: 0,
+      action: 'restored',
+      conversationId: 'money-conversation',
+      entryEvent: {
+        kind: 'house_entered',
+        entryHouse: 'h2',
+        visitMode: 'continue',
+        at: '2026-08-01T12:00:00.000Z',
+      },
+      prompt: '',
+      route: '/c/money-conversation',
+      operationId: null,
+    });
+  });
+
+  expect(mockMarkConsumed).not.toHaveBeenCalled();
+  expect(mockNavigate).toHaveBeenCalledWith('/c/money-conversation', { replace: true });
+});
+
+test('a replayed new-page result waits for the first tab instead of creating a duplicate domain page', () => {
+  jest.useFakeTimers();
+  const { result, unmount } = renderHook(() => useHouseEntry());
+
+  act(() => {
+    result.current.enterHouse({ archiveName: '修文', entryHouse: 'h2' });
+  });
+  const firstCallbacks = mockMutate.mock.calls[0][1] as {
+    onSuccess: (response: LifeOnboardingResponse) => void;
+  };
+  act(() => {
+    firstCallbacks.onSuccess({
+      ok: true,
+      profileVersion: 'v2',
+      applied: 0,
+      action: 'new',
+      conversationId: null,
+      entryEvent: {
+        kind: 'house_entered',
+        entryHouse: 'h2',
+        visitMode: 'first_entry',
+        at: '2026-08-01T12:00:00.000Z',
+      },
+      prompt: '[trigger:house_entered]',
+      route: '/c/new?prompt=money',
+      operationId: 'shared-operation',
+      replayed: true,
+    });
+  });
+
+  expect(mockNavigate).not.toHaveBeenCalled();
+  expect(mockMarkConsumed).not.toHaveBeenCalled();
+  expect(mockMutate).toHaveBeenCalledTimes(1);
+  act(() => {
+    jest.advanceTimersByTime(900);
+  });
+  expect(mockMutate).toHaveBeenCalledTimes(2);
+
+  unmount();
+  jest.useRealTimers();
 });

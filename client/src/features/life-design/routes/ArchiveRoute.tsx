@@ -1,14 +1,15 @@
 import { ArrowRight } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@librechat/client';
+import { Link, useNavigate } from 'react-router-dom';
 import { useLifeArchiveQuery, useLifeBootstrapQuery } from '~/data-provider';
-import { useLocalize } from '~/hooks';
+import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
+import { PUBLIC_MAP_LABEL_KEYS } from '../components/PublicMistMap';
+import { LifeError, LifeLoading } from '../components/PageState';
 import ArchiveDossier from '../components/ArchiveDossier';
 import ArchiveMistMap from '../components/ArchiveMistMap';
-import BasicsForm from '../components/BasicsForm';
 import { Explorer } from '../components/LifeWheel';
-import { LifeError, LifeLoading } from '../components/PageState';
-import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
+import BasicsForm from '../components/BasicsForm';
+import { useLocalize } from '~/hooks';
 
 const dateText = (value?: string | null) => formatLifeDate(value, { dateStyle: 'medium' });
 
@@ -99,7 +100,8 @@ export default function ArchiveRoute() {
     );
   }
 
-  const { profile, reports, profileVersion } = archive.data;
+  const { activeHouse, profile, reports, profileVersion } = archive.data;
+  const activeHouseName = activeHouse ? localize(PUBLIC_MAP_LABEL_KEYS[activeHouse]) : null;
   const problem = profile.problemFrame;
   const signals = profile.signals || [];
   const timeline = (profile.timeline || []).slice(-6).reverse();
@@ -136,6 +138,16 @@ export default function ArchiveRoute() {
             <span>{localize('com_life_archive_private')}</span>
             <span>{localize('com_life_archive_version', { 0: versionText(profileVersion) })}</span>
           </div>
+          {activeHouseName && (
+            <div className="mt-6 max-w-[34em] border-l-2 border-life-cinnabar pl-4">
+              <p className="font-life-mono text-life-meta tracking-[0.14em] text-life-cinnabar dark:text-[#D98A76]">
+                {localize('com_life_archive_active_domain', { 0: activeHouseName })}
+              </p>
+              <p className="mt-2 font-life-sans text-life-sm leading-7 text-life-muted dark:text-gray-400">
+                {localize('com_life_archive_active_domain_help')}
+              </p>
+            </div>
+          )}
         </header>
 
         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start lg:gap-12">
@@ -418,11 +430,16 @@ export default function ArchiveRoute() {
                           {report.title}
                         </span>
                         <span className="font-life-mono text-life-meta text-life-muted dark:text-gray-500">
-                          {localize(
-                            report.mode === 'decision'
-                              ? 'com_life_decision_report'
-                              : 'com_life_discovery_report',
-                          )}
+                          {[
+                            report.houseId ? localize(PUBLIC_MAP_LABEL_KEYS[report.houseId]) : null,
+                            localize(
+                              report.mode === 'decision'
+                                ? 'com_life_decision_report'
+                                : 'com_life_discovery_report',
+                            ),
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </span>
                         <ArrowRight className="hidden h-4 w-4 text-life-cinnabar transition-transform group-hover:translate-x-1 sm:block" />
                       </Link>

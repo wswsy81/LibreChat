@@ -1,15 +1,14 @@
 import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import type { LifeWheelView } from 'librechat-data-provider';
-import type { TranslationKeys } from '~/hooks';
 import { Button } from '@librechat/client';
+import type { LifeDomainConversation, LifeWheelView } from 'librechat-data-provider';
+import type { ConditionLevel, HouseId, Recognition, Trend } from './contract';
+import type { TranslationKeys } from '~/hooks';
+import PublicMistMap, { PUBLIC_MAP_LABEL_KEYS } from '../PublicMistMap';
+import { formatLifeDate } from '../../utils/date';
+import useHouseEntry from '../../hooks/useEntry';
 import { useLocalize } from '~/hooks';
 import { track } from '~/utils/track';
-import useHouseEntry from '../../hooks/useEntry';
-import { formatLifeDate } from '../../utils/date';
-import PublicMistMap, { PUBLIC_MAP_LABEL_KEYS } from '../PublicMistMap';
-import type { ConditionLevel, HouseId, Recognition, Trend } from './contract';
 
 const RECOGNITION_KEYS: Record<Recognition, TranslationKeys> = {
   unknown: 'com_life_recognition_unknown',
@@ -46,19 +45,33 @@ const TREND_GLYPHS: Partial<Record<Trend, string>> = {
   worsening: '↘',
 };
 
+function houseActionKey(
+  hasExistingConversation: boolean,
+  isCurrentHouse: boolean,
+): TranslationKeys {
+  if (!hasExistingConversation) {
+    return 'com_life_start_house';
+  }
+  return isCurrentHouse ? 'com_life_continue_here' : 'com_life_return_to_house';
+}
+
 export default function Explorer({
   wheel,
   archiveName,
+  domainConversations = [],
 }: {
   wheel?: LifeWheelView;
   archiveName: string;
+  domainConversations?: LifeDomainConversation[];
 }) {
   const localize = useLocalize();
-  const navigate = useNavigate();
   const { enterHouse, error, isLoading } = useHouseEntry();
   const [selectedHouse, setSelectedHouse] = useState<HouseId | null>(wheel?.lanternHouse ?? null);
   const selected = wheel?.houses.find((house) => house.id === selectedHouse);
   const selectedName = selectedHouse ? localize(PUBLIC_MAP_LABEL_KEYS[selectedHouse]) : undefined;
+  const selectedConversation = domainConversations.find(
+    (conversation) => conversation.entryHouse === selectedHouse,
+  );
 
   const selectHouse = (entryHouse: HouseId) => {
     setSelectedHouse(entryHouse);
@@ -67,10 +80,6 @@ export default function Explorer({
 
   const start = () => {
     if (!selectedHouse || isLoading) {
-      return;
-    }
-    if (selectedHouse === wheel?.lanternHouse) {
-      navigate('/resume');
       return;
     }
     enterHouse({ archiveName, entryHouse: selectedHouse });
@@ -138,7 +147,14 @@ export default function Explorer({
               onClick={start}
               className="mt-6 min-h-12 w-full rounded-[4px] bg-life-moss text-life-paper hover:bg-life-moss-deep"
             >
-              {isLoading ? localize('com_life_preparing') : localize('com_life_enter_house')}
+              {isLoading
+                ? localize('com_life_preparing')
+                : localize(
+                    houseActionKey(
+                      selectedConversation != null,
+                      selectedHouse === wheel?.lanternHouse,
+                    ),
+                  )}
               {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>
           </>

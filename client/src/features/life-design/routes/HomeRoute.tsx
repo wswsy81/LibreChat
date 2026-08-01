@@ -1,17 +1,17 @@
 import { useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@librechat/client';
-import { useGetStartupConfig, useLifeBootstrapQuery } from '~/data-provider';
-import { useAuthContext, useLocalize } from '~/hooks';
-import { ProductShell } from '~/routes/Root';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { getInviteCodeFromHash, getStoredInviteCode, storeInviteCode } from '~/utils/invite';
-import { track } from '~/utils/track';
-import FirstArchiveSetup from '../components/FirstArchiveSetup';
-import PublicHero from '../components/PublicHero';
-import ReturningHome from '../components/ReturningHome';
-import { LifeError, LifeLoading } from '../components/PageState';
 import { getEntryHouseFromSearch, getStoredEntryHouse, storeEntryHouse } from '../entry';
+import { useGetStartupConfig, useLifeBootstrapQuery } from '~/data-provider';
+import { LifeError, LifeLoading } from '../components/PageState';
+import FirstArchiveSetup from '../components/FirstArchiveSetup';
+import ReturningHome from '../components/ReturningHome';
+import { useAuthContext, useLocalize } from '~/hooks';
+import PublicHero from '../components/PublicHero';
+import { ProductShell } from '~/routes/Root';
+import { track } from '~/utils/track';
 
 function PublicHome() {
   const localize = useLocalize();
@@ -103,7 +103,7 @@ export default function HomeRoute() {
   const bootstrap = useLifeBootstrapQuery({ enabled: isAuthReady && isAuthenticated });
   const requestedEntryHouse = getEntryHouseFromSearch(location.search);
   const initialEntryHouse = requestedEntryHouse ?? getStoredEntryHouse();
-  const newArchiveRequested = new URLSearchParams(location.search).get('new') === '1';
+  const newMatterRequested = new URLSearchParams(location.search).get('new') === '1';
 
   useEffect(() => {
     const inviteCode = getInviteCodeFromHash(location.hash);
@@ -140,12 +140,19 @@ export default function HomeRoute() {
         onContinue={() => navigate('/resume')}
       />
     );
-  } else if (bootstrap.data?.hasSubstantiveProfile && !newArchiveRequested) {
+  } else if (bootstrap.data?.hasSubstantiveProfile && !newMatterRequested) {
     content = <ReturningHome bootstrap={bootstrap.data} />;
   } else {
+    const isNewMatter = bootstrap.data?.hasSubstantiveProfile === true;
+    const archiveName = bootstrap.data?.summary?.alias || bootstrap.data?.user?.name || null;
     content = (
       <div className="h-full overflow-y-auto bg-life-paper px-5 py-10 dark:bg-surface-secondary sm:px-8">
-        <FirstArchiveSetup initialEntryHouse={initialEntryHouse} />
+        <FirstArchiveSetup
+          initialEntryHouse={initialEntryHouse}
+          mode={isNewMatter ? 'new_matter' : 'first_archive'}
+          archiveName={archiveName}
+          domainConversations={bootstrap.data?.domainConversations}
+        />
       </div>
     );
   }

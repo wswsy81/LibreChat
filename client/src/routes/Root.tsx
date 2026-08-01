@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import type { ReactNode } from 'react';
 import { DndProvider } from 'react-dnd';
 import { useRecoilValue } from 'recoil';
 import { Outlet } from 'react-router-dom';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useMediaQuery } from '@librechat/client';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import type { ReactNode } from 'react';
 import {
   PromptGroupsProvider,
   AssistantsMapContext,
@@ -19,16 +19,17 @@ import {
   useAgentsMap,
   useFileMap,
 } from '~/hooks';
+import ConversationDomainSync from '~/features/life-design/components/ConversationDomainSync';
 import KeyboardShortcutsDialog from '~/components/Nav/KeyboardShortcutsDialog';
 import KeyboardDeleteDialog from '~/components/Nav/KeyboardDeleteDialog';
-import WakeLockManager from '~/components/System/WakeLockManager';
 import { useUserTermsQuery, useGetStartupConfig } from '~/data-provider';
+import WakeLockManager from '~/components/System/WakeLockManager';
 import useKeyboardShortcuts from '~/hooks/useKeyboardShortcuts';
-import useAnalytics from '~/hooks/useAnalytics';
 import { ScreenshotProvider } from '~/hooks/ScreenshotContext';
 import { UnifiedSidebar } from '~/components/UnifiedSidebar';
 import { TermsAndConditionsModal } from '~/components/ui';
 import { useHealthCheck } from '~/data-provider';
+import useAnalytics from '~/hooks/useAnalytics';
 import { Banner } from '~/components/Banners';
 import store from '~/store';
 
@@ -90,6 +91,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
         <AssistantsMapContext.Provider value={assistantsMap}>
           <AgentsMapContext.Provider value={agentsMap}>
             <PromptGroupsProvider>
+              <ConversationDomainSync />
               <Banner onHeightChange={setBannerHeight} />
               <div className="flex" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
                 <div className="relative z-0 flex h-full w-full overflow-hidden">

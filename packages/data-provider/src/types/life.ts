@@ -64,6 +64,33 @@ export interface LifeHouseEntryEvent {
   at: string;
 }
 
+export interface LifeStopPoint {
+  sceneId?: string | null;
+  summary?: string | null;
+  resumeFrom?: string | null;
+  unresolved?: string[];
+  sourceEventId?: string | null;
+  eventId?: string | null;
+  ts?: string | null;
+  entryHouse?: LifeHouseId;
+}
+
+export interface LifeHouseSession {
+  entryHouse: LifeHouseId;
+  sessionId: string;
+  visitMode?: LifeVisitMode | null;
+  enteredAt?: string | null;
+  stopPoint?: LifeStopPoint | null;
+}
+
+export interface LifeDomainConversation {
+  entryHouse: LifeHouseId;
+  conversationId: string;
+  title?: string | null;
+  updatedAt?: string | null;
+  stopPoint?: LifeStopPoint | null;
+}
+
 export interface LifeBootstrapSummary {
   alias?: string | null;
   lastSurface?: string | null;
@@ -78,6 +105,9 @@ export interface LifeBootstrapResponse {
   hasSubstantiveProfile: boolean | null;
   profileVersion?: string | null;
   summary?: LifeBootstrapSummary;
+  activeHouse?: LifeHouseId | null;
+  houseSessions?: LifeHouseSession[];
+  domainConversations?: LifeDomainConversation[];
   latestReportId?: string | null;
   reportCount?: number;
   lastConversationId?: string | null;
@@ -95,10 +125,12 @@ export interface LifeOnboardingResponse {
   ok: boolean;
   profileVersion: string;
   applied: number;
+  action: 'restored' | 'new';
+  conversationId: string | null;
   entryEvent: LifeHouseEntryEvent;
   prompt: string;
   route: string;
-  operationId?: string;
+  operationId?: string | null;
   replayed?: boolean;
 }
 
@@ -106,7 +138,7 @@ export interface LifeResumeResponse {
   action: 'restored' | 'new';
   conversationId: string | null;
   route: string;
-  operationId?: string;
+  operationId?: string | null;
   replayed?: boolean;
 }
 
@@ -225,12 +257,14 @@ export interface LifeReportSummary {
   title: string;
   mode: 'discovery' | 'decision';
   createdAt: string | null;
+  houseId?: LifeHouseId | null;
   stanceFeedback?: LifeStanceFeedbackState | null;
 }
 
 export interface LifeArchiveResponse {
   schemaVersion: number;
   profileVersion: string | null;
+  activeHouse?: LifeHouseId | null;
   profile: LifeProfileView;
   archiveStatus?: LifeArchiveStatus;
   recentDossier?: LifeDossierPreviewEntry[];

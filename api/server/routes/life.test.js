@@ -53,10 +53,15 @@ jest.mock('~/server/middleware/requireJwtAuth', () => (_req, _res, next) => next
 const lifeRouter = require('./life');
 
 function conversationQuery(value) {
+  const conversations = value.map((conversation) =>
+    Object.hasOwn(conversation, 'messages')
+      ? conversation
+      : { ...conversation, messages: ['root', 'assistant', 'followup'] },
+  );
   return {
     sort: jest.fn(() => ({
       select: jest.fn(() => ({
-        limit: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(value) })),
+        limit: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(conversations) })),
       })),
     })),
   };
@@ -474,6 +479,108 @@ test.each([
   expect(response.body.action).toBe('new');
 });
 
+test('bootstrap exposes one verified conversation per life domain', async () => {
+  mockEngine.json.mockResolvedValue({
+    profileState: 'ready',
+    hasSubstantiveProfile: true,
+    activeHouse: 'h6',
+    summary: { lifeWheel: { lanternHouse: 'h6' } },
+    houseSessions: [
+      {
+        entryHouse: 'h6',
+        sessionId: 'work-conversation',
+        stopPoint: { summary: '停在要不要接下这份新工作' },
+      },
+      {
+        entryHouse: 'h2',
+        sessionId: 'money-conversation',
+        stopPoint: { summary: '停在未来三个月的现金流' },
+      },
+      { entryHouse: 'h7', sessionId: 'missing-conversation' },
+    ],
+  });
+  mockConversationFind
+    .mockReturnValueOnce(
+      conversationQuery([
+        {
+          conversationId: 'money-conversation',
+          title: '现金流怎么安排',
+          updatedAt: '2026-07-31T10:00:00.000Z',
+        },
+        {
+          conversationId: 'work-conversation',
+          title: '新工作的取舍',
+          updatedAt: '2026-08-01T10:00:00.000Z',
+        },
+      ]),
+    )
+    .mockReturnValueOnce(conversationQuery([]));
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' })).get(
+    '/api/life/bootstrap',
+  );
+
+  expect(response.status).toBe(200);
+  expect(response.body.lastConversationId).toBe('work-conversation');
+  expect(response.body.domainConversations).toEqual([
+    {
+      entryHouse: 'h6',
+      conversationId: 'work-conversation',
+      title: '新工作的取舍',
+      updatedAt: '2026-08-01T10:00:00.000Z',
+      stopPoint: { summary: '停在要不要接下这份新工作' },
+    },
+    {
+      entryHouse: 'h2',
+      conversationId: 'money-conversation',
+      title: '现金流怎么安排',
+      updatedAt: '2026-07-31T10:00:00.000Z',
+      stopPoint: { summary: '停在未来三个月的现金流' },
+    },
+  ]);
+});
+
+test('active domain restores by its exact session id even after it falls outside the recent window', async () => {
+  mockEngine.json.mockResolvedValue({
+    profileState: 'ready',
+    hasSubstantiveProfile: true,
+    activeHouse: 'h6',
+    summary: { lifeWheel: { lanternHouse: 'h6' } },
+    houseSessions: [{ entryHouse: 'h6', sessionId: 'older-work-conversation' }],
+  });
+  mockConversationFind
+    .mockReturnValueOnce(
+      conversationQuery([
+        { conversationId: 'recent-unmapped-1', title: '最近别的记录' },
+        { conversationId: 'recent-unmapped-2', title: '最近别的记录 2' },
+      ]),
+    )
+    .mockReturnValueOnce(
+      conversationQuery([{ conversationId: 'older-work-conversation', title: '原来的工作页' }]),
+    );
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' })).get(
+    '/api/life/bootstrap',
+  );
+
+  expect(response.status).toBe(200);
+  expect(response.body.lastConversationId).toBe('older-work-conversation');
+  expect(response.body.domainConversations).toEqual([
+    expect.objectContaining({
+      entryHouse: 'h6',
+      conversationId: 'older-work-conversation',
+      title: '原来的工作页',
+    }),
+  ]);
+  expect(mockConversationFind).toHaveBeenNthCalledWith(
+    2,
+    expect.objectContaining({
+      user: 'user-1',
+      conversationId: { $in: ['older-work-conversation'] },
+    }),
+  );
+});
+
 test('onboarding accepts archiveName + entryHouse and returns a one-time house trigger route', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
   const missingKey = await request(app).post('/api/life/onboarding').send({
@@ -504,11 +611,16 @@ test('onboarding accepts archiveName + entryHouse and returns a one-time house t
   expect(valid.status).toBe(200);
   const prompt = new URL(valid.body.route, 'https://yiweilife.test').searchParams.get('q');
   expect(prompt).toBe('[trigger:house_entered] entryHouse=h10;visitMode=first_entry');
+  expect(valid.body.action).toBe('new');
+  expect(valid.body.conversationId).toBeNull();
   expect(valid.body.entryEvent.entryHouse).toBe('h10');
   expect(mockEngine.json).toHaveBeenCalledWith('/internal/bootstrap', { userId: 'user-1' });
   expect(mockEngine.json).toHaveBeenCalledWith(
     '/internal/onboarding',
     expect.objectContaining({ body: { archiveName: '张东', entryHouse: 'h10' } }),
+  );
+  expect(mockRunLifeOperation).toHaveBeenCalledWith(
+    expect.objectContaining({ operation: 'onboarding', replayWindowMs: 30_000 }),
   );
 
   const legacy = await request(app)
@@ -531,21 +643,26 @@ test('onboarding accepts archiveName + entryHouse and returns a one-time house t
 test('cached current-house entry restores latest substantive conversation', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
   mockConversationFind.mockReturnValueOnce(
-    conversationQuery([
-      {
-        conversationId: 'conversation-real',
-        messages: ['root', 'assistant', 'followup'],
-      },
-    ]),
+    conversationQuery([{ conversationId: 'conversation-real' }]),
   );
-  mockEngine.json.mockResolvedValueOnce({
-    profileVersion: 'v1',
-    summary: {
-      lifeWheel: {
-        lanternHouse: 'h6',
+  mockEngine.json
+    .mockResolvedValueOnce({
+      profileVersion: 'v1',
+      activeHouse: 'h6',
+      summary: { lifeWheel: { lanternHouse: 'h6' } },
+      houseSessions: [{ entryHouse: 'h6', sessionId: 'conversation-real' }],
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      profileVersion: 'v2',
+      applied: 0,
+      entryEvent: {
+        kind: 'house_entered',
+        entryHouse: 'h6',
+        visitMode: 'continue',
+        at: '2026-08-01T00:00:00.000Z',
       },
-    },
-  });
+    });
 
   const restored = await request(app)
     .post('/api/life/onboarding')
@@ -563,9 +680,13 @@ test('cached current-house entry restores latest substantive conversation', asyn
     route: '/c/conversation-real',
     entryEvent: { kind: 'house_entered', entryHouse: 'h6', visitMode: 'continue' },
   });
-  expect(mockRunLifeOperation).not.toHaveBeenCalled();
-  expect(mockEngine.json).toHaveBeenCalledTimes(1);
+  expect(mockRunLifeOperation).toHaveBeenCalledTimes(1);
+  expect(mockEngine.json).toHaveBeenCalledTimes(2);
   expect(mockEngine.json).toHaveBeenCalledWith('/internal/bootstrap', { userId: 'user-1' });
+  expect(mockEngine.json).toHaveBeenCalledWith(
+    '/internal/onboarding',
+    expect.objectContaining({ body: { archiveName: '张东', entryHouse: 'h6' } }),
+  );
   expect(mockConversationFind).toHaveBeenCalledWith(
     expect.objectContaining({
       user: 'user-1',
@@ -574,6 +695,50 @@ test('cached current-house entry restores latest substantive conversation', asyn
       'messages.1': { $exists: true },
     }),
   );
+});
+
+test('entering an older domain activates it and restores that domain instead of the latest chat', async () => {
+  const app = buildApp({ id: 'user-1', name: '张东' });
+  mockConversationFind.mockReturnValueOnce(
+    conversationQuery([
+      { conversationId: 'work-conversation', title: '工作' },
+      { conversationId: 'money-conversation', title: '财务' },
+    ]),
+  );
+  mockEngine.json
+    .mockResolvedValueOnce({
+      profileVersion: 'v2',
+      activeHouse: 'h6',
+      summary: { lifeWheel: { lanternHouse: 'h6' } },
+      houseSessions: [
+        { entryHouse: 'h6', sessionId: 'work-conversation' },
+        { entryHouse: 'h2', sessionId: 'money-conversation' },
+      ],
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      profileVersion: 'v3',
+      applied: 0,
+      entryEvent: {
+        kind: 'house_entered',
+        entryHouse: 'h2',
+        visitMode: 'continue',
+        at: '2026-08-01T01:00:00.000Z',
+      },
+    });
+
+  const restored = await request(app)
+    .post('/api/life/onboarding')
+    .set('Idempotency-Key', 'restore-money-domain')
+    .send({ archiveName: '张东', entryHouse: 'h2' });
+
+  expect(restored.status).toBe(200);
+  expect(restored.body).toMatchObject({
+    action: 'restored',
+    conversationId: 'money-conversation',
+    route: '/c/money-conversation',
+    entryEvent: { entryHouse: 'h2', visitMode: 'continue' },
+  });
 });
 
 test('onboarding falls back to the original house entry path when bootstrap is unavailable', async () => {
@@ -616,12 +781,7 @@ test('onboarding falls back to the original house entry path when bootstrap is u
 test('resume restores an existing conversation and only creates D-mode when none exists', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
   mockConversationFind.mockReturnValueOnce(
-    conversationQuery([
-      {
-        conversationId: 'conversation-1',
-        messages: ['root', 'assistant', 'followup'],
-      },
-    ]),
+    conversationQuery([{ conversationId: 'conversation-1' }]),
   );
   const restored = await request(app).post('/api/life/resume').set('Idempotency-Key', 'resume-1');
   expect(restored.body).toEqual({
@@ -630,12 +790,107 @@ test('resume restores an existing conversation and only creates D-mode when none
     route: '/c/conversation-1',
   });
 
-  mockConversationFind.mockReturnValueOnce(conversationQuery([]));
+  mockConversationFind.mockReturnValue(conversationQuery([]));
   const created = await request(app).post('/api/life/resume').set('Idempotency-Key', 'resume-2');
   expect(created.body.action).toBe('new');
   expect(decodeURIComponent(created.body.route)).toContain('先读回我的人生存档');
   const resumePrompt = new URL(created.body.route, 'https://yiweilife.test').searchParams.get('q');
   expect(resumePrompt).toContain('[trigger:session_resumed] 我回来了');
+  expect(mockRunLifeOperation).toHaveBeenCalledWith(
+    expect.objectContaining({ operation: 'resume-create', replayWindowMs: 30_000 }),
+  );
+});
+
+test('resume follows the active domain and never falls through to another domain', async () => {
+  const app = buildApp({ id: 'user-1', name: '张东' });
+  mockConversationFind.mockReturnValueOnce(
+    conversationQuery([
+      { conversationId: 'money-conversation' },
+      { conversationId: 'work-conversation' },
+    ]),
+  );
+  mockEngine.json.mockResolvedValueOnce({
+    activeHouse: 'h6',
+    summary: { lifeWheel: { lanternHouse: 'h6' } },
+    houseSessions: [
+      { entryHouse: 'h2', sessionId: 'money-conversation' },
+      { entryHouse: 'h6', sessionId: 'work-conversation' },
+    ],
+  });
+
+  const restored = await request(app)
+    .post('/api/life/resume')
+    .set('Idempotency-Key', 'resume-active-domain');
+
+  expect(restored.body).toEqual({
+    action: 'restored',
+    conversationId: 'work-conversation',
+    route: '/c/work-conversation',
+  });
+
+  jest.clearAllMocks();
+  mockConversationFind.mockReturnValue(
+    conversationQuery([{ conversationId: 'money-conversation' }]),
+  );
+  mockRunLifeOperation.mockImplementation(async ({ executor, operation }) => ({
+    ...(await executor({
+      operationId: `operation-${operation}`,
+      requestHash: 'a'.repeat(64),
+    })),
+    replayed: false,
+  }));
+  mockEngine.json.mockResolvedValue({
+    activeHouse: 'h6',
+    summary: { lifeWheel: { lanternHouse: 'h6' } },
+    houseSessions: [{ entryHouse: 'h2', sessionId: 'money-conversation' }],
+  });
+
+  const missingActive = await request(app)
+    .post('/api/life/resume')
+    .set('Idempotency-Key', 'resume-missing-active-domain');
+
+  expect(missingActive.body.action).toBe('new');
+  expect(missingActive.body.conversationId).toBeNull();
+  expect(missingActive.body.route).not.toBe('/c/money-conversation');
+  expect(new URL(missingActive.body.route, 'https://yiweilife.test').searchParams.get('q')).toBe(
+    '[trigger:house_entered] entryHouse=h6;visitMode=first_entry',
+  );
+});
+
+test.each([
+  {
+    label: '聊过但没有停点',
+    session: { entryHouse: 'h6', sessionId: 'missing-work-conversation' },
+    visitMode: 'return_entry',
+  },
+  {
+    label: '聊过且有停点',
+    session: {
+      entryHouse: 'h6',
+      sessionId: 'missing-work-conversation',
+      stopPoint: { summary: '停在要不要接这份新工作' },
+    },
+    visitMode: 'continue',
+  },
+])('resume 在活动领域页缺失且$label时重建 canonical 领域页', async ({ session, visitMode }) => {
+  const app = buildApp({ id: 'user-1', name: '张东' });
+  mockConversationFind.mockReturnValue(conversationQuery([]));
+  mockEngine.json.mockResolvedValue({
+    activeHouse: 'h6',
+    summary: { lifeWheel: { lanternHouse: 'h6' } },
+    houseSessions: [session],
+  });
+
+  const response = await request(app)
+    .post('/api/life/resume')
+    .set('Idempotency-Key', `resume-missing-${visitMode}`);
+
+  expect(response.status).toBe(200);
+  expect(response.body.action).toBe('new');
+  expect(response.body.conversationId).toBeNull();
+  expect(new URL(response.body.route, 'https://yiweilife.test').searchParams.get('q')).toBe(
+    `[trigger:house_entered] entryHouse=h6;visitMode=${visitMode}`,
+  );
 });
 
 test('same idempotency key with changed payload returns a non-retryable 409', async () => {

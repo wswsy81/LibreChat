@@ -1,12 +1,12 @@
 import { useState } from 'react';
+import { Button } from '@librechat/client';
 import { ArrowRight, LogOut } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { LifeBootstrapResponse } from 'librechat-data-provider';
-import { Button } from '@librechat/client';
 import { useLifeArchiveQuery, useLifeInboxMutation } from '~/data-provider';
+import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
 import { useAuthContext, useLocalize } from '~/hooks';
 import { Explorer } from './LifeWheel';
-import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
 
 const dateText = (value?: string | null) =>
   formatLifeDate(value, { month: '2-digit', day: '2-digit' }, '');
@@ -167,7 +167,11 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
             {localize('com_life_wheel_description')}
           </p>
           <div className="mt-5">
-            <Explorer wheel={bootstrap.summary?.lifeWheel} archiveName={name} />
+            <Explorer
+              wheel={bootstrap.summary?.lifeWheel}
+              archiveName={name}
+              domainConversations={bootstrap.domainConversations}
+            />
           </div>
         </section>
 

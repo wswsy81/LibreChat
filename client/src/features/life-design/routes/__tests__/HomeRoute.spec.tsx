@@ -2,14 +2,14 @@
  * @jest-environment @happy-dom/jest-environment
  */
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-
 import HomeRoute from '../HomeRoute';
 
 const mockStartupConfig = { data: { registrationEnabled: false } };
 const mockTrack = jest.fn();
+const mockFirstArchiveSetup = jest.fn((_props: unknown) => <div data-testid="setup" />);
 let mockAuth: {
   user: { id: string; name: string } | null;
   isAuthenticated: boolean;
@@ -37,7 +37,10 @@ jest.mock('~/routes/Root', () => ({
   ProductShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('../../components/FirstArchiveSetup', () => () => <div data-testid="setup" />);
+jest.mock('../../components/FirstArchiveSetup', () => ({
+  __esModule: true,
+  default: (props: unknown) => mockFirstArchiveSetup(props),
+}));
 jest.mock('../../components/ReturningHome', () => () => <div data-testid="returning" />);
 jest.mock('../../components/PageState', () => ({
   LifeError: () => <div data-testid="error" />,
@@ -56,6 +59,7 @@ describe('public registration policy', () => {
   beforeEach(() => {
     sessionStorage.clear();
     mockTrack.mockClear();
+    mockFirstArchiveSetup.mockClear();
     mockAuth = { user: null, isAuthenticated: false, isAuthReady: true };
     mockBootstrap = { isLoading: false };
   });
@@ -135,7 +139,7 @@ describe('public registration policy', () => {
     expect(mockTrack).toHaveBeenCalledWith('invite_registration_started');
   });
 
-  it('已有档案默认回首页，但可显式从承诺屏开新存档', () => {
+  it('已有档案默认回首页；“说件新事”进入领域选择并沿用同一份档案', () => {
     mockAuth = {
       user: { id: 'user-1', name: 'L1验收' },
       isAuthenticated: true,
@@ -143,7 +147,12 @@ describe('public registration policy', () => {
     };
     mockBootstrap = {
       isLoading: false,
-      data: { hasSubstantiveProfile: true },
+      data: {
+        hasSubstantiveProfile: true,
+        user: { id: 'user-1', name: '登录名' },
+        summary: { alias: '修文' },
+        domainConversations: [{ entryHouse: 'h6', conversationId: 'work-conversation' }],
+      },
     };
 
     const current = renderHome('/home');
@@ -152,5 +161,12 @@ describe('public registration policy', () => {
 
     renderHome('/home?new=1');
     expect(screen.getByTestId('setup')).toBeInTheDocument();
+    expect(mockFirstArchiveSetup).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        mode: 'new_matter',
+        archiveName: '修文',
+        domainConversations: [{ entryHouse: 'h6', conversationId: 'work-conversation' }],
+      }),
+    );
   });
 });

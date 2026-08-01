@@ -5,12 +5,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import type { LifeWheelView } from 'librechat-data-provider';
 import Explorer from './Explorer';
 
-const mockNavigate = jest.fn();
 const mockEnter = jest.fn();
-
-jest.mock('react-router-dom', () => ({
-  useNavigate: () => mockNavigate,
-}));
 
 jest.mock('~/hooks', () => ({
   useLocalize: () => (key: string) => key,
@@ -64,13 +59,18 @@ describe('Explorer mist map', () => {
     expect(screen.getByText('com_life_trend_improving')).toBeInTheDocument();
   });
 
-  test('点击当前亮灯领域应恢复最近会话，不新建 house_entered 回访', () => {
-    render(<Explorer wheel={wheel} archiveName="修文" />);
+  test('点击当前领域也统一走领域入口，由后端恢复它自己的长期会话', () => {
+    render(
+      <Explorer
+        wheel={wheel}
+        archiveName="修文"
+        domainConversations={[{ entryHouse: 'h6', conversationId: 'work-conversation' }]}
+      />,
+    );
 
-    fireEvent.click(screen.getByRole('button', { name: /com_life_enter_house/ }));
+    fireEvent.click(screen.getByRole('button', { name: /com_life_continue_here/ }));
 
-    expect(mockNavigate).toHaveBeenCalledWith('/resume');
-    expect(mockEnter).not.toHaveBeenCalled();
+    expect(mockEnter).toHaveBeenCalledWith({ archiveName: '修文', entryHouse: 'h6' });
   });
 
   test('选择非当前领域时仍走领域入口', () => {
@@ -81,10 +81,28 @@ describe('Explorer mist map', () => {
       .map((node) => node.closest('button'))
       .find((node): node is HTMLButtonElement => node instanceof HTMLButtonElement);
     fireEvent.click(career as HTMLButtonElement);
-    fireEvent.click(screen.getByRole('button', { name: /com_life_enter_house/ }));
+    fireEvent.click(screen.getByRole('button', { name: /com_life_start_house/ }));
 
     expect(mockEnter).toHaveBeenCalledWith({ archiveName: '修文', entryHouse: 'h10' });
-    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  test('选择聊过但不是当前的领域时显示“回到这块”并恢复旧页', () => {
+    render(
+      <Explorer
+        wheel={wheel}
+        archiveName="修文"
+        domainConversations={[{ entryHouse: 'h2', conversationId: 'money-conversation' }]}
+      />,
+    );
+
+    const money = screen
+      .getAllByText('com_life_map_house_h2')
+      .map((node) => node.closest('button'))
+      .find((node): node is HTMLButtonElement => node instanceof HTMLButtonElement);
+    fireEvent.click(money as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: /com_life_return_to_house/ }));
+
+    expect(mockEnter).toHaveBeenCalledWith({ archiveName: '修文', entryHouse: 'h2' });
   });
 
   test('390px 分支保留四个可点入口，其余地块和健康留在雾里', () => {

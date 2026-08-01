@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { LifeError, LifeLoading } from '../components/PageState';
 import { useLifeResumeMutation } from '~/data-provider';
+import { isConsumed, markConsumed } from '../oneShot';
 import { useLocalize } from '~/hooks';
 import { track } from '~/utils/track';
-import { LifeError, LifeLoading } from '../components/PageState';
-import { isConsumed, markConsumed } from '../oneShot';
 
 const MAX_HANDOFF_RETRIES = 2;
 const HANDOFF_RETRY_MS = 1200;
@@ -24,6 +24,18 @@ export default function ResumeRoute() {
     track('resume_clicked');
     resume.mutate(undefined, {
       onSuccess: (result) => {
+        if (result.action === 'new' && result.replayed) {
+          if (handoffs.current < MAX_HANDOFF_RETRIES) {
+            handoffs.current += 1;
+            window.setTimeout(() => {
+              requested.current = false;
+              resume.reset();
+            }, HANDOFF_RETRY_MS);
+            return;
+          }
+          navigate('/home?new=1', { replace: true });
+          return;
+        }
         if (result.action !== 'new' || !result.operationId) {
           navigate(result.route, { replace: true });
           return;
@@ -44,7 +56,7 @@ export default function ResumeRoute() {
           }, HANDOFF_RETRY_MS);
           return;
         }
-        navigate('/c/new', { replace: true });
+        navigate('/home?new=1', { replace: true });
       },
     });
   }, [navigate, resume]);
@@ -58,7 +70,7 @@ export default function ResumeRoute() {
           requested.current = false;
           resume.reset();
         }}
-        onContinue={() => navigate('/c/new')}
+        onContinue={() => navigate('/home?new=1')}
       />
     );
   }
