@@ -1,8 +1,8 @@
 /**
  * @jest-environment @happy-dom/jest-environment
  */
-import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { LifeBootstrapResponse } from 'librechat-data-provider';
 import ReturningHome from './ReturningHome';
 
@@ -90,6 +90,7 @@ const bootstrap: LifeBootstrapResponse = {
       ],
     },
   },
+  domainConversations: [{ entryHouse: 'h6', conversationId: 'work-conversation' }],
   recommendedRoute: '/resume',
 };
 
@@ -109,20 +110,22 @@ test('renders a natural-language timeline date without crashing the returning ho
   expect(screen.getByText('com_life_trend_improving')).toBeInTheDocument();
 });
 
-test('老用户点击当前亮灯领域时恢复最近对话', () => {
+test('老用户点击当前亮灯领域时由领域入口恢复它自己的长期会话', () => {
   render(
     <MemoryRouter>
       <ReturningHome bootstrap={bootstrap} />
     </MemoryRouter>,
   );
 
-  fireEvent.click(screen.getByRole('button', { name: /com_life_enter_house/ }));
+  fireEvent.click(screen.getAllByRole('button', { name: /com_life_continue_here/ })[1]);
 
-  expect(mockNavigate).toHaveBeenCalledWith('/resume');
-  expect(mockEnter).not.toHaveBeenCalled();
+  expect(mockEnter).toHaveBeenCalledWith(
+    { archiveName: '修文测试1', entryHouse: 'h6' },
+    expect.any(Object),
+  );
 });
 
-test('老用户可从首页进入承诺屏开新存档', () => {
+test('老用户可从首页进入“说件新事”的领域选择', () => {
   render(
     <MemoryRouter>
       <ReturningHome bootstrap={bootstrap} />

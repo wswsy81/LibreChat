@@ -1,5 +1,5 @@
-import { act, render, screen } from '@testing-library/react';
 import { Tools } from 'librechat-data-provider';
+import { act, render, screen } from '@testing-library/react';
 import type { TAttachment } from 'librechat-data-provider';
 import type { LifeStanceFeedbackVariables } from '~/data-provider/Life/mutations';
 import McpUIResources from './McpUIResources';
@@ -15,6 +15,7 @@ jest.mock('~/components/MCPUIResource/lifecycle', () => ({
 }));
 jest.mock('~/Providers', () => ({
   useMessageContext: () => ({ isLatestMessage: true }),
+  useOptionalMessagesConversation: () => ({ conversationId: 'conversation-1' }),
   useOptionalMessagesOperations: () => ({ ask: jest.fn() }),
 }));
 jest.mock('react-router-dom', () => ({ useNavigate: () => jest.fn() }));
@@ -27,9 +28,15 @@ jest.mock('~/data-provider', () => ({
 const attachments: TAttachment[] = [
   {
     type: Tools.ui_resources,
+    messageId: 'message-1',
     toolCallId: 'call-1',
     [Tools.ui_resources]: [
-      { uri: 'ui://future-lines/report', mimeType: 'text/html', text: '<html></html>' },
+      {
+        resourceId: 'report-resource-1',
+        uri: 'ui://future-lines/report',
+        mimeType: 'text/html',
+        text: '<html></html>',
+      },
     ],
   } as unknown as TAttachment,
 ];

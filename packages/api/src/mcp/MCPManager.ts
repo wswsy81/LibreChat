@@ -519,6 +519,13 @@ Please follow these instructions when using tools from the respective MCP server
           params: {
             name: toolName,
             arguments: toolArguments,
+            ...(requestBody?.conversationId
+              ? {
+                  _meta: {
+                    'librechat/conversationId': String(requestBody.conversationId),
+                  },
+                }
+              : {}),
           },
         },
         CallToolResultSchema,

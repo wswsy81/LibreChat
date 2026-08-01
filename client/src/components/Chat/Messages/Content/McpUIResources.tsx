@@ -1,13 +1,15 @@
-import { useNavigate } from 'react-router-dom';
-import { Tools, trySanitizeMCPUIResource } from 'librechat-data-provider';
 import { UIResourceRenderer } from '@mcp-ui/client';
-import type { UIActionResult } from '@mcp-ui/client';
+import { Tools, trySanitizeMCPUIResource } from 'librechat-data-provider';
 import type { TAttachment, UIResource } from 'librechat-data-provider';
+import {
+  useMessageContext,
+  useOptionalMessagesConversation,
+  useOptionalMessagesOperations,
+} from '~/Providers';
 import StanceFeedbackShell from '~/features/life-design/components/StanceFeedbackShell';
+import useUIResourceAction from '~/components/MCPUIResource/useUIResourceAction';
 import { shouldRenderUIResource } from '~/components/MCPUIResource/lifecycle';
-import { useMessageContext, useOptionalMessagesOperations } from '~/Providers';
 import UIResourceCarousel from './UIResourceCarousel';
-import { handleUIAction } from '~/utils';
 
 /**
  * 人生设计室:MCP(mingli)工具的"运行 X in Y"噪音卡在 Part.tsx 里被隐藏,
@@ -26,24 +28,9 @@ export default function McpUIResources({
   inlineResourceIds?: Set<string>;
 }) {
   const { isLatestMessage } = useMessageContext();
+  const { conversationId } = useOptionalMessagesConversation();
   const { ask } = useOptionalMessagesOperations();
-  const navigate = useNavigate();
-
-  // 沙箱 iframe(存档面板等)里的链接靠 postMessage {type:'link'} 上来:
-  // 站内路径走 SPA 跳转,站外开新窗;其余动作(prompt/tool/intent)照旧交给 handleUIAction。
-  const onUIAction = async (result: UIActionResult) => {
-    if (result.type === 'link') {
-      const url = String(result.payload.url);
-      const path = url.replace(/^https?:\/\/[^/]+/, '');
-      if (path.startsWith('/')) {
-        navigate(path);
-      } else {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
-      return;
-    }
-    return handleUIAction(result, ask);
-  };
+  const onUIAction = useUIResourceAction({ ask, conversationId });
 
   const uiResources: UIResource[] = (
     attachments

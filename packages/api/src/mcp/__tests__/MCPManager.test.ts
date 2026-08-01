@@ -573,6 +573,40 @@ describe('MCPManager', () => {
       );
     });
 
+    it('should bind each tool call to its request conversation through MCP metadata', async () => {
+      const serverConfig = createServerConfigWithGraphPlaceholder();
+      mockAppConnections({
+        get: jest.fn().mockResolvedValue(mockConnection),
+      });
+      (mockRegistryInstance.getServerConfig as jest.Mock).mockResolvedValue(serverConfig);
+      const manager = await MCPManager.createInstance(newMCPServersConfig());
+
+      await manager.callTool({
+        user: mockUser as IUser,
+        serverName,
+        toolName: 'update_profile',
+        provider: 'openai',
+        requestBody: { conversationId: 'conversation-a' } as Parameters<
+          typeof manager.callTool
+        >[0]['requestBody'],
+        flowManager: mockFlowManager as unknown as Parameters<
+          typeof manager.callTool
+        >[0]['flowManager'],
+        graphTokenResolver: mockGraphTokenResolver,
+      });
+
+      expect(mockConnection.client.request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'tools/call',
+          params: expect.objectContaining({
+            _meta: { 'librechat/conversationId': 'conversation-a' },
+          }),
+        }),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
     it('should attach request OAuth handler without reprocessing resolved config', async () => {
       const rawServerConfig = {
         type: 'sse',

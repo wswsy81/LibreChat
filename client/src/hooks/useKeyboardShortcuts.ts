@@ -15,6 +15,7 @@ import {
   isMacPlatform,
   parseBinding,
 } from '~/utils/shortcuts';
+import useUnifiedShell from '~/features/life-design/hooks/useUnifiedShell';
 import { mainTextareaId, NotificationSeverity } from '~/common';
 import { useArchiveConvoMutation } from '~/data-provider';
 import { useHasAccess, useLocalize } from '~/hooks';
@@ -286,6 +287,13 @@ export type ShortcutAction = ShortcutDefinition & {
 
 const shortcutActionIds = Object.keys(shortcutDefinitions) as ShortcutActionId[];
 
+function shortcutLabelKey(actionId: ShortcutActionId, unifiedShell: boolean): string {
+  if (actionId === 'newChat' && unifiedShell) {
+    return 'com_life_new_conversation';
+  }
+  return shortcutDefinitions[actionId].labelKey;
+}
+
 function getMainScrollContainer(): Element | null {
   const end = document.getElementById('messages-end');
   let node: HTMLElement | null = end?.parentElement ?? null;
@@ -425,6 +433,7 @@ export function isOverridden(actionId: ShortcutActionId, override?: ShortcutOver
 export function useShortcutActions(): ShortcutAction[] {
   const navigate = useNavigate();
   const localize = useLocalize();
+  const { enabled: unifiedShell } = useUnifiedShell();
   const queryClient = useQueryClient();
   const { newConversation } = useNewConvo();
   const { showToast } = useToastContext();
@@ -449,11 +458,15 @@ export function useShortcutActions(): ShortcutAction[] {
   }, [setShowShortcutsDialog]);
 
   const handleNewChat = useCallback(() => {
+    if (unifiedShell) {
+      navigate('/home?new=1');
+      return true;
+    }
     clearMessagesCache(queryClient, conversation?.conversationId);
     queryClient.invalidateQueries([QueryKeys.messages]);
     newConversation();
     return true;
-  }, [queryClient, conversation?.conversationId, newConversation]);
+  }, [conversation?.conversationId, navigate, newConversation, queryClient, unifiedShell]);
 
   const handleFocusChatInput = useCallback(() => {
     const textarea = document.getElementById(mainTextareaId) as HTMLTextAreaElement | null;
@@ -797,9 +810,10 @@ export function useShortcutActions(): ShortcutAction[] {
       shortcutActionIds.map((id) => ({
         id,
         ...shortcutDefinitions[id],
+        labelKey: shortcutLabelKey(id, unifiedShell),
         run: handlers[id],
       })),
-    [handlers],
+    [handlers, unifiedShell],
   );
 }
 
@@ -842,6 +856,7 @@ export function useShortcutBindings(): {
   resetAll: () => void;
 } {
   const [overrides, setOverrides] = useRecoilState(store.customShortcuts);
+  const { enabled: unifiedShell } = useUnifiedShell();
 
   const bindings = useMemo<ShortcutBindingInfo[]>(
     () =>
@@ -854,10 +869,10 @@ export function useShortcutBindings(): {
           binding,
           isCustom: isOverridden(id, override),
           groupKey: def.groupKey,
-          labelKey: def.labelKey,
+          labelKey: shortcutLabelKey(id, unifiedShell),
         };
       }),
-    [overrides],
+    [overrides, unifiedShell],
   );
 
   const bindingMap = useMemo<Map<string, ShortcutActionId>>(() => {

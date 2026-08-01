@@ -1,6 +1,6 @@
 import copy from 'copy-to-clipboard';
-import { MemoryRouter } from 'react-router-dom';
 import { RecoilRoot, useRecoilValue } from 'recoil';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { render, act, cleanup } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { TConversation } from 'librechat-data-provider';
@@ -11,7 +11,9 @@ import useKeyboardShortcuts, {
   effectiveBinding,
   getShortcutDisplay,
   getShortcutAriaKey,
+  useShortcutBindings,
 } from './useKeyboardShortcuts';
+import useUnifiedShell from '~/features/life-design/hooks/useUnifiedShell';
 import store from '~/store';
 
 jest.mock('copy-to-clipboard', () => ({
@@ -19,13 +21,18 @@ jest.mock('copy-to-clipboard', () => ({
   default: jest.fn(() => true),
 }));
 
+const mockNewConversation = jest.fn();
+
 jest.mock('./useNewConvo', () => ({
   __esModule: true,
-  default: () => ({ newConversation: jest.fn() }),
+  default: () => ({ newConversation: mockNewConversation }),
 }));
+
+jest.mock('~/features/life-design/hooks/useUnifiedShell');
 
 const STORAGE_KEY = 'customKeyboardShortcuts';
 const copyMock = copy as jest.MockedFunction<typeof copy>;
+const mockUnifiedShell = useUnifiedShell as jest.MockedFunction<typeof useUnifiedShell>;
 
 function buildConversation(conversationId: string, title: string): TConversation {
   return { conversationId, title, endpoint: 'agents' } as TConversation;
@@ -41,12 +48,17 @@ function dispatchKey(init: KeyboardEventInit, target: EventTarget = document): K
 
 function Harness() {
   useKeyboardShortcuts();
+  const location = useLocation();
+  const { bindings } = useShortcutBindings();
   const deleteTarget = useRecoilValue(store.keyboardDeleteTarget);
   const sidebarExpanded = useRecoilValue(store.sidebarExpanded);
+  const newChat = bindings.find((binding) => binding.id === 'newChat');
   return (
     <>
       <span data-testid="delete-target">{deleteTarget?.conversationId ?? 'none'}</span>
       <span data-testid="sidebar">{String(sidebarExpanded)}</span>
+      <span data-testid="route">{`${location.pathname}${location.search}`}</span>
+      <span data-testid="new-chat-label">{newChat?.labelKey}</span>
     </>
   );
 }
@@ -71,6 +83,8 @@ function renderHarness(conversation?: TConversation, route = '/c/test-convo') {
 beforeEach(() => {
   window.localStorage.clear();
   copyMock.mockClear();
+  mockNewConversation.mockClear();
+  mockUnifiedShell.mockReturnValue({ enabled: false, isLoading: false });
 });
 
 afterEach(() => {
@@ -131,6 +145,29 @@ describe('binding resolution helpers', () => {
 });
 
 describe('global shortcut dispatch', () => {
+  it('在统一产品壳中把新聊天快捷键改为“说件新事”入口', () => {
+    mockUnifiedShell.mockReturnValue({ enabled: true, isLoading: false });
+    const { getByTestId } = renderHarness(undefined, '/c/work-conversation');
+
+    const event = dispatchKey({ key: 'o', ctrlKey: true, shiftKey: true });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(getByTestId('route').textContent).toBe('/home?new=1');
+    expect(getByTestId('new-chat-label').textContent).toBe('com_life_new_conversation');
+    expect(mockNewConversation).not.toHaveBeenCalled();
+  });
+
+  it('统一产品壳关闭时保留 LibreChat 新聊天逻辑与标签', () => {
+    const { getByTestId } = renderHarness(undefined, '/c/work-conversation');
+
+    const event = dispatchKey({ key: 'o', ctrlKey: true, shiftKey: true });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(getByTestId('route').textContent).toBe('/c/work-conversation');
+    expect(getByTestId('new-chat-label').textContent).toBe('com_ui_new_chat');
+    expect(mockNewConversation).toHaveBeenCalledTimes(1);
+  });
+
   it('runs the matched action and prevents the native event', () => {
     const { getByTestId } = renderHarness();
     const before = getByTestId('sidebar').textContent;

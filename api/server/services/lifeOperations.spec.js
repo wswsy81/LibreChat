@@ -19,6 +19,8 @@ const {
   LifeOperationPendingError,
   LifeOperation,
   LifeLock,
+  hashLifeOperationPayload,
+  finalizeLifeOperationResult,
   deleteLifeAccount,
   deleteLifeOperationState,
 } = require('./lifeOperations');
@@ -234,7 +236,7 @@ describe('runLifeOperation', () => {
     expect(executor).toHaveBeenCalledTimes(1);
   });
 
-  it('serializes concurrent tabs with different keys onto one result', async () => {
+  it('serializes concurrent tabs with different keys onto one user + house reservation', async () => {
     let calls = 0;
     const executor = jest.fn().mockImplementation(async () => {
       calls += 1;
@@ -247,7 +249,9 @@ describe('runLifeOperation', () => {
         userId: 'u1',
         operation: 'resume-create',
         idempotencyKey: key,
+        requestPayload: { entryHouse: 'h2' },
         replayWindowMs: windowMs,
+        lockScope: 'h2',
         executor,
       });
 
@@ -257,6 +261,87 @@ describe('runLifeOperation', () => {
     expect(a.operationId).toBe('op-1');
     expect(b.operationId).toBe('op-1');
     expect([a.replayed, b.replayed].sort()).toEqual([false, true]);
+  });
+
+  it('upgrades a temporary page reservation to the final conversation id for later replays', async () => {
+    const executor = jest.fn().mockResolvedValue({
+      action: 'new',
+      conversationId: null,
+      operationId: 'page-reservation',
+    });
+    const requestPayload = { entryHouse: 'h2' };
+    const replayWindowMs = 30_000;
+    await runLifeOperation({
+      userId: 'u1',
+      operation: 'domain-page',
+      idempotencyKey: 'tab-a',
+      requestPayload,
+      replayWindowMs,
+      lockScope: 'h2',
+      executor,
+    });
+
+    await finalizeLifeOperationResult({
+      userId: 'u1',
+      operation: 'domain-page',
+      requestPayload,
+      replayWindowMs,
+      result: {
+        action: 'restored',
+        conversationId: 'money-conversation',
+        route: '/c/money-conversation',
+        operationId: null,
+      },
+    });
+    const replay = await runLifeOperation({
+      userId: 'u1',
+      operation: 'domain-page',
+      idempotencyKey: 'tab-b',
+      requestPayload,
+      replayWindowMs,
+      lockScope: 'h2',
+      executor,
+    });
+
+    expect(replay).toMatchObject({
+      action: 'restored',
+      conversationId: 'money-conversation',
+      replayed: true,
+    });
+    expect(executor).toHaveBeenCalledTimes(1);
+  });
+
+  it('finalizes an in-flight prepared reservation when the canonical conversation appears', async () => {
+    const requestPayload = { entryHouse: 'h2' };
+    const requestHash = hashLifeOperationPayload(requestPayload);
+    await LifeOperation.create({
+      user: 'u1',
+      operation: 'domain-page',
+      idempotencyKey: 'tab-a',
+      operationId: 'prepared-page-reservation',
+      requestHash,
+      status: 'prepared',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    await finalizeLifeOperationResult({
+      userId: 'u1',
+      operation: 'domain-page',
+      requestPayload,
+      replayWindowMs: 30_000,
+      result: {
+        action: 'restored',
+        conversationId: 'money-conversation',
+        route: '/c/money-conversation',
+      },
+    });
+
+    const saved = await LifeOperation.findOne({ user: 'u1', idempotencyKey: 'tab-a' }).lean();
+    expect(saved).toMatchObject({
+      status: 'completed',
+      replayAcrossKeys: true,
+      result: { action: 'restored', conversationId: 'money-conversation' },
+    });
   });
 
   it('throws LIFE_OPERATION_PENDING when the lock holder never settles', async () => {
