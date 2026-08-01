@@ -7,6 +7,10 @@ const mockMessageFind = jest.fn();
 const mockLogger = { error: jest.fn() };
 const mockLifeShareLimiter = jest.fn((_req, _res, next) => next());
 const mockRunLifeOperation = jest.fn();
+const mockFinalizeLifeOperationResult = jest.fn();
+const mockHashLifeOperationPayload = jest.fn((value) =>
+  require('crypto').createHash('sha256').update(JSON.stringify(value)).digest('hex'),
+);
 const mockApplyRuntimeConfig = jest.fn();
 const mockReadRedactedPolicyBundle = jest.fn();
 
@@ -44,6 +48,8 @@ jest.mock('~/server/middleware/limiters', () => ({
 }));
 jest.mock('~/server/services/lifeOperations', () => ({
   runLifeOperation: (...args) => mockRunLifeOperation(...args),
+  finalizeLifeOperationResult: (...args) => mockFinalizeLifeOperationResult(...args),
+  hashLifeOperationPayload: (...args) => mockHashLifeOperationPayload(...args),
   LifeOperationPendingError: class LifeOperationPendingError extends Error {},
   LifeOperationConflictError: class LifeOperationConflictError extends Error {},
 }));
@@ -86,9 +92,12 @@ function buildApp(user) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockEngine.json.mockReset();
+  mockEngine.text.mockReset();
   mockConversationFind.mockReturnValue(conversationQuery([]));
   mockMessageFind.mockReturnValue(messageQuery([]));
   mockReadRedactedPolicyBundle.mockResolvedValue({ runtime: {}, security: {} });
+  mockFinalizeLifeOperationResult.mockResolvedValue({ updated: 0 });
   mockRunLifeOperation.mockImplementation(async ({ executor, operation }) => ({
     ...(await executor({
       operationId: `operation-${operation}`,
@@ -354,6 +363,21 @@ test('authenticated bootstrap merges archive state with the latest valid convers
   );
 });
 
+test('authenticated bootstrap 读取权威状态失败时返回可重试 503，不推荐首页猜测', async () => {
+  mockEngine.json.mockRejectedValueOnce(new Error('engine unavailable'));
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' })).get(
+    '/api/life/bootstrap',
+  );
+
+  expect(response.status).toBe(503);
+  expect(response.body).toMatchObject({
+    profileState: 'unavailable',
+    recommendedRoute: null,
+    error: { code: 'PROFILE_UNAVAILABLE', retryable: true },
+  });
+});
+
 test('authenticated bootstrap restores a two-message conversation whose assistant content is structured', async () => {
   mockEngine.json.mockResolvedValue({
     profileState: 'ready',
@@ -392,6 +416,11 @@ test('authenticated bootstrap restores a two-message conversation whose assistan
 });
 
 test('authenticated bootstrap restores a two-message conversation whose assistant content is a resource', async () => {
+  mockEngine.json.mockResolvedValue({
+    profileState: 'ready',
+    hasSubstantiveProfile: true,
+    summary: {},
+  });
   mockConversationFind.mockReturnValue(
     conversationQuery([
       {
@@ -620,7 +649,12 @@ test('onboarding accepts archiveName + entryHouse and returns a one-time house t
     expect.objectContaining({ body: { archiveName: '张东', entryHouse: 'h10' } }),
   );
   expect(mockRunLifeOperation).toHaveBeenCalledWith(
-    expect.objectContaining({ operation: 'onboarding', replayWindowMs: 30_000 }),
+    expect.objectContaining({
+      operation: 'domain-page',
+      requestPayload: { entryHouse: 'h10' },
+      lockScope: 'h10',
+      replayWindowMs: 30_000,
+    }),
   );
 
   const legacy = await request(app)
@@ -680,7 +714,14 @@ test('cached current-house entry restores latest substantive conversation', asyn
     route: '/c/conversation-real',
     entryEvent: { kind: 'house_entered', entryHouse: 'h6', visitMode: 'continue' },
   });
-  expect(mockRunLifeOperation).toHaveBeenCalledTimes(1);
+  expect(mockRunLifeOperation).not.toHaveBeenCalled();
+  expect(mockFinalizeLifeOperationResult).toHaveBeenCalledWith(
+    expect.objectContaining({
+      operation: 'domain-page',
+      requestPayload: { entryHouse: 'h6' },
+      result: expect.objectContaining({ conversationId: 'conversation-real' }),
+    }),
+  );
   expect(mockEngine.json).toHaveBeenCalledTimes(2);
   expect(mockEngine.json).toHaveBeenCalledWith('/internal/bootstrap', { userId: 'user-1' });
   expect(mockEngine.json).toHaveBeenCalledWith(
@@ -741,19 +782,9 @@ test('entering an older domain activates it and restores that domain instead of 
   });
 });
 
-test('onboarding falls back to the original house entry path when bootstrap is unavailable', async () => {
+test('onboarding 在权威 bootstrap 不可用时 fail-closed，不猜领域也不写入', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
-  mockEngine.json.mockRejectedValueOnce(new Error('bootstrap unavailable')).mockResolvedValueOnce({
-    ok: true,
-    profileVersion: 'v1',
-    applied: 1,
-    entryEvent: {
-      kind: 'house_entered',
-      entryHouse: 'h6',
-      visitMode: 'return_entry',
-      at: '2026-07-30T03:50:00.000Z',
-    },
-  });
+  mockEngine.json.mockRejectedValueOnce(new Error('bootstrap unavailable'));
 
   const response = await request(app)
     .post('/api/life/onboarding')
@@ -763,19 +794,105 @@ test('onboarding falls back to the original house entry path when bootstrap is u
       entryHouse: 'h6',
     });
 
-  expect(response.status).toBe(200);
-  expect(response.body.entryEvent).toMatchObject({
-    kind: 'house_entered',
-    entryHouse: 'h6',
-    visitMode: 'return_entry',
+  expect(response.status).toBe(503);
+  expect(response.body.error).toMatchObject({
+    code: 'LIFE_ENGINE_UNAVAILABLE',
+    retryable: true,
   });
-  expect(mockRunLifeOperation).toHaveBeenCalledTimes(1);
+  expect(mockRunLifeOperation).not.toHaveBeenCalled();
   expect(mockEngine.json).toHaveBeenNthCalledWith(1, '/internal/bootstrap', { userId: 'user-1' });
-  expect(mockEngine.json).toHaveBeenNthCalledWith(
-    2,
-    '/internal/onboarding',
-    expect.objectContaining({ body: { archiveName: '张东', entryHouse: 'h6' } }),
-  );
+  expect(mockEngine.json).toHaveBeenCalledTimes(1);
+});
+
+test('30 秒 reservation 重放仍逐次执行领域激活，h2→h6→h2 不留下错误 activeHouse', async () => {
+  const app = buildApp({ id: 'user-1', name: '张东' });
+  mockRunLifeOperation.mockResolvedValue({
+    action: 'new',
+    conversationId: null,
+    prompt: '[trigger:house_entered]',
+    route: '/c/new?q=shared',
+    operationId: 'shared-page-reservation',
+    replayed: true,
+  });
+  mockEngine.json.mockImplementation(async (pathname, options) => {
+    if (pathname === '/internal/bootstrap') {
+      return { activeHouse: options?.body?.entryHouse || null, houseSessions: [] };
+    }
+    if (pathname === '/internal/onboarding') {
+      return {
+        ok: true,
+        entryEvent: {
+          kind: 'house_entered',
+          entryHouse: options.body.entryHouse,
+          visitMode: 'return_entry',
+          at: '2026-08-01T12:00:00.000Z',
+        },
+      };
+    }
+    throw new Error(`unexpected path:${pathname}`);
+  });
+
+  for (const [index, entryHouse] of ['h2', 'h6', 'h2'].entries()) {
+    const response = await request(app)
+      .post('/api/life/onboarding')
+      .set('Idempotency-Key', `domain-switch-${index}`)
+      .send({ archiveName: '同一档案', entryHouse });
+    expect(response.status).toBe(200);
+    expect(response.body.entryEvent.entryHouse).toBe(entryHouse);
+  }
+
+  const activations = mockEngine.json.mock.calls
+    .filter(([pathname]) => pathname === '/internal/onboarding')
+    .map(([, options]) => options.body.entryHouse);
+  expect(activations).toEqual(['h2', 'h6', 'h2']);
+  expect(mockRunLifeOperation).toHaveBeenCalledTimes(3);
+});
+
+test('同一幂等键改换领域时由 Engine 在激活前拒绝，不留下错误 activeHouse', async () => {
+  const app = buildApp({ id: 'user-1', name: '张东' });
+  const { LifeEngineError } = require('@librechat/api');
+  let receipt = null;
+  let activeHouse = null;
+  const activationIds = [];
+  mockEngine.json.mockImplementation(async (pathname, options) => {
+    if (pathname === '/internal/bootstrap') {
+      return { activeHouse, houseSessions: [] };
+    }
+    if (pathname !== '/internal/onboarding') throw new Error(`unexpected path:${pathname}`);
+    activationIds.push(options.operation.id);
+    if (receipt && receipt.requestHash !== options.operation.requestHash) {
+      throw new LifeEngineError(409, 'operation conflict', {
+        error: { code: 'LIFE_OPERATION_CONFLICT', retryable: false },
+      });
+    }
+    receipt = options.operation;
+    activeHouse = options.body.entryHouse;
+    return {
+      ok: true,
+      entryEvent: {
+        kind: 'house_entered',
+        entryHouse: activeHouse,
+        visitMode: 'first_entry',
+        at: '2026-08-01T12:00:00.000Z',
+      },
+    };
+  });
+
+  const first = await request(app)
+    .post('/api/life/onboarding')
+    .set('Idempotency-Key', 'same-domain-key')
+    .send({ archiveName: '同一档案', entryHouse: 'h2' });
+  const conflict = await request(app)
+    .post('/api/life/onboarding')
+    .set('Idempotency-Key', 'same-domain-key')
+    .send({ archiveName: '同一档案', entryHouse: 'h6' });
+
+  expect(first.status).toBe(200);
+  expect(conflict.status).toBe(409);
+  expect(conflict.body.error).toMatchObject({ code: 'LIFE_OPERATION_CONFLICT', retryable: false });
+  expect(activationIds[0]).toBe(activationIds[1]);
+  expect(activeHouse).toBe('h2');
+  expect(mockRunLifeOperation).toHaveBeenCalledTimes(1);
 });
 
 test('resume restores an existing conversation and only creates D-mode when none exists', async () => {
@@ -799,6 +916,21 @@ test('resume restores an existing conversation and only creates D-mode when none
   expect(mockRunLifeOperation).toHaveBeenCalledWith(
     expect.objectContaining({ operation: 'resume-create', replayWindowMs: 30_000 }),
   );
+});
+
+test('resume 在权威 bootstrap 失败时 fail-closed，即使本地最新会话属于另一领域', async () => {
+  mockConversationFind.mockReturnValue(
+    conversationQuery([{ conversationId: 'stale-money-conversation' }]),
+  );
+  mockEngine.json.mockRejectedValueOnce(new Error('bootstrap unavailable'));
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' }))
+    .post('/api/life/resume')
+    .set('Idempotency-Key', 'resume-bootstrap-down');
+
+  expect(response.status).toBe(503);
+  expect(response.body.error.code).toBe('LIFE_ENGINE_UNAVAILABLE');
+  expect(mockRunLifeOperation).not.toHaveBeenCalled();
 });
 
 test('resume follows the active domain and never falls through to another domain', async () => {

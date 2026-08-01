@@ -1,6 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const { createHmac } = require('crypto');
+const { createHash, createHmac } = require('crypto');
 const path = require('path');
 const {
   applyRulesConfig,
@@ -22,6 +22,8 @@ const optionalJwtAuth = require('~/server/middleware/optionalJwtAuth');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const {
   runLifeOperation,
+  finalizeLifeOperationResult,
+  hashLifeOperationPayload,
   LifeOperationPendingError,
   LifeOperationConflictError,
 } = require('~/server/services/lifeOperations');
@@ -35,6 +37,7 @@ const engine = createLifeEngineClient({
 });
 const runtimeConfigDir = process.env.RUNTIME_CONFIG_DIR || path.resolve('/app/runtime-config');
 const DOMAIN_CREATION_REPLAY_WINDOW_MS = 30_000;
+const DOMAIN_PAGE_OPERATION = 'domain-page';
 
 const noStore = (_req, res, next) => {
   res.set({
@@ -217,8 +220,7 @@ function activeDomainConversation(bootstrap, conversations) {
   return domains[0] || conversations?.[0] || null;
 }
 
-function activeHouseEntry(bootstrap) {
-  const entryHouse = currentLanternHouse(bootstrap) || bootstrap?.activeHouse;
+function houseEntryForHouse(bootstrap, entryHouse) {
   if (!lifeHouseIds().has(entryHouse)) return null;
   const sessions = Array.isArray(bootstrap?.houseSessions) ? bootstrap.houseSessions : [];
   const session = sessions.find((item) => item?.entryHouse === entryHouse);
@@ -227,6 +229,10 @@ function activeHouseEntry(bootstrap) {
     entryHouse,
     visitMode: session.stopPoint ? 'continue' : 'return_entry',
   };
+}
+
+function activeHouseEntry(bootstrap) {
+  return houseEntryForHouse(bootstrap, currentLanternHouse(bootstrap) || bootstrap?.activeHouse);
 }
 
 const SHARE_TOKEN_SECRET =
@@ -244,6 +250,31 @@ function idempotencyKeyOf(req, res) {
     return null;
   }
   return key;
+}
+
+function deterministicOperationId(parts) {
+  const hex = createHash('sha256')
+    .update(JSON.stringify(parts))
+    .digest('hex')
+    .slice(0, 32)
+    .split('');
+  hex[12] = '4';
+  hex[16] = ['8', '9', 'a', 'b'][Number.parseInt(hex[16], 16) % 4];
+  const joined = hex.join('');
+  return `${joined.slice(0, 8)}-${joined.slice(8, 12)}-${joined.slice(12, 16)}-${joined.slice(16, 20)}-${joined.slice(20)}`;
+}
+
+async function activateDomain({ id, idempotencyKey, body }) {
+  return engine.json('/internal/onboarding', {
+    userId: id,
+    method: 'POST',
+    body,
+    operation: {
+      id: deterministicOperationId(['domain-activation', id, idempotencyKey]),
+      name: 'onboarding',
+      requestHash: hashLifeOperationPayload(body),
+    },
+  });
 }
 
 const STANCE_FEEDBACK_FIELDS = [
@@ -516,12 +547,12 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
     });
   } catch (error) {
     logger.error('[life] bootstrap failed', error);
-    return res.status(200).json({
+    return res.status(503).json({
       authenticated: true,
       user: { id, name: req.user.name || '朋友', email: req.user.email || null },
       profileState: 'unavailable',
       hasSubstantiveProfile: null,
-      recommendedRoute: '/home',
+      recommendedRoute: null,
       error: { code: 'PROFILE_UNAVAILABLE', message: '人生存档暂时读取失败', retryable: true },
     });
   }
@@ -585,8 +616,12 @@ router.post('/onboarding', async (req, res) => {
   };
   try {
     const id = userId(req);
+    const replayWindowMs = Math.min(
+      runtimeApiPolicy().resumeReplayWindowMs,
+      DOMAIN_CREATION_REPLAY_WINDOW_MS,
+    );
     const [bootstrap, conversations] = await Promise.all([
-      engine.json('/internal/bootstrap', { userId: id }).catch(() => null),
+      engine.json('/internal/bootstrap', { userId: id }),
       recentLifeConversations(id),
     ]);
     const completeConversations = await includeHouseSessionConversations(
@@ -595,44 +630,70 @@ router.post('/onboarding', async (req, res) => {
       conversations,
     );
     const conversation = domainConversationForHouse(bootstrap, completeConversations, entryHouse);
+    const activation = await activateDomain({ id, idempotencyKey: key, body });
+    if (!validEntryEvent(activation?.entryEvent, entryHouse)) {
+      throw new LifeEngineError(502, 'future-engine 返回无效 house_entered 事件', {
+        error: {
+          code: 'INVALID_ENTRY_EVENT',
+          message: '人生领域入口暂时不可用',
+          retryable: true,
+        },
+      });
+    }
+    const reservationPayload = { entryHouse };
+    if (conversation?.conversationId) {
+      const page = {
+        action: 'restored',
+        conversationId: conversation.conversationId,
+        prompt: '',
+        route: `/c/${conversation.conversationId}`,
+        operationId: null,
+      };
+      await finalizeLifeOperationResult({
+        userId: id,
+        operation: DOMAIN_PAGE_OPERATION,
+        requestPayload: reservationPayload,
+        result: page,
+        replayWindowMs,
+      });
+      return res.json({ ...activation, ...page });
+    }
+    const prompt = houseEntryPrompt(
+      activation.entryEvent.entryHouse,
+      activation.entryEvent.visitMode,
+    );
     const outcome = await runLifeOperation({
       userId: id,
-      operation: 'onboarding',
+      operation: DOMAIN_PAGE_OPERATION,
       idempotencyKey: key,
-      requestPayload: body,
-      replayWindowMs: Math.min(
-        runtimeApiPolicy().resumeReplayWindowMs,
-        DOMAIN_CREATION_REPLAY_WINDOW_MS,
-      ),
-      executor: async ({ operationId, requestHash }) => {
-        const result = await engine.json('/internal/onboarding', {
-          userId: id,
-          method: 'POST',
-          body,
-          operation: { id: operationId, name: 'onboarding', requestHash },
-        });
-        if (!validEntryEvent(result?.entryEvent, entryHouse)) {
-          throw new LifeEngineError(502, 'future-engine 返回无效 house_entered 事件', {
-            error: {
-              code: 'INVALID_ENTRY_EVENT',
-              message: '人生领域入口暂时不可用',
-              retryable: true,
-            },
-          });
-        }
-        if (conversation?.conversationId) {
+      requestPayload: reservationPayload,
+      replayWindowMs,
+      lockScope: entryHouse,
+      executor: async ({ operationId }) => {
+        const [latestBootstrap, latestConversations] = await Promise.all([
+          engine.json('/internal/bootstrap', { userId: id }),
+          recentLifeConversations(id),
+        ]);
+        const completeLatestConversations = await includeHouseSessionConversations(
+          id,
+          latestBootstrap,
+          latestConversations,
+        );
+        const recheck = domainConversationForHouse(
+          latestBootstrap,
+          completeLatestConversations,
+          entryHouse,
+        );
+        if (recheck?.conversationId) {
           return {
-            ...result,
             action: 'restored',
-            conversationId: conversation.conversationId,
+            conversationId: recheck.conversationId,
             prompt: '',
-            route: `/c/${conversation.conversationId}`,
+            route: `/c/${recheck.conversationId}`,
             operationId: null,
           };
         }
-        const prompt = houseEntryPrompt(result.entryEvent.entryHouse, result.entryEvent.visitMode);
         return {
-          ...result,
           action: 'new',
           conversationId: null,
           prompt,
@@ -641,7 +702,7 @@ router.post('/onboarding', async (req, res) => {
         };
       },
     });
-    return res.json(outcome);
+    return res.json({ ...activation, ...outcome });
   } catch (error) {
     return engineError(res, error);
   }
@@ -654,8 +715,12 @@ router.post('/resume', async (req, res) => {
   }
   try {
     const id = userId(req);
+    const replayWindowMs = Math.min(
+      runtimeApiPolicy().resumeReplayWindowMs,
+      DOMAIN_CREATION_REPLAY_WINDOW_MS,
+    );
     const [bootstrap, conversations] = await Promise.all([
-      engine.json('/internal/bootstrap', { userId: id }).catch(() => null),
+      engine.json('/internal/bootstrap', { userId: id }),
       recentLifeConversations(id),
     ]);
     const completeConversations = await includeHouseSessionConversations(
@@ -663,27 +728,40 @@ router.post('/resume', async (req, res) => {
       bootstrap,
       conversations,
     );
-    const conversation = activeDomainConversation(bootstrap, completeConversations);
+    const entry = activeHouseEntry(bootstrap);
+    const targetHouse = entry?.entryHouse || null;
+    const reservationOperation = targetHouse ? DOMAIN_PAGE_OPERATION : 'resume-create';
+    const reservationPayload = targetHouse
+      ? { entryHouse: targetHouse }
+      : { action: 'resume-create', entryHouse: null };
+    const conversation = targetHouse
+      ? domainConversationForHouse(bootstrap, completeConversations, targetHouse)
+      : activeDomainConversation(bootstrap, completeConversations);
     if (conversation?.conversationId) {
-      return res.json({
+      const page = {
         action: 'restored',
         conversationId: conversation.conversationId,
         route: `/c/${conversation.conversationId}`,
+      };
+      await finalizeLifeOperationResult({
+        userId: id,
+        operation: reservationOperation,
+        requestPayload: reservationPayload,
+        result: page,
+        replayWindowMs,
       });
+      return res.json(page);
     }
     const outcome = await runLifeOperation({
       userId: id,
-      operation: 'resume-create',
+      operation: reservationOperation,
       idempotencyKey: key,
-      requestPayload: { action: 'resume-create' },
-      replayWindowMs: Math.min(
-        runtimeApiPolicy().resumeReplayWindowMs,
-        DOMAIN_CREATION_REPLAY_WINDOW_MS,
-      ),
-      persistIf: (result) => result.action === 'new',
+      requestPayload: reservationPayload,
+      replayWindowMs,
+      lockScope: targetHouse || 'unscoped',
       executor: async ({ operationId }) => {
         const [latestBootstrap, latestConversations] = await Promise.all([
-          engine.json('/internal/bootstrap', { userId: id }).catch(() => null),
+          engine.json('/internal/bootstrap', { userId: id }),
           recentLifeConversations(id),
         ]);
         const completeLatestConversations = await includeHouseSessionConversations(
@@ -691,7 +769,9 @@ router.post('/resume', async (req, res) => {
           latestBootstrap,
           latestConversations,
         );
-        const recheck = activeDomainConversation(latestBootstrap, completeLatestConversations);
+        const recheck = targetHouse
+          ? domainConversationForHouse(latestBootstrap, completeLatestConversations, targetHouse)
+          : activeDomainConversation(latestBootstrap, completeLatestConversations);
         if (recheck?.conversationId) {
           return {
             action: 'restored',
@@ -699,9 +779,11 @@ router.post('/resume', async (req, res) => {
             route: `/c/${recheck.conversationId}`,
           };
         }
-        const entry = activeHouseEntry(latestBootstrap);
-        const prompt = entry
-          ? houseEntryPrompt(entry.entryHouse, entry.visitMode)
+        const latestEntry = targetHouse
+          ? houseEntryForHouse(latestBootstrap, targetHouse)
+          : activeHouseEntry(latestBootstrap);
+        const prompt = latestEntry
+          ? houseEntryPrompt(latestEntry.entryHouse, latestEntry.visitMode)
           : '[trigger:session_resumed] 我回来了。先读回我的人生存档，看看上次聊到哪、这段时间哪些变了，从那儿接着聊。';
         return {
           action: 'new',

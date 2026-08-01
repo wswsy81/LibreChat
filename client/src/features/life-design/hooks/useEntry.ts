@@ -26,7 +26,7 @@ export default function useHouseEntry() {
             handoffTimer.current = window.setTimeout(() => submitEntry(payload), HANDOFF_RETRY_MS);
             return;
           }
-          navigate('/home?new=1', { replace: true });
+          navigate('/resume', { replace: true });
           return;
         }
         clearStoredEntryHouse();

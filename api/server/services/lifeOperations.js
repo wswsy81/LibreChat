@@ -149,6 +149,7 @@ async function runLifeOperation({
   replayWindowMs = 0,
   persistIf,
   executor,
+  lockScope = null,
   attempt = 0,
 }) {
   const requestHash = hashLifeOperationPayload(requestPayload);
@@ -164,7 +165,9 @@ async function runLifeOperation({
   }
 
   const requestId = randomUUID();
-  const lockKey = `life:${operation}:${userId}`;
+  const lockSuffix =
+    lockScope == null ? '' : `:${hashLifeOperationPayload(lockScope).slice(0, 16)}`;
+  const lockKey = `life:${operation}:${userId}${lockSuffix}`;
   const acquired = await acquireLock(lockKey, requestId);
   if (!acquired) {
     const policy = runtimeApiPolicy();
@@ -190,6 +193,7 @@ async function runLifeOperation({
         replayWindowMs,
         persistIf,
         executor,
+        lockScope,
         attempt: attempt + 1,
       });
     }
@@ -273,6 +277,35 @@ async function runLifeOperation({
   }
 }
 
+async function finalizeLifeOperationResult({
+  userId,
+  operation,
+  requestPayload = null,
+  result,
+  replayWindowMs = DAY_MS,
+}) {
+  const requestHash = hashLifeOperationPayload(requestPayload);
+  const updated = await LifeOperation.updateMany(
+    {
+      user: userId,
+      operation,
+      requestHash,
+      status: { $in: ['prepared', 'completed'] },
+      createdAt: { $gte: new Date(Date.now() - replayWindowMs) },
+    },
+    {
+      $set: {
+        status: 'completed',
+        result,
+        replayAcrossKeys: true,
+        completedAt: new Date(),
+        expiresAt: new Date(Date.now() + DAY_MS),
+      },
+    },
+  );
+  return { updated: updated.modifiedCount || 0 };
+}
+
 async function deleteLifeAccount(userId, deleteLibreChatData = async () => {}) {
   return runLifeOperation({
     userId,
@@ -298,7 +331,7 @@ function escapeRegex(value) {
 async function deleteLifeOperationState(userId) {
   const [operations, locks] = await Promise.all([
     LifeOperation.deleteMany({ user: userId }),
-    LifeLock.deleteMany({ key: { $regex: `^life:.*:${escapeRegex(userId)}$` } }),
+    LifeLock.deleteMany({ key: { $regex: `^life:.*:${escapeRegex(userId)}(?::.*)?$` } }),
   ]);
   return {
     operations: operations.deletedCount || 0,
@@ -313,6 +346,7 @@ module.exports = {
   LifeOperation,
   LifeLock,
   hashLifeOperationPayload,
+  finalizeLifeOperationResult,
   deleteLifeAccount,
   deleteLifeOperationState,
 };

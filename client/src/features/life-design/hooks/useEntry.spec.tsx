@@ -150,3 +150,39 @@ test('a replayed new-page result waits for the first tab instead of creating a d
   unmount();
   jest.useRealTimers();
 });
+
+test('replayed reservation 超过受控重试后转入权威 resume，不退回首页猜测', () => {
+  jest.useFakeTimers();
+  const { result, unmount } = renderHook(() => useHouseEntry());
+  const replay: LifeOnboardingResponse = {
+    ok: true,
+    profileVersion: 'v2',
+    applied: 0,
+    action: 'new' as const,
+    conversationId: null,
+    entryEvent: {
+      kind: 'house_entered' as const,
+      entryHouse: 'h2',
+      visitMode: 'first_entry' as const,
+      at: '2026-08-01T12:00:00.000Z',
+    },
+    prompt: '[trigger:house_entered]',
+    route: '/c/new?prompt=money',
+    operationId: 'shared-operation',
+    replayed: true,
+  };
+
+  act(() => result.current.enterHouse({ archiveName: '修文', entryHouse: 'h2' }));
+  for (let index = 0; index < 4; index += 1) {
+    const callbacks = mockMutate.mock.calls[index][1] as {
+      onSuccess: (response: LifeOnboardingResponse) => void;
+    };
+    act(() => callbacks.onSuccess(replay));
+    if (index < 3) act(() => jest.advanceTimersByTime(900));
+  }
+
+  expect(mockNavigate).toHaveBeenCalledWith('/resume', { replace: true });
+  expect(mockNavigate).not.toHaveBeenCalledWith('/home?new=1', { replace: true });
+  unmount();
+  jest.useRealTimers();
+});
