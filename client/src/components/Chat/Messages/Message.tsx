@@ -1,6 +1,7 @@
 import React from 'react';
 import { useMessageProcess, useMemoizedChatContext } from '~/hooks';
 import type { TMessageProps } from '~/common';
+import { isNativeFirstEntryTrigger } from '~/utils/triggerTag';
 import MessageRender from './ui/MessageRender';
 import MultiMessage from './MultiMessage';
 
@@ -34,6 +35,19 @@ export default function Message(props: TMessageProps) {
   }
 
   const { children, messageId = null } = message;
+  const childMessages = children ?? [];
+
+  if (message.isCreatedByUser && isNativeFirstEntryTrigger(message.text ?? '')) {
+    return (
+      <MultiMessage
+        messageId={messageId}
+        conversation={conversation}
+        messagesTree={childMessages}
+        currentEditId={currentEditId}
+        setCurrentEditId={setCurrentEditId}
+      />
+    );
+  }
 
   return (
     <>
@@ -49,7 +63,7 @@ export default function Message(props: TMessageProps) {
       <MultiMessage
         messageId={messageId}
         conversation={conversation}
-        messagesTree={children ?? []}
+        messagesTree={childMessages}
         currentEditId={currentEditId}
         setCurrentEditId={setCurrentEditId}
       />

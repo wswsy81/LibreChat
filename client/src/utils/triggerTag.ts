@@ -38,3 +38,8 @@ export function stripTriggerTag(
 export function isTriggerMessage(text: string): boolean {
   return TRIGGER_PREFIX.test(text);
 }
+
+export function isNativeFirstEntryTrigger(text: string): boolean {
+  const houseEntry = text.match(HOUSE_ENTRY_TRIGGER);
+  return houseEntry?.[2] === 'first_entry' && HOUSE_ID.test(houseEntry[1]);
+}
