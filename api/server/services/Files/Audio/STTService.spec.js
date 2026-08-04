@@ -2,9 +2,7 @@
 jest.mock('axios');
 jest.mock('form-data');
 jest.mock('https-proxy-agent');
-jest.mock('@librechat/data-schemas', () => ({ logger: { warn: jest.fn(), error: jest.fn() } }), {
-  virtual: true,
-});
+jest.mock('@librechat/data-schemas', () => ({ logger: { warn: jest.fn(), error: jest.fn() } }));
 jest.mock(
   '@librechat/api',
   () => ({
@@ -13,7 +11,6 @@ jest.mock(
     applyAxiosProxyConfig: jest.fn(),
     transcribeWithVolcengine: jest.fn(),
   }),
-  { virtual: true },
 );
 jest.mock(
   'librechat-data-provider',
@@ -25,7 +22,6 @@ jest.mock(
       VOLCENGINE: 'volcengine',
     },
   }),
-  { virtual: true },
 );
 jest.mock('~/server/services/Config', () => ({ getAppConfig: jest.fn() }));
 
