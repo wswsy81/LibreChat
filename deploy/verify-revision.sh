@@ -6,10 +6,23 @@ REQUESTED=${2:-HEAD}
 LABEL=${3:-revision}
 MODE=${4:-active-head}
 
-[[ -d "$REPO/.git" || -f "$REPO/.git" ]] || {
+SOURCE_DIR=$(cd -- "$REPO" 2>/dev/null && pwd -P) || {
+  echo "$LABEL source directory does not exist: $REPO" >&2
+  exit 1
+}
+GIT_ROOT=$(git -C "$SOURCE_DIR" rev-parse --show-toplevel 2>/dev/null) || {
   echo "$LABEL source is not a Git checkout: $REPO" >&2
   exit 1
 }
+GIT_ROOT=$(cd -- "$GIT_ROOT" && pwd -P)
+if [[ "$SOURCE_DIR" != "$GIT_ROOT" ]]; then
+  SOURCE_RELATIVE=${SOURCE_DIR#"$GIT_ROOT"/}
+  [[ -n "$(git -C "$GIT_ROOT" ls-files -- "$SOURCE_RELATIVE/" | sed -n '1p')" ]] || {
+    echo "$LABEL source is not tracked in its Git checkout: $REPO" >&2
+    exit 1
+  }
+fi
+REPO=$GIT_ROOT
 
 RESOLVED=$(git -C "$REPO" rev-parse --verify "$REQUESTED^{commit}" 2>/dev/null) || {
   echo "$LABEL does not exist: $REQUESTED" >&2

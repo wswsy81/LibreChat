@@ -241,6 +241,23 @@ bash "$SCRIPT_DIR/verify-revision.sh" "$REVISION_REPO" deadbeef test_revision >/
 missing_status=$?
 set -e
 [[ $missing_status -ne 0 ]]
+
+NESTED_REVISION_REPO="$TEST_ROOT/nested-revision"
+mkdir -p "$NESTED_REVISION_REPO/projects/未来线/future-engine"
+printf 'nested engine\n' > "$NESTED_REVISION_REPO/projects/未来线/future-engine/source.txt"
+for index in {1..128}; do
+  printf 'nested engine %s\n' "$index" > "$NESTED_REVISION_REPO/projects/未来线/future-engine/source-$index.txt"
+done
+init_pushed_repo "$NESTED_REVISION_REPO" "$TEST_ROOT/nested-revision-origin.git"
+bash "$SCRIPT_DIR/verify-revision.sh" "$NESTED_REVISION_REPO/projects/未来线/future-engine" HEAD nested_revision >/dev/null
+mkdir -p "$NESTED_REVISION_REPO/untracked-engine"
+printf 'untracked\n' > "$NESTED_REVISION_REPO/untracked-engine/source.txt"
+set +e
+bash "$SCRIPT_DIR/verify-revision.sh" "$NESTED_REVISION_REPO/untracked-engine" HEAD nested_revision >/dev/null 2>&1
+untracked_nested_status=$?
+set -e
+[[ $untracked_nested_status -ne 0 ]]
+
 printf 'two\n' >> "$REVISION_REPO/file"
 git -C "$REVISION_REPO" add file && git -C "$REVISION_REPO" commit -m unpushed >/dev/null
 bash "$SCRIPT_DIR/verify-revision.sh" "$REVISION_REPO" "$PUSHED_REVISION" test_revision pushed >/dev/null
