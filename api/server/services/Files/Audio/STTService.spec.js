@@ -3,26 +3,20 @@ jest.mock('axios');
 jest.mock('form-data');
 jest.mock('https-proxy-agent');
 jest.mock('@librechat/data-schemas', () => ({ logger: { warn: jest.fn(), error: jest.fn() } }));
-jest.mock(
-  '@librechat/api',
-  () => ({
-    genAzureEndpoint: jest.fn(),
-    logAxiosError: jest.fn(),
-    applyAxiosProxyConfig: jest.fn(),
-    transcribeWithVolcengine: jest.fn(),
-  }),
-);
-jest.mock(
-  'librechat-data-provider',
-  () => ({
-    extractEnvVariable: jest.fn((value) => value),
-    STTProviders: {
-      OPENAI: 'openai',
-      AZURE_OPENAI: 'azureOpenAI',
-      VOLCENGINE: 'volcengine',
-    },
-  }),
-);
+jest.mock('@librechat/api', () => ({
+  genAzureEndpoint: jest.fn(),
+  logAxiosError: jest.fn(),
+  applyAxiosProxyConfig: jest.fn(),
+  transcribeWithVolcengine: jest.fn(),
+}));
+jest.mock('librechat-data-provider', () => ({
+  extractEnvVariable: jest.fn((value) => value),
+  STTProviders: {
+    OPENAI: 'openai',
+    AZURE_OPENAI: 'azureOpenAI',
+    VOLCENGINE: 'volcengine',
+  },
+}));
 jest.mock('~/server/services/Config', () => ({ getAppConfig: jest.fn() }));
 
 const { transcribeWithVolcengine } = require('@librechat/api');
