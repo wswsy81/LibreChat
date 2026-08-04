@@ -194,9 +194,11 @@ BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # 普通构建，只影响速度，不影响不可变产物。
 BUILD_CACHE_AVAILABLE=false
 if [[ "$DOCKER_BUILDKIT" != 0 ]] && "${DOCKER[@]}" buildx version >/dev/null 2>&1; then
-  BUILDX_DRIVER=$("${DOCKER[@]}" buildx inspect --bootstrap 2>/dev/null | awk -F: '$1 == "Driver" { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit }')
-  if [[ -n "$BUILDX_DRIVER" && "$BUILDX_DRIVER" != docker ]]; then
-    BUILD_CACHE_AVAILABLE=true
+  BUILDX_DRIVER=
+  if BUILDX_DRIVER=$("${DOCKER[@]}" buildx inspect --bootstrap 2>/dev/null | awk -F: '$1 == "Driver" { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit }'); then
+    if [[ -n "$BUILDX_DRIVER" && "$BUILDX_DRIVER" != docker ]]; then
+      BUILD_CACHE_AVAILABLE=true
+    fi
   fi
 fi
 

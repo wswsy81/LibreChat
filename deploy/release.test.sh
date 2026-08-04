@@ -64,7 +64,10 @@ case "${1:-}" in
   buildx)
     case "${2:-}" in
       version) [[ "${FAKE_BUILDX_AVAILABLE:-0}" == 1 ]] ;;
-      inspect) printf 'Name: test-builder\nDriver: %s\n' "${FAKE_BUILDX_DRIVER:-docker}" ;;
+      inspect)
+        [[ "${FAKE_BUILDX_INSPECT_FAIL:-0}" != 1 ]] || exit 1
+        printf 'Name: test-builder\nDriver: %s\n' "${FAKE_BUILDX_DRIVER:-docker}"
+        ;;
       *) exit 1 ;;
     esac
     ;;
@@ -139,6 +142,12 @@ grep -q '^build --cpu-period 100000 --cpu-quota 60000 ' "$FAKE_LOG"
 FAKE_BUILDX_AVAILABLE=1 FAKE_BUILDX_DRIVER=docker TEST_EVIDENCE_FILE="$API_EVIDENCE" \
   SELECTED_CHANNEL=api-hotfix RELEASE_MODE=hotfix RELEASE_SERVICE=api \
   bash "$SCRIPT_DIR/build-release.sh" API-DOCKER-DRIVER-TEST >/dev/null
+! grep -q -- '--cache-to' "$FAKE_LOG"
+
+: > "$FAKE_LOG"
+FAKE_BUILDX_AVAILABLE=1 FAKE_BUILDX_INSPECT_FAIL=1 TEST_EVIDENCE_FILE="$API_EVIDENCE" \
+  SELECTED_CHANNEL=api-hotfix RELEASE_MODE=hotfix RELEASE_SERVICE=api \
+  bash "$SCRIPT_DIR/build-release.sh" API-BUILDX-INSPECT-FAIL-TEST >/dev/null
 ! grep -q -- '--cache-to' "$FAKE_LOG"
 
 : > "$FAKE_LOG"
