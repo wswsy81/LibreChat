@@ -22,4 +22,10 @@ if [[ "$MODE" != "--release" ]]; then
 fi
 run "$REPO_ROOT/scripts/yiweilife-quality-gate.sh" "$MODE"
 
+if [[ -n "${TEST_EVIDENCE_OUTPUT:-}" ]]; then
+  SCOPE=${TEST_EVIDENCE_SCOPE:-full}
+  TEST_EVIDENCE_SUITE="verify-local:$MODE" \
+    run bash "$SCRIPT_DIR/write-test-evidence.sh" "$SCOPE" "$TEST_EVIDENCE_OUTPUT"
+fi
+
 printf 'verify: local gate passed (%s)\n' "$MODE"

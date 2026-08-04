@@ -33,6 +33,19 @@ run_engine_checks_in_image() {
 }
 
 case "$SERVICE" in
+  config)
+    command -v node >/dev/null 2>&1 || {
+      echo "config-only evidence must be generated on a host with node" >&2
+      exit 1
+    }
+    python3 -m json.tool "$ENGINE_DIR/../config/rules.v1.json" >/dev/null
+    cd "$ENGINE_DIR"
+    node --test \
+      rules-engine.test.js \
+      runtime-copy.test.js \
+      runtime-copy-request-hot.test.js \
+      advisor-constitution.test.js
+    ;;
   future-engine)
     # 光有 node 不够:测试还要 devDependencies(mongodb-memory-server 等)。
     # 生产宿主装了 node 但没装依赖时,仍然走镜像 test stage,别假装验证过。
@@ -59,7 +72,18 @@ case "$SERVICE" in
       --coverage=false
     ;;
   *)
-    echo "usage: bash deploy/verify-hotfix.sh <api|future-engine>" >&2
+    echo "usage: bash deploy/verify-hotfix.sh <config|api|future-engine>" >&2
     exit 2
     ;;
 esac
+
+if [[ -n "${TEST_EVIDENCE_OUTPUT:-}" ]]; then
+  SCOPE=${TEST_EVIDENCE_SCOPE:-}
+  [[ -n "$SCOPE" ]] || {
+    echo "TEST_EVIDENCE_SCOPE is required with TEST_EVIDENCE_OUTPUT" >&2
+    exit 1
+  }
+  TEST_EVIDENCE_SUITE="verify-hotfix:$SERVICE" \
+    bash "$SCRIPT_DIR/write-test-evidence.sh" "$SCOPE" "$TEST_EVIDENCE_OUTPUT" >/dev/null
+  echo "test evidence: $TEST_EVIDENCE_OUTPUT"
+fi

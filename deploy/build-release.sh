@@ -12,7 +12,8 @@ RELEASE_ID=${1:-"$(date -u +%Y%m%dT%H%M%SZ)"}
 RELEASE_SERVICE=${RELEASE_SERVICE:-all}
 RELEASE_MODE=${RELEASE_MODE:-full}
 SELECTED_CHANNEL=${SELECTED_CHANNEL:-$RELEASE_MODE}
-SELECTED_BY=${SELECTED_BY:-owner}
+SELECTED_BY=${SELECTED_BY:-classifier}
+TEST_EVIDENCE_FILE=${TEST_EVIDENCE_FILE:-}
 BUILD_CACHE_DIR=${BUILD_CACHE_DIR:-"$RELEASE_ROOT/.build-cache"}
 BUILD_CPU_QUOTA=${BUILD_CPU_QUOTA:-}
 BUILD_CPU_PERIOD=${BUILD_CPU_PERIOD:-100000}
@@ -26,28 +27,32 @@ BUILD_STARTED_EPOCH=$(date +%s)
   exit 1
 }
 case "$RELEASE_SERVICE" in
-  all|api|future-engine) ;;
+  all|api|future-engine|config) ;;
   *)
-    echo "RELEASE_SERVICE must be all, api, or future-engine" >&2
+    echo "RELEASE_SERVICE must be all, api, future-engine, or config" >&2
     exit 1
     ;;
 esac
 case "$RELEASE_MODE" in
-  full|hotfix) ;;
+  full|hotfix|config-only) ;;
   *)
-    echo "RELEASE_MODE must be full or hotfix" >&2
+    echo "RELEASE_MODE must be full, hotfix, or config-only" >&2
     exit 1
     ;;
 esac
 case "$SELECTED_CHANNEL" in
-  hotfix|full) ;;
+  config-only|engine-hotfix|api-hotfix|full) ;;
   *)
-    echo "SELECTED_CHANNEL must be hotfix or full for image releases" >&2
+    echo "SELECTED_CHANNEL must be config-only, engine-hotfix, api-hotfix, or full" >&2
     exit 1
     ;;
 esac
-[[ "$SELECTED_BY" == owner ]] || {
-  echo "SELECTED_BY must be owner" >&2
+[[ "$SELECTED_BY" == classifier || "$SELECTED_BY" == owner ]] || {
+  echo "SELECTED_BY must be classifier or owner" >&2
+  exit 1
+}
+[[ -f "$TEST_EVIDENCE_FILE" ]] || {
+  echo "TEST_EVIDENCE_FILE is required and must exist" >&2
   exit 1
 }
 
@@ -66,10 +71,29 @@ active_image() {
   read_release_value "$key" "$ACTIVE_RELEASE_ENV"
 }
 
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+verify_revision() {
+  local directory=$1
+  local requested=$2
+  local label=$3
+  bash "$SCRIPT_DIR/verify-revision.sh" "$directory" "$requested" "$label"
+}
+
+read_evidence_value() {
+  read_release_value "$1" "$TEST_EVIDENCE_FILE"
+}
+
 # future-engine 的发布测试会对比 runtime schema 与仓库根 library/ 权威副本。
 # 生产 staging 把它放在 PROJECT_DIR/library；本地则从仓库根临时注入构建上下文，
 # 构建结束后删除临时副本，不在产品目录维护第三份 schema。
-if [[ "$RELEASE_SERVICE" != api && -z "${CORPUS_SCHEMA_SOURCE:-}" ]]; then
+if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == all ]] && [[ -z "${CORPUS_SCHEMA_SOURCE:-}" ]]; then
   if [[ -f "$CORPUS_SCHEMA_IN_CONTEXT" ]]; then
     CORPUS_SCHEMA_SOURCE=$CORPUS_SCHEMA_IN_CONTEXT
   elif [[ -f "$PROJECT_DIR/../../$CORPUS_SCHEMA_REL" ]]; then
@@ -79,7 +103,7 @@ if [[ "$RELEASE_SERVICE" != api && -z "${CORPUS_SCHEMA_SOURCE:-}" ]]; then
     exit 1
   fi
 fi
-if [[ "$RELEASE_SERVICE" != api ]]; then
+if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == all ]]; then
   [[ -f "$CORPUS_SCHEMA_SOURCE" ]] || {
     echo "authoritative corpus schema is missing: $CORPUS_SCHEMA_SOURCE" >&2
     exit 1
@@ -114,13 +138,56 @@ else
 fi
 install -d -m 700 "$BUILD_CACHE_DIR"
 
-git_revision() {
-  local directory=$1
-  git -C "$directory" rev-parse HEAD 2>/dev/null || printf 'unknown'
-}
+LIBRECHAT_REVISION_REQUESTED=${LIBRECHAT_REVISION:-HEAD}
+ENGINE_REVISION_REQUESTED=${ENGINE_REVISION:-HEAD}
+LIBRECHAT_REVISION=reused-active
+ENGINE_REVISION=reused-active
+if [[ "$RELEASE_SERVICE" == api || "$RELEASE_SERVICE" == all ]]; then
+  LIBRECHAT_REVISION=$(verify_revision "$APP_DIR" "$LIBRECHAT_REVISION_REQUESTED" librechat_revision)
+fi
+if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == config || "$RELEASE_SERVICE" == all ]]; then
+  ENGINE_REVISION=$(verify_revision "$ENGINE_DIR" "$ENGINE_REVISION_REQUESTED" future_engine_revision)
+fi
 
-LIBRECHAT_REVISION=${LIBRECHAT_REVISION:-"$(git_revision "$APP_DIR")"}
-ENGINE_REVISION=${ENGINE_REVISION:-"$(git_revision "$ENGINE_DIR")"}
+[[ "$(read_evidence_value schema)" == yiwei.release-test-evidence.v1 ]] || {
+  echo "unsupported test evidence schema" >&2
+  exit 1
+}
+[[ "$(read_evidence_value status)" == passed ]] || {
+  echo "test evidence is not passed" >&2
+  exit 1
+}
+EVIDENCE_SCOPE=$(read_evidence_value scope)
+case "$RELEASE_SERVICE:$EVIDENCE_SCOPE" in
+  config:config-only|future-engine:engine-hotfix|api:api-hotfix|all:full) ;;
+  *)
+    echo "test evidence scope $EVIDENCE_SCOPE does not match release service $RELEASE_SERVICE" >&2
+    exit 1
+    ;;
+esac
+if [[ "$LIBRECHAT_REVISION" != reused-active ]]; then
+  [[ "$(read_evidence_value librechat_revision)" == "$LIBRECHAT_REVISION" ]] || {
+    echo "test evidence LibreChat revision does not match candidate revision" >&2
+    exit 1
+  }
+fi
+if [[ "$ENGINE_REVISION" != reused-active ]]; then
+  [[ "$(read_evidence_value future_engine_revision)" == "$ENGINE_REVISION" ]] || {
+    echo "test evidence future-engine revision does not match candidate revision" >&2
+    exit 1
+  }
+fi
+TEST_EVIDENCE_SHA256=$(sha256_file "$TEST_EVIDENCE_FILE")
+RULES_SOURCE="$PROJECT_DIR/config/rules.v1.json"
+RULES_SHA256=not-applicable
+if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == config || "$RELEASE_SERVICE" == all ]]; then
+  [[ -s "$RULES_SOURCE" ]] || {
+    echo "rules config is missing: $RULES_SOURCE" >&2
+    exit 1
+  }
+  python3 -m json.tool "$RULES_SOURCE" >/dev/null
+  RULES_SHA256=$(sha256_file "$RULES_SOURCE")
+fi
 BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # 2026-07-27:本地缓存导入/导出要 buildx。生产宿主(docker 29.1.3)没装该插件,
 # 旧版 `docker build` 见到 --cache-to 直接 unknown flag 退出。没有 buildx 时降级成
@@ -161,7 +228,7 @@ promote_cache() {
 API_TAG="yiweilife/librechat:$RELEASE_ID"
 ENGINE_TAG="yiweilife/future-engine:$RELEASE_ID"
 
-if [[ "$RELEASE_SERVICE" != future-engine ]]; then
+if [[ "$RELEASE_SERVICE" == api || "$RELEASE_SERVICE" == all ]]; then
   echo "Building immutable LibreChat release image: $API_TAG"
   mapfile -t API_CACHE_ARGS < <(cache_args api)
   "${DOCKER[@]}" build \
@@ -178,18 +245,7 @@ else
   API_IMAGE=$(active_image LIBRECHAT_RELEASE_IMAGE)
 fi
 
-if [[ "$RELEASE_SERVICE" != api ]]; then
-  if [[ "$RELEASE_MODE" == full ]]; then
-    mapfile -t ENGINE_TEST_CACHE_ARGS < <(cache_args engine-test)
-    echo "Running future-engine full test stage"
-    "${DOCKER[@]}" build \
-      ${BUILD_RESOURCE_ARGS[@]+"${BUILD_RESOURCE_ARGS[@]}"} \
-      --file "$ENGINE_DIR/Dockerfile" \
-      --target test \
-      ${ENGINE_TEST_CACHE_ARGS[@]+"${ENGINE_TEST_CACHE_ARGS[@]}"} \
-      "$PROJECT_DIR"
-    $BUILDX_AVAILABLE && ${PRIV[@]+"${PRIV[@]}"} rm -rf -- "$BUILD_CACHE_DIR/engine-test-next"
-  fi
+if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == all ]]; then
   mapfile -t ENGINE_CACHE_ARGS < <(cache_args engine)
   echo "Building immutable future-engine release image: $ENGINE_TAG"
   "${DOCKER[@]}" build \
@@ -217,7 +273,7 @@ IMAGE_ID_PATTERN='^sha256:[0-9a-f]{64}$'
   exit 1
 }
 
-if [[ "$RELEASE_SERVICE" != future-engine ]]; then
+if [[ "$RELEASE_SERVICE" == api || "$RELEASE_SERVICE" == all ]]; then
   API_USER=$("${DOCKER[@]}" image inspect --format '{{.Config.User}}' "$API_IMAGE")
   [[ "$API_USER" == node || "$API_USER" == 1000 ]] || {
     echo "LibreChat image must run as node/1000, got: ${API_USER:-root}" >&2
@@ -228,7 +284,7 @@ if [[ "$RELEASE_SERVICE" != future-engine ]]; then
   "${DOCKER[@]}" run --rm --entrypoint node "$API_IMAGE" -e \
     "require('module-alias')({ base: '/app/api' }); require('/app/api/server/services/Files/process'); process.exit(0)"
 fi
-if [[ "$RELEASE_SERVICE" != api ]]; then
+if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == all ]]; then
   ENGINE_USER=$("${DOCKER[@]}" image inspect --format '{{.Config.User}}' "$ENGINE_IMAGE")
   [[ "$ENGINE_USER" == node || "$ENGINE_USER" == 1000 ]] || {
     echo "future-engine image must run as node/1000, got: ${ENGINE_USER:-root}" >&2
@@ -241,8 +297,18 @@ fi
 install -d -m 700 "$RELEASE_ROOT"
 ENV_FILE="$RELEASE_ROOT/$RELEASE_ID.env"
 MANIFEST_FILE="$RELEASE_ROOT/$RELEASE_ID.manifest"
-[[ ! -e "$ENV_FILE" && ! -e "$MANIFEST_FILE" ]] || {
+EVIDENCE_ARTIFACT="$RELEASE_ROOT/$RELEASE_ID.evidence"
+[[ ! -e "$ENV_FILE" && ! -e "$MANIFEST_FILE" && ! -e "$EVIDENCE_ARTIFACT" ]] || {
   echo "release already exists: $RELEASE_ID" >&2
+  exit 1
+}
+if [[ "$TEST_EVIDENCE_FILE" != "$EVIDENCE_ARTIFACT" ]]; then
+  install -m 600 "$TEST_EVIDENCE_FILE" "$EVIDENCE_ARTIFACT"
+else
+  chmod 600 "$EVIDENCE_ARTIFACT"
+fi
+[[ "$(sha256_file "$EVIDENCE_ARTIFACT")" == "$TEST_EVIDENCE_SHA256" ]] || {
+  echo "failed to bind test evidence artifact to candidate" >&2
   exit 1
 }
 
@@ -255,6 +321,7 @@ MANIFEST_TMP="$RELEASE_ROOT/.$RELEASE_ID.manifest.tmp"
 } > "$ENV_TMP"
 {
   printf 'release_id=%s\n' "$RELEASE_ID"
+  printf 'manifest_schema=yiwei.release-manifest.v2\n'
   printf 'release_service=%s\n' "$RELEASE_SERVICE"
   printf 'release_mode=%s\n' "$RELEASE_MODE"
   printf 'selected_channel=%s\n' "$SELECTED_CHANNEL"
@@ -266,8 +333,13 @@ MANIFEST_TMP="$RELEASE_ROOT/.$RELEASE_ID.manifest.tmp"
   printf 'future_engine_revision=%s\n' "$ENGINE_REVISION"
   printf 'librechat_image=%s\n' "$API_IMAGE"
   printf 'future_engine_image=%s\n' "$ENGINE_IMAGE"
-  printf 'librechat_tag=%s\n' "$([[ "$RELEASE_SERVICE" == future-engine ]] && printf reused-active || printf '%s' "$API_TAG")"
-  printf 'future_engine_tag=%s\n' "$([[ "$RELEASE_SERVICE" == api ]] && printf reused-active || printf '%s' "$ENGINE_TAG")"
+  printf 'librechat_tag=%s\n' "$([[ "$RELEASE_SERVICE" == api || "$RELEASE_SERVICE" == all ]] && printf '%s' "$API_TAG" || printf reused-active)"
+  printf 'future_engine_tag=%s\n' "$([[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == all ]] && printf '%s' "$ENGINE_TAG" || printf reused-active)"
+  printf 'test_evidence_status=passed\n'
+  printf 'test_evidence_scope=%s\n' "$EVIDENCE_SCOPE"
+  printf 'test_evidence_sha256=%s\n' "$TEST_EVIDENCE_SHA256"
+  printf 'test_evidence_file=%s.evidence\n' "$RELEASE_ID"
+  printf 'runtime_config_rules_sha256=%s\n' "$RULES_SHA256"
   printf 'build_seconds=%s\n' "$(( $(date +%s) - BUILD_STARTED_EPOCH ))"
 } > "$MANIFEST_TMP"
 chmod 600 "$ENV_TMP" "$MANIFEST_TMP"

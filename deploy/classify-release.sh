@@ -12,41 +12,78 @@ HEAD=${3:-HEAD}
 git -C "$REPO" rev-parse --verify "$BASE^{commit}" >/dev/null
 git -C "$REPO" rev-parse --verify "$HEAD^{commit}" >/dev/null
 
-FILES=$(git -C "$REPO" diff --name-only "$BASE" "$HEAD")
+FILES=$(git -C "$REPO" -c core.quotePath=false diff --name-only "$BASE" "$HEAD")
 COUNT=$(printf '%s\n' "$FILES" | sed '/^$/d' | wc -l | tr -d ' ')
 LOCK_CHANGED=false
 SCHEMA_CHANGED=false
 IDENTITY_CHANGED=false
 MIGRATION_CHANGED=false
-MULTI_UNIT=false
+CONFIG_ONLY=false
+ENGINE_ONLY=false
+CONFIG_KIND=none
+CHANNEL=none
+SERVICE=none
+MIN_SECONDS=0
+MAX_SECONDS=0
 
 printf '%s\n' "$FILES" | grep -Eq '(^|/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$' && LOCK_CHANGED=true || true
 printf '%s\n' "$FILES" | grep -Eqi '(^|/)(migrations?|schema)(/|\.|$)' && SCHEMA_CHANGED=true || true
 printf '%s\n' "$FILES" | grep -Eqi '(identity|auth|tenant|isolation)' && IDENTITY_CHANGED=true || true
 printf '%s\n' "$FILES" | grep -Eqi '(^|/)(migrations?|scripts/.+migrat)' && MIGRATION_CHANGED=true || true
-if printf '%s\n' "$FILES" | grep -q '^client/' \
-  && printf '%s\n' "$FILES" | grep -Eq '^(api/|packages/api/|packages/data-provider/)'; then
-  MULTI_UNIT=true
+
+if [[ "$COUNT" -gt 0 ]]; then
+  NON_CONFIG=$(printf '%s\n' "$FILES" | grep -Ev '(^|/)(config/(global-prompt\.v1\.md|runtime-policy\.v1\.json|security-contract\.v1\.json|product-catalog\.v1\.json|product-experiments\.v1\.json|rules\.v1\.json)|future-engine-shim/banks/.+\.(json|md)|banks/.+\.(json|md))$' || true)
+  [[ -z "$NON_CONFIG" ]] && CONFIG_ONLY=true
+
+  if [[ $(basename -- "$REPO") == future-engine-shim ]]; then
+    ENGINE_ONLY=true
+  else
+    NON_ENGINE=$(printf '%s\n' "$FILES" | grep -Ev '^projects/未来线/future-engine-shim/' || true)
+    [[ -z "$NON_ENGINE" ]] && ENGINE_ONLY=true
+  fi
 fi
 
-RECOMMENDATION=hotfix
-if [[ "$LOCK_CHANGED" == true || "$SCHEMA_CHANGED" == true || "$IDENTITY_CHANGED" == true || "$MIGRATION_CHANGED" == true || "$MULTI_UNIT" == true ]]; then
-  RECOMMENDATION=full
+if [[ "$CONFIG_ONLY" == true && "$LOCK_CHANGED" == false && "$SCHEMA_CHANGED" == false && "$IDENTITY_CHANGED" == false && "$MIGRATION_CHANGED" == false ]]; then
+  HAS_RULES=false
+  HAS_BANKS=false
+  printf '%s\n' "$FILES" | grep -Eq '(^|/)config/(global-prompt\.v1\.md|runtime-policy\.v1\.json|security-contract\.v1\.json|product-catalog\.v1\.json|product-experiments\.v1\.json|rules\.v1\.json)$' && HAS_RULES=true || true
+  printf '%s\n' "$FILES" | grep -Eq '(^|/)(future-engine-shim/)?banks/.+\.(json|md)$' && HAS_BANKS=true || true
+  CONFIG_KIND=runtime-config
+  [[ "$HAS_BANKS" == true && "$HAS_RULES" == false ]] && CONFIG_KIND=bank-copy
+  [[ "$HAS_BANKS" == true && "$HAS_RULES" == true ]] && CONFIG_KIND=mixed
+  CHANNEL=config-only
+  SERVICE=config
+  MIN_SECONDS=60
+  MAX_SECONDS=180
+elif [[ "$ENGINE_ONLY" == true && "$LOCK_CHANGED" == false && "$SCHEMA_CHANGED" == false && "$IDENTITY_CHANGED" == false && "$MIGRATION_CHANGED" == false ]]; then
+  CHANNEL=engine-hotfix
+  SERVICE=future-engine
+  MIN_SECONDS=300
+  MAX_SECONDS=480
+elif [[ "$COUNT" -gt 0 ]]; then
+  CHANNEL=full
+  SERVICE=all
+  MIN_SECONDS=600
+  MAX_SECONDS=1200
 fi
 
 node -e '
-const [count, lock, schema, identity, migration, multi, recommendation] = process.argv.slice(1);
+const [count, lock, schema, identity, migration, configOnly, engineOnly, configKind, channel, service, min, max] = process.argv.slice(1);
 process.stdout.write(JSON.stringify({
-  selectedBy: "owner",
-  toolRecommendation: recommendation,
+  selectedBy: "classifier",
+  channel,
+  service,
+  configKind,
+  targetSeconds: { min: Number(min), max: Number(max) },
   facts: {
     changedFiles: Number(count),
     lockChanged: lock === "true",
     schemaChanged: schema === "true",
     identityOrIsolationChanged: identity === "true",
     migrationChanged: migration === "true",
-    multipleBuildUnitsChanged: multi === "true"
+    configOnly: configOnly === "true",
+    engineOnly: engineOnly === "true"
   },
-  note: "工具只给事实与推荐，最终通道由主理人选择"
+  note: "分类器按实际 diff 自动选择最小安全通道；无法可靠判定时进入 full"
 }, null, 2) + "\n");
-' "$COUNT" "$LOCK_CHANGED" "$SCHEMA_CHANGED" "$IDENTITY_CHANGED" "$MIGRATION_CHANGED" "$MULTI_UNIT" "$RECOMMENDATION"
+' "$COUNT" "$LOCK_CHANGED" "$SCHEMA_CHANGED" "$IDENTITY_CHANGED" "$MIGRATION_CHANGED" "$CONFIG_ONLY" "$ENGINE_ONLY" "$CONFIG_KIND" "$CHANNEL" "$SERVICE" "$MIN_SECONDS" "$MAX_SECONDS"

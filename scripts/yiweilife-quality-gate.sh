@@ -59,7 +59,15 @@ if [[ "$MODE" != "--release" ]]; then
   run node client/scripts/smoke-production-build.cjs
 fi
 run bash -n deploy/build-release.sh
+run bash -n deploy/build-config-release.sh
+run bash -n deploy/build-hotfix-release.sh
+run bash -n deploy/build-full-release.sh
+run bash -n deploy/classify-release.sh
+run bash -n deploy/plan-release.sh
+run bash -n deploy/verify-revision.sh
+run bash -n deploy/write-test-evidence.sh
 run bash -n deploy/apply-release.sh
+run bash -n deploy/verify-hotfix.sh
 run bash -n deploy/verify-local.sh
 run bash -n deploy/compose.sh
 run bash deploy/release.test.sh

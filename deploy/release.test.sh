@@ -21,6 +21,31 @@ for file in runtime-copy.v1.json rescue-bank.v1.json topics-bank.v1.json house-e
   printf '{}\n' > "$ENGINE_DIR/banks/$file"
 done
 
+init_pushed_repo() {
+  local repo=$1
+  local remote=$2
+  git init --bare "$remote" >/dev/null
+  git -C "$repo" init -b main >/dev/null
+  git -C "$repo" config user.name release-test
+  git -C "$repo" config user.email release-test@example.invalid
+  git -C "$repo" add .
+  git -C "$repo" commit -m initial >/dev/null
+  git -C "$repo" remote add origin "$remote"
+  git -C "$repo" push -u origin main >/dev/null
+}
+
+cat > "$APP_DIR/.gitignore" <<'EOF'
+.env
+.release.env
+.releases/
+runtime-config/
+EOF
+printf 'app source\n' > "$APP_DIR/source.txt"
+printf 'data/\n' > "$ENGINE_DIR/.gitignore"
+printf 'engine source\n' > "$ENGINE_DIR/source.txt"
+init_pushed_repo "$APP_DIR" "$TEST_ROOT/app-origin.git"
+init_pushed_repo "$ENGINE_DIR" "$TEST_ROOT/engine-origin.git"
+
 CURRENT_API="sha256:$(printf 'a%.0s' {1..64})"
 CURRENT_ENGINE="sha256:$(printf 'b%.0s' {1..64})"
 NEW_API="sha256:$(printf 'c%.0s' {1..64})"
@@ -71,31 +96,53 @@ export FAKE_NEW_ENGINE="$NEW_ENGINE"
 export APP_DIR_OVERRIDE="$APP_DIR"
 export ENGINE_DIR_OVERRIDE="$ENGINE_DIR"
 export RELEASE_ROOT
-export LIBRECHAT_REVISION=test-api-revision
-export ENGINE_REVISION=test-engine-revision
+export LIBRECHAT_REVISION
+export ENGINE_REVISION
+LIBRECHAT_REVISION=$(git -C "$APP_DIR" rev-parse HEAD)
+ENGINE_REVISION=$(git -C "$ENGINE_DIR" rev-parse HEAD)
 export RUNTIME_WRITER_UID
 export RUNTIME_WRITER_GID
 RUNTIME_WRITER_UID=$(id -u)
 RUNTIME_WRITER_GID=$(id -g)
 
-RELEASE_SERVICE=api bash "$SCRIPT_DIR/build-release.sh" API-HOTFIX-TEST >/dev/null
+API_EVIDENCE="$RELEASE_ROOT/.test-evidence/API-HOTFIX-TEST.evidence"
+TEST_EVIDENCE_SUITE=release-test \
+  bash "$SCRIPT_DIR/write-test-evidence.sh" api-hotfix "$API_EVIDENCE" >/dev/null
+TEST_EVIDENCE_FILE="$API_EVIDENCE" SELECTED_CHANNEL=api-hotfix RELEASE_MODE=hotfix RELEASE_SERVICE=api \
+  bash "$SCRIPT_DIR/build-release.sh" API-HOTFIX-TEST >/dev/null
 grep -qx "LIBRECHAT_RELEASE_IMAGE=$NEW_API" "$RELEASE_ROOT/API-HOTFIX-TEST.env"
 grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$CURRENT_ENGINE" "$RELEASE_ROOT/API-HOTFIX-TEST.env"
 grep -qx 'release_service=api' "$RELEASE_ROOT/API-HOTFIX-TEST.manifest"
 [[ $(grep -c '^build ' "$FAKE_LOG") -eq 1 ]]
 
 : > "$FAKE_LOG"
-DOCKER_BUILDKIT=0 BUILD_CPU_QUOTA=60000 RELEASE_SERVICE=api \
+DOCKER_BUILDKIT=0 BUILD_CPU_QUOTA=60000 TEST_EVIDENCE_FILE="$API_EVIDENCE" \
+  SELECTED_CHANNEL=api-hotfix RELEASE_MODE=hotfix RELEASE_SERVICE=api \
   bash "$SCRIPT_DIR/build-release.sh" API-CPU-LIMIT-TEST >/dev/null
 grep -q '^build --cpu-period 100000 --cpu-quota 60000 ' "$FAKE_LOG"
 ! grep -q -- '--cache-to' "$FAKE_LOG"
 
 : > "$FAKE_LOG"
-RELEASE_SERVICE=future-engine bash "$SCRIPT_DIR/build-release.sh" ENGINE-HOTFIX-TEST >/dev/null
+ENGINE_EVIDENCE="$RELEASE_ROOT/.test-evidence/ENGINE-HOTFIX-TEST.evidence"
+TEST_EVIDENCE_SUITE=release-test \
+  bash "$SCRIPT_DIR/write-test-evidence.sh" engine-hotfix "$ENGINE_EVIDENCE" >/dev/null
+TEST_EVIDENCE_FILE="$ENGINE_EVIDENCE" SELECTED_CHANNEL=engine-hotfix RELEASE_MODE=hotfix RELEASE_SERVICE=future-engine \
+  bash "$SCRIPT_DIR/build-release.sh" ENGINE-HOTFIX-TEST >/dev/null
 grep -qx "LIBRECHAT_RELEASE_IMAGE=$CURRENT_API" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
 grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
 grep -qx 'release_service=future-engine' "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.manifest"
-[[ $(grep -c '^build ' "$FAKE_LOG") -eq 2 ]]
+[[ $(grep -c '^build ' "$FAKE_LOG") -eq 1 ]]
+grep -qx 'test_evidence_status=passed' "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.manifest"
+grep -qx "test_evidence_sha256=$(shasum -a 256 "$ENGINE_EVIDENCE" | awk '{print $1}')" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.manifest"
+
+cp "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.evidence" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.evidence.clean"
+printf 'tampered=true\n' >> "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.evidence"
+set +e
+bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env" >/dev/null 2>&1
+tampered_status=$?
+set -e
+[[ $tampered_status -ne 0 ]]
+mv "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.evidence.clean" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.evidence"
 
 : > "$FAKE_LOG"
 bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env" >/dev/null
@@ -128,6 +175,22 @@ file_gid() {
 [[ $(file_uid "$ENGINE_DIR/data/runtime-last-good") == "$RUNTIME_WRITER_UID" ]]
 [[ $(file_gid "$ENGINE_DIR/data/runtime-last-good") == "$RUNTIME_WRITER_GID" ]]
 
+printf '{"version":2}\n' > "$TEST_ROOT/config/rules.v1.json"
+CONFIG_EVIDENCE="$RELEASE_ROOT/.test-evidence/CONFIG-ONLY-TEST.evidence"
+TEST_EVIDENCE_SUITE=release-test \
+  bash "$SCRIPT_DIR/write-test-evidence.sh" config-only "$CONFIG_EVIDENCE" >/dev/null
+TEST_EVIDENCE_FILE="$CONFIG_EVIDENCE" SELECTED_CHANNEL=config-only RELEASE_MODE=config-only RELEASE_SERVICE=config \
+  bash "$SCRIPT_DIR/build-release.sh" CONFIG-ONLY-TEST >/dev/null
+: > "$FAKE_LOG"
+bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CONFIG-ONLY-TEST.env" >/dev/null
+grep -qx '{"version":2}' "$APP_DIR/runtime-config/rules.v1.json"
+[[ -s "$RELEASE_ROOT/CONFIG-ONLY-TEST.runtime-config.rollback/rules.v1.json" ]]
+[[ -s "$RELEASE_ROOT/CONFIG-ONLY-TEST.rollback.manifest" ]]
+! grep -q 'compose .* up --detach' "$FAKE_LOG"
+
+bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CONFIG-ONLY-TEST.rollback.env" >/dev/null
+grep -qx '{}' "$APP_DIR/runtime-config/rules.v1.json"
+
 : > "$FAKE_LOG"
 set +e
 FAKE_HEALTH_FAIL=1 HEALTH_ATTEMPTS=1 HEALTH_SLEEP_SECONDS=0 \
@@ -139,5 +202,52 @@ set -e
 while IFS= read -r line; do
   [[ "$line" == *' api' && "$line" != *'future-engine'* ]]
 done < <(grep 'compose .* up --detach' "$FAKE_LOG")
+
+CLASSIFY_REPO="$TEST_ROOT/classify"
+mkdir -p "$CLASSIFY_REPO/projects/未来线/config"
+git -C "$CLASSIFY_REPO" init -b main >/dev/null
+git -C "$CLASSIFY_REPO" config user.name release-test
+git -C "$CLASSIFY_REPO" config user.email release-test@example.invalid
+touch "$CLASSIFY_REPO/.keep"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m base >/dev/null
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+printf '{}\n' > "$CLASSIFY_REPO/projects/未来线/config/rules.v1.json"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m config >/dev/null
+CONFIG_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$CONFIG_CLASS") == config-only ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+mkdir -p "$CLASSIFY_REPO/projects/未来线/future-engine-shim"
+printf 'module.exports = {};\n' > "$CLASSIFY_REPO/projects/未来线/future-engine-shim/change.js"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m engine >/dev/null
+ENGINE_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$ENGINE_CLASS") == engine-hotfix ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+mkdir -p "$CLASSIFY_REPO/client"
+printf 'export {};\n' > "$CLASSIFY_REPO/client/change.ts"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m full >/dev/null
+FULL_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$FULL_CLASS") == full ]]
+
+REVISION_REPO="$TEST_ROOT/revision"
+mkdir -p "$REVISION_REPO"
+printf 'one\n' > "$REVISION_REPO/file"
+init_pushed_repo "$REVISION_REPO" "$TEST_ROOT/revision-origin.git"
+PUSHED_REVISION=$(git -C "$REVISION_REPO" rev-parse HEAD)
+bash "$SCRIPT_DIR/verify-revision.sh" "$REVISION_REPO" HEAD test_revision >/dev/null
+set +e
+bash "$SCRIPT_DIR/verify-revision.sh" "$REVISION_REPO" deadbeef test_revision >/dev/null 2>&1
+missing_status=$?
+set -e
+[[ $missing_status -ne 0 ]]
+printf 'two\n' >> "$REVISION_REPO/file"
+git -C "$REVISION_REPO" add file && git -C "$REVISION_REPO" commit -m unpushed >/dev/null
+bash "$SCRIPT_DIR/verify-revision.sh" "$REVISION_REPO" "$PUSHED_REVISION" test_revision pushed >/dev/null
+set +e
+bash "$SCRIPT_DIR/verify-revision.sh" "$REVISION_REPO" HEAD test_revision >/dev/null 2>&1
+unpushed_status=$?
+set -e
+[[ $unpushed_status -ne 0 ]]
 
 printf 'release tests passed\n'

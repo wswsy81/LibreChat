@@ -4,23 +4,37 @@
 
 ## 发布
 
-1. 同步并核对源码，先运行完整门禁。
-2. 运行一次 `sudo bash deploy/backup.sh`，确认恢复包含 `VERIFIED`。
-3. 构建候选镜像。构建不会触碰运行中的容器：
+1. 先查找 revision、digest 与测试证据都匹配的既有候选；存在时禁止重建。
+2. 没有候选时运行 `plan-release.sh <brain-base> <librechat-base>`，自动选择 `config-only`、`engine-hotfix` 或 `full`。
+3. 同步并核对源码。构建脚本会拒绝不存在、不等于活动 HEAD、未推送或带 tracked dirty 的 revision。
+4. 按通道运行测试；测试成功后生成 `yiwei.release-test-evidence.v1`，候选 manifest 必须绑定相同 revision 和 evidence SHA。
+5. 按风险运行备份：完整版本生成 VERIFIED；代码 hotfix 复用有效 VERIFIED；配置候选生成配置级 rollback。
+6. 构建候选。构建不会触碰运行中的容器：
 
    ```bash
-   LIBRECHAT_REVISION=<LibreChat commit> \
-   ENGINE_REVISION=<yiwei commit> \
-   bash deploy/build-release.sh B5-20260719
+   bash deploy/build-full-release.sh B5-20260719
    ```
 
-4. 用候选 env 做一次切换：
+7. 用候选 env 做一次切换：
 
    ```bash
    bash deploy/apply-release.sh .releases/B5-20260719.env
    ```
 
-`apply-release.sh` 会先保存当前两个容器的 image ID，校验 compose，只重建候选中 image ID 真正变化的服务，并等待两个深健康端点。future-engine 变化时才迁移 data 到非 root uid。健康失败会自动切回发生变化服务的旧 image ID；成功后才更新 `.release.env`。完整候选中两个镜像都变化时，行为仍是双服务同批切换。
+`apply-release.sh` 会先验证 v2 manifest 的测试证据与 revision，保存当前两个容器的 image ID，原子同步 manifest 绑定的 `rules.v1.json` 并生成可再次 apply 的配置 rollback，然后只重建 image ID 真正变化的服务并等待两个深健康端点。健康失败会同时恢复旧 image ID 与旧规则配置；成功后才更新 `.release.env`。
+
+已有全绿候选在 apply 阶段只做 provenance、双 health 与 canary，不重跑本地大套件。
+
+## 配置通道
+
+规则配置不构建镜像：
+
+```bash
+bash deploy/build-config-release.sh CONFIG-20260804T120000Z
+bash deploy/apply-release.sh .releases/CONFIG-20260804T120000Z.env
+```
+
+两张 image digest 保持不变，`apply-release.sh` 只做配置 SHA 校验、备份、原子替换、双 health 和回滚产物。目标 1–3 分钟。纯 bank 文案继续走 `future-engine-shim/scripts/deploy-banks.sh` 热轨。
 
 ## 小修快速发布
 
@@ -40,7 +54,9 @@ bash deploy/build-hotfix-release.sh future-engine ENGINE-HOTFIX-20260724T120000Z
 bash deploy/apply-release.sh .releases/ENGINE-HOTFIX-20260724T120000Z.env
 ```
 
-这条路径只省掉未变化服务的构建、镜像检查和容器重建；不会跳过目标服务测试、不可变镜像、双健康、rollback manifest 或失败自动回滚。若同时改了两个服务，必须使用 `build-release.sh` 完整发布。
+这条路径会先生成 revision 绑定的测试证据，再只构建变化服务；不会跳过目标服务测试、不可变镜像、双健康、rollback manifest 或失败自动回滚。若前端与 Engine 同时变化，使用 `build-full-release.sh`。
+
+时间目标：Engine 代码热修 5–8 分钟；前端＋Engine 完整版本 10–20 分钟；已有候选切换 1–3 分钟，正常 apply 通常只有几秒。
 
 ## 日常 compose 与回滚
 

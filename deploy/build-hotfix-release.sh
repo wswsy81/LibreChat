@@ -13,6 +13,13 @@ case "$SERVICE" in
     ;;
 esac
 
-bash "$SCRIPT_DIR/verify-hotfix.sh" "$SERVICE"
-SELECTED_CHANNEL=hotfix RELEASE_MODE=hotfix RELEASE_SERVICE=$SERVICE \
+RELEASE_ROOT=${RELEASE_ROOT:-"$(cd -- "$SCRIPT_DIR/.." && pwd)/.releases"}
+EVIDENCE_DIR="$RELEASE_ROOT/.test-evidence"
+EVIDENCE_FILE="$EVIDENCE_DIR/$RELEASE_ID.evidence"
+SCOPE=api-hotfix
+[[ "$SERVICE" == future-engine ]] && SCOPE=engine-hotfix
+TEST_EVIDENCE_OUTPUT="$EVIDENCE_FILE" TEST_EVIDENCE_SCOPE="$SCOPE" \
+  bash "$SCRIPT_DIR/verify-hotfix.sh" "$SERVICE"
+SELECTED_BY=classifier SELECTED_CHANNEL="$SCOPE" RELEASE_MODE=hotfix RELEASE_SERVICE=$SERVICE \
+  TEST_EVIDENCE_FILE="$EVIDENCE_FILE" \
   exec bash "$SCRIPT_DIR/build-release.sh" "$RELEASE_ID"
