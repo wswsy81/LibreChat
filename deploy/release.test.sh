@@ -183,6 +183,20 @@ grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$APP_DIR/.release.env"
 [[ -s "$ENGINE_DIR/data/runtime-last-good/rescue-bank.v1.json" ]]
 [[ -s "$ENGINE_DIR/data/runtime-last-good/topics-bank.v1.json" ]]
 
+ENGINE_SOURCE_DIR="$TEST_ROOT/engine-source"
+RUNTIME_ENGINE_DIR="$TEST_ROOT/runtime-engine"
+git clone "$TEST_ROOT/engine-origin.git" "$ENGINE_SOURCE_DIR" >/dev/null
+mkdir -p "$RUNTIME_ENGINE_DIR/data"
+: > "$FAKE_LOG"
+ENGINE_DIR_OVERRIDE="$RUNTIME_ENGINE_DIR" \
+  ENGINE_SOURCE_DIR_OVERRIDE="$ENGINE_SOURCE_DIR" \
+  ENGINE_LAST_GOOD_DIR="$RUNTIME_ENGINE_DIR/data/runtime-last-good" \
+  bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env" >/dev/null
+[[ -s "$RUNTIME_ENGINE_DIR/data/runtime-last-good/runtime-copy.v1.json" ]]
+[[ ! -e "$ENGINE_SOURCE_DIR/data/runtime-last-good/runtime-copy.v1.json" ]]
+grep -q -- "--volume $RUNTIME_ENGINE_DIR/data:/data" "$FAKE_LOG"
+! grep -q -- "--volume $ENGINE_SOURCE_DIR/data:/data" "$FAKE_LOG"
+
 file_mode() {
   stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
 }

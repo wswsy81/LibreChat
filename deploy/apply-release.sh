@@ -5,7 +5,8 @@ APPLY_STARTED_EPOCH=$(date +%s)
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_DIR=${APP_DIR_OVERRIDE:-"$(cd -- "$SCRIPT_DIR/.." && pwd)"}
 ENGINE_DIR=${ENGINE_DIR_OVERRIDE:-"$(cd -- "$APP_DIR/../future-engine-shim" && pwd)"}
-PROJECT_DIR=$(cd -- "$ENGINE_DIR/.." && pwd)
+ENGINE_SOURCE_DIR=${ENGINE_SOURCE_DIR_OVERRIDE:-"$ENGINE_DIR"}
+PROJECT_DIR=$(cd -- "$ENGINE_SOURCE_DIR/.." && pwd)
 RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
 RUNTIME_CONFIG_DIR=${RUNTIME_CONFIG_DIR:-"$APP_DIR/runtime-config"}
 ENGINE_LAST_GOOD_DIR=${ENGINE_LAST_GOOD_DIR:-"$ENGINE_DIR/data/runtime-last-good"}
@@ -191,7 +192,7 @@ if [[ "$MANIFEST_SCHEMA" == yiwei.release-manifest.v2 ]]; then
     bash "$SCRIPT_DIR/verify-revision.sh" "$APP_DIR" "$LIBRECHAT_REVISION" librechat_revision pushed >/dev/null
   fi
   if [[ "$ENGINE_REVISION" != reused-active ]]; then
-    bash "$SCRIPT_DIR/verify-revision.sh" "$ENGINE_DIR" "$ENGINE_REVISION" future_engine_revision pushed >/dev/null
+    bash "$SCRIPT_DIR/verify-revision.sh" "$ENGINE_SOURCE_DIR" "$ENGINE_REVISION" future_engine_revision pushed >/dev/null
   fi
 fi
 
