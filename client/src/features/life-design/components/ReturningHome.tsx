@@ -69,6 +69,12 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
               {localize('com_life_continue_here')}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
+            <Link
+              to="/c/new"
+              className="inline-flex min-h-11 items-center border border-life-moss px-5 font-life-sans text-life-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper"
+            >
+              {localize('com_life_free_chat_action')}
+            </Link>
             <button
               type="button"
               className="min-h-11 border-b border-life-rule px-1 font-life-sans text-life-sm text-life-muted transition hover:border-life-ink hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"

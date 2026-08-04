@@ -136,4 +136,8 @@ test('老用户可从首页进入“说件新事”的领域选择', () => {
     'href',
     '/home?new=1',
   );
+  expect(screen.getByRole('link', { name: /com_life_free_chat_action/ })).toHaveAttribute(
+    'href',
+    '/c/new',
+  );
 });

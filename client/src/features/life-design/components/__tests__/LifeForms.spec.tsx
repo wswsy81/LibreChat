@@ -78,6 +78,21 @@ test('首次进入只选领域，不显示存档名输入框', () => {
   expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
 });
 
+test('首次进入同时提供自由聊天和领域模式', () => {
+  render(
+    <MemoryRouter>
+      <FirstArchiveSetup />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /com_life_free_chat_action/ })).toHaveAttribute(
+    'href',
+    '/c/new',
+  );
+  expect(screen.getByText('com_life_or_choose_domain')).toBeInTheDocument();
+  expect(screen.getByText('com_life_choose_house')).toBeInTheDocument();
+});
+
 test('首次建档按所选领域和本地分钟自动命名', () => {
   render(
     <MemoryRouter>

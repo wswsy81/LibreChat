@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@librechat/client';
+import { Link } from 'react-router-dom';
 import type { LifeDomainConversation, LifeHouseId } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks';
 import PublicMistMap, { ACTIVE_PUBLIC_HOUSES, PUBLIC_MAP_LABEL_KEYS } from './PublicMistMap';
@@ -131,6 +132,41 @@ export default function FirstArchiveSetup({
       </div>
 
       <div className="border border-life-rule bg-[#F7F4EB] p-5 sm:p-8">
+        <section
+          className="mb-7 border-l-2 border-life-moss pl-4 sm:pl-5"
+          aria-labelledby="life-free-chat-title"
+        >
+          <h2
+            id="life-free-chat-title"
+            className="font-life-serif text-life-lead font-semibold text-life-ink"
+          >
+            {localize('com_life_free_chat_title')}
+          </h2>
+          <p className="mt-2 max-w-[34em] font-life-kai text-life-sm leading-7 text-life-muted">
+            {localize('com_life_free_chat_help')}
+          </p>
+          <Link
+            to="/c/new"
+            onClick={() =>
+              track('free_chat_started', {
+                source: isNewMatter ? 'new_matter' : 'first_archive',
+              })
+            }
+            className="mt-4 inline-flex min-h-12 items-center rounded-[4px] bg-life-moss px-6 font-life-sans text-life-body text-life-paper transition hover:bg-life-moss-deep"
+          >
+            {localize('com_life_free_chat_action')}
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </section>
+
+        <div className="mb-7 flex items-center gap-3" aria-hidden="true">
+          <span className="h-px flex-1 bg-life-rule" />
+          <span className="font-life-mono text-life-meta tracking-[0.12em] text-life-muted">
+            {localize('com_life_or_choose_domain')}
+          </span>
+          <span className="h-px flex-1 bg-life-rule" />
+        </div>
+
         {!isNewMatter && (
           <>
             <div className="mb-7 border-l-2 border-life-cinnabar pl-4 sm:pl-5">
