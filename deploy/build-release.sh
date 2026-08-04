@@ -189,12 +189,15 @@ if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == config || "$R
   RULES_SHA256=$(sha256_file "$RULES_SOURCE")
 fi
 BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-# 2026-07-27:本地缓存导入/导出要 buildx。生产宿主(docker 29.1.3)没装该插件,
-# 旧版 `docker build` 见到 --cache-to 直接 unknown flag 退出。没有 buildx 时降级成
-# 普通构建:只是慢一点,不影响产物,总比发布通道在服务器上根本跑不起来强。
-BUILDX_AVAILABLE=false
+# 本地缓存导入/导出不仅需要 buildx 插件，还要求当前 builder 支持外部缓存。
+# Docker Desktop 的 docker driver 即使装了 buildx，也可能拒绝 --cache-to；这时降级成
+# 普通构建，只影响速度，不影响不可变产物。
+BUILD_CACHE_AVAILABLE=false
 if [[ "$DOCKER_BUILDKIT" != 0 ]] && "${DOCKER[@]}" buildx version >/dev/null 2>&1; then
-  BUILDX_AVAILABLE=true
+  BUILDX_DRIVER=$("${DOCKER[@]}" buildx inspect --bootstrap 2>/dev/null | awk -F: '$1 == "Driver" { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit }')
+  if [[ -n "$BUILDX_DRIVER" && "$BUILDX_DRIVER" != docker ]]; then
+    BUILD_CACHE_AVAILABLE=true
+  fi
 fi
 
 BUILD_RESOURCE_ARGS=()
@@ -212,7 +215,7 @@ fi
 
 cache_args() {
   local name=$1
-  $BUILDX_AVAILABLE || return 0
+  $BUILD_CACHE_AVAILABLE || return 0
   printf '%s\n' \
     "--cache-from" "type=local,src=$BUILD_CACHE_DIR/$name" \
     "--cache-to" "type=local,dest=$BUILD_CACHE_DIR/$name-next,mode=max"
@@ -220,7 +223,7 @@ cache_args() {
 
 promote_cache() {
   local name=$1
-  $BUILDX_AVAILABLE || return 0
+  $BUILD_CACHE_AVAILABLE || return 0
   ${PRIV[@]+"${PRIV[@]}"} rm -rf -- "$BUILD_CACHE_DIR/$name"
   ${PRIV[@]+"${PRIV[@]}"} mv "$BUILD_CACHE_DIR/$name-next" "$BUILD_CACHE_DIR/$name"
 }

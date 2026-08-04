@@ -61,8 +61,21 @@ set -euo pipefail
 printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
 case "${1:-}" in
   info|run) exit 0 ;;
-  buildx) exit 1 ;;
-  build) exit 0 ;;
+  buildx)
+    case "${2:-}" in
+      version) [[ "${FAKE_BUILDX_AVAILABLE:-0}" == 1 ]] ;;
+      inspect) printf 'Name: test-builder\nDriver: %s\n' "${FAKE_BUILDX_DRIVER:-docker}" ;;
+      *) exit 1 ;;
+    esac
+    ;;
+  build)
+    for arg in "$@"; do
+      if [[ "$arg" == type=local,dest=*,mode=max ]]; then
+        cache_dir=${arg#type=local,dest=}
+        mkdir -p "${cache_dir%,mode=max}"
+      fi
+    done
+    ;;
   image)
     if [[ "${2:-}" != inspect ]]; then exit 0; fi
     if [[ " $* " != *" --format "* ]]; then exit 0; fi
@@ -120,6 +133,12 @@ DOCKER_BUILDKIT=0 BUILD_CPU_QUOTA=60000 TEST_EVIDENCE_FILE="$API_EVIDENCE" \
   SELECTED_CHANNEL=api-hotfix RELEASE_MODE=hotfix RELEASE_SERVICE=api \
   bash "$SCRIPT_DIR/build-release.sh" API-CPU-LIMIT-TEST >/dev/null
 grep -q '^build --cpu-period 100000 --cpu-quota 60000 ' "$FAKE_LOG"
+! grep -q -- '--cache-to' "$FAKE_LOG"
+
+: > "$FAKE_LOG"
+FAKE_BUILDX_AVAILABLE=1 FAKE_BUILDX_DRIVER=docker TEST_EVIDENCE_FILE="$API_EVIDENCE" \
+  SELECTED_CHANNEL=api-hotfix RELEASE_MODE=hotfix RELEASE_SERVICE=api \
+  bash "$SCRIPT_DIR/build-release.sh" API-DOCKER-DRIVER-TEST >/dev/null
 ! grep -q -- '--cache-to' "$FAKE_LOG"
 
 : > "$FAKE_LOG"
