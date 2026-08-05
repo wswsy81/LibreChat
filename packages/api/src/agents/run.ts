@@ -1020,7 +1020,7 @@ export async function createRun({
 
   /** Admin kill switch for the ask tool — see {@link isAskUserQuestionAdminDisabled}. */
   const askToolAdminDisabled = isAskUserQuestionAdminDisabled(appConfig);
-  const advisorRouteProof = await prepareAdvisorRoute({ requestBody, user });
+  const advisorRouteProof = await prepareAdvisorRoute({ requestBody, user, messages });
   let advisorRouteProofAttached = false;
 
   const buildAgentInput = (agent: RunAgent, opts: { isSubagent?: boolean } = {}): AgentInputs => {
@@ -1063,7 +1063,11 @@ export async function createRun({
     const toolInstructions = joinInstructionMap(agent.toolContextMap);
     const dynamicToolInstructions = joinInstructionMap(agent.dynamicToolContextMap);
 
-    const systemContent = [toolInstructions, agent.instructions ?? ''].join('\n').trim();
+    const advisorInstructions =
+      !isSubagent && advisorRouteProof?.endpoint === agent.endpoint
+        ? [advisorRouteProof.prompts.core, advisorRouteProof.prompts.modeCard].join('\n\n')
+        : (agent.instructions ?? '');
+    const systemContent = [toolInstructions, advisorInstructions].join('\n').trim();
 
     const additionalInstructions = [dynamicToolInstructions, agent.additional_instructions ?? '']
       .join('\n')

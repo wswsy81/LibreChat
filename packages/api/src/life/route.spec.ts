@@ -1,22 +1,115 @@
+import { createHash } from 'node:crypto';
 import type { RunLLMConfig } from '~/types';
 import { createProductSnapshot } from './productRuntime';
-import { attachAdvisorRouteProof, prepareAdvisorRoute } from './route';
+import { attachAdvisorRouteProof, prepareAdvisorRoute, resolveAdvisorMode } from './route';
 
 const flow = {
   schemaVersion: 1,
-  id: 'futureline-advisor-route',
-  version: 'v1',
-  entry: 'route',
+  id: 'futureline-advisor-mode-route',
+  version: 'v2',
+  entry: 'select-mode',
   permissions: ['conversation.read'],
   nodes: [
     {
-      id: 'route',
+      id: 'select-mode',
+      actionId: 'advisor.select-mode',
+      input: { defaultMode: 'free_chat' },
+    },
+    {
+      id: 'route-free-chat',
       actionId: 'advisor.route',
-      input: { route: 'advisor-gateway-v1', endpoint: 'polaris' },
+      input: {
+        route: 'advisor-gateway-v1',
+        endpoint: 'polaris',
+        mode: 'free_chat',
+        promptSlot: 'advisor.prompt.free-chat',
+      },
+    },
+    {
+      id: 'route-guided-interview',
+      actionId: 'advisor.route',
+      input: {
+        route: 'advisor-gateway-v1',
+        endpoint: 'polaris',
+        mode: 'guided_interview',
+        promptSlot: 'advisor.prompt.guided-interview',
+      },
+    },
+    {
+      id: 'route-tool-action',
+      actionId: 'advisor.route',
+      input: {
+        route: 'advisor-gateway-v1',
+        endpoint: 'polaris',
+        mode: 'tool_action',
+        promptSlot: 'advisor.prompt.tool-action',
+      },
+    },
+    {
+      id: 'route-report',
+      actionId: 'advisor.route',
+      input: {
+        route: 'advisor-gateway-v1',
+        endpoint: 'polaris',
+        mode: 'report',
+        promptSlot: 'advisor.prompt.report',
+      },
+    },
+    {
+      id: 'route-mingli',
+      actionId: 'advisor.route',
+      input: {
+        route: 'advisor-gateway-v1',
+        endpoint: 'polaris',
+        mode: 'mingli',
+        promptSlot: 'advisor.prompt.mingli',
+      },
     },
   ],
-  edges: [{ from: 'route', to: 'END' }],
+  edges: [
+    {
+      from: 'select-mode',
+      to: 'route-guided-interview',
+      when: { fact: 'requested_mode', op: 'eq', value: 'guided_interview' },
+    },
+    {
+      from: 'select-mode',
+      to: 'route-tool-action',
+      when: { fact: 'requested_mode', op: 'eq', value: 'tool_action' },
+    },
+    {
+      from: 'select-mode',
+      to: 'route-report',
+      when: { fact: 'requested_mode', op: 'eq', value: 'report' },
+    },
+    {
+      from: 'select-mode',
+      to: 'route-mingli',
+      when: { fact: 'requested_mode', op: 'eq', value: 'mingli' },
+    },
+    { from: 'select-mode', to: 'route-free-chat' },
+    { from: 'route-free-chat', to: 'END' },
+    { from: 'route-guided-interview', to: 'END' },
+    { from: 'route-tool-action', to: 'END' },
+    { from: 'route-report', to: 'END' },
+    { from: 'route-mingli', to: 'END' },
+  ],
 };
+
+const prompt = (slot: string, content: string) => ({
+  slot,
+  sha256: createHash('sha256').update(content).digest('hex'),
+  content,
+});
+
+const prompts = [
+  prompt('advisor.prompt.core', '轻量核心：自然聊天，事实诚实，安全边界。'),
+  prompt('advisor.prompt.free-chat', '普通聊天：直接回应，不启动流程。'),
+  prompt('advisor.prompt.guided-interview', '阶段访谈：一次只问一项。'),
+  prompt('advisor.prompt.tool-action', '工具执行：完成明确任务。'),
+  prompt('advisor.prompt.report', '报告：只使用已确认材料。'),
+  prompt('advisor.prompt.mingli', '命理：只做现实对答案。'),
+];
 
 const pluginSha256 = 'c'.repeat(64);
 const pluginManifest = {
@@ -42,7 +135,7 @@ const pluginManifest = {
 
 function contract() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     flow,
     snapshot: createProductSnapshot({
       catalogVersion: 'v1',
@@ -52,6 +145,7 @@ function contract() {
       pi: [],
       createdAt: '2026-07-28T00:00:00.000Z',
     }),
+    prompts,
     plugins: [{ sha256: pluginSha256, manifest: pluginManifest }],
   };
 }
@@ -89,7 +183,7 @@ describe('Advisor Product Runner route', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('runs the real LangGraph flow and returns the sole action effect as route proof', async () => {
+  it('runs the real LangGraph mode flow and returns the selected route effect as proof', async () => {
     expect(contract().snapshot.snapshotId).toMatch(/^[a-f0-9]{64}$/);
     const proof = await prepareAdvisorRoute(identity, {
       enabled: true,
@@ -99,9 +193,15 @@ describe('Advisor Product Runner route', () => {
     });
     expect(proof).toBeDefined();
     expect(proof?.endpoint).toBe('polaris');
+    expect(proof?.mode).toBe('free_chat');
+    expect(proof?.prompts).toEqual({
+      core: '轻量核心：自然聊天，事实诚实，安全边界。',
+      modeCard: '普通聊天：直接回应，不启动流程。',
+    });
     expect(proof?.headers['X-Futureline-Product-Snapshot']).toMatch(/^[a-f0-9]{64}$/);
     expect(proof?.headers['X-Futureline-Product-Run']).toMatch(/^advisor-[a-f0-9]{32}$/);
     expect(proof?.headers['X-Futureline-Product-Effect']).toMatch(/^[a-f0-9]{64}$/);
+    expect(proof?.headers['X-Futureline-Product-Mode']).toBe('free_chat');
 
     const fetchImpl = fetchContract();
     await prepareAdvisorRoute(identity, {
@@ -130,6 +230,40 @@ describe('Advisor Product Runner route', () => {
       Existing: 'kept',
       ...proof?.headers,
     });
+  });
+
+  it('routes only strong deterministic signals and defaults unrelated stories to free_chat', async () => {
+    expect(
+      resolveAdvisorMode([{ role: 'user', content: '今天在楼下碰到以前的同学，聊了十分钟。' }]),
+    ).toBe('free_chat');
+    expect(
+      resolveAdvisorMode([{ role: 'user', content: '[trigger:house_entered] entryHouse=h10' }]),
+    ).toBe('guided_interview');
+    expect(resolveAdvisorMode([{ role: 'user', content: '帮我生成这次的完整报告' }])).toBe(
+      'report',
+    );
+    expect(resolveAdvisorMode([{ role: 'user', content: '用八字和星盘对一下这个选择' }])).toBe(
+      'mingli',
+    );
+    expect(
+      resolveAdvisorMode([{ role: 'user', content: '朋友昨天给我发了张星盘，我还没点开。' }]),
+    ).toBe('free_chat');
+    expect(resolveAdvisorMode([{ role: 'user', content: '帮我联网查一下这家公司' }])).toBe(
+      'tool_action',
+    );
+    expect(resolveAdvisorMode([{ role: 'tool', content: '查询完成' }])).toBe('tool_action');
+
+    const proof = await prepareAdvisorRoute(
+      { ...identity, messages: [{ role: 'user', content: '用八字看看今年的工作选择' }] },
+      {
+        enabled: true,
+        engineUrl: 'http://future-engine',
+        internalToken: 'token',
+        fetchImpl: fetchContract(),
+      },
+    );
+    expect(proof?.mode).toBe('mingli');
+    expect(proof?.prompts.modeCard).toBe('命理：只做现实对答案。');
   });
 
   it('retains experiment assignment in the validated snapshot digest', async () => {
@@ -186,12 +320,30 @@ describe('Advisor Product Runner route', () => {
         enabled: true,
         fetchImpl: fetchContract({
           ...contract(),
-          flow: { ...flow, nodes: [{ ...flow.nodes[0], actionId: 'model.generate' }] },
+          flow: {
+            ...flow,
+            nodes: flow.nodes.map((node, index) =>
+              index === 1 ? { ...node, actionId: 'model.generate' } : node,
+            ),
+          },
         }),
         engineUrl: 'http://future-engine',
         internalToken: 'token',
       }),
     ).rejects.toThrow('action');
+    await expect(
+      prepareAdvisorRoute(identity, {
+        enabled: true,
+        fetchImpl: fetchContract({
+          ...contract(),
+          prompts: prompts.map((item, index) =>
+            index === 0 ? { ...item, content: `${item.content}被篡改` } : item,
+          ),
+        }),
+        engineUrl: 'http://future-engine',
+        internalToken: 'token',
+      }),
+    ).rejects.toThrow('digest');
     await expect(
       prepareAdvisorRoute(identity, {
         enabled: true,
