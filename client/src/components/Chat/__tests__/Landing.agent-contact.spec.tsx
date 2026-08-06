@@ -25,7 +25,9 @@ jest.mock(
   () => ({
     BirthdayIcon: () => <span data-testid="birthday-icon" />,
     TooltipAnchor: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
-    SplitText: ({ text }: { text: string }) => <span>{text}</span>,
+    SplitText: ({ text, className }: { text: string; className?: string }) => (
+      <span className={className}>{text}</span>
+    ),
   }),
   { virtual: true },
 );
@@ -178,6 +180,27 @@ describe('Landing agent contact', () => {
     expect(landing).not.toHaveClass('h-full');
     expect(landing).not.toHaveClass('sm:max-h-0');
     expect(content).not.toHaveClass('my-auto');
+  });
+
+  it('constrains welcome copy to the chat viewport on narrow screens', () => {
+    mockConversation = {
+      endpoint: 'openAI',
+      spec: 'future-lines',
+      greeting: '从哪儿说起都行——一件小事、一个决定，或者只是一种说不清的感觉。',
+    };
+
+    render(<Landing />);
+
+    const description = screen.getByText(
+      (_, element) => element?.classList.contains('animate-fadeIn') ?? false,
+    );
+    const content = description.parentElement;
+    const titleRow = content?.firstElementChild;
+    const title = screen.getByText('Greeting one');
+
+    expect(content).toHaveClass('w-full', 'min-w-0', 'max-w-full');
+    expect(titleRow).toHaveClass('w-full', 'min-w-0', 'max-w-full');
+    expect(title).toHaveClass('w-full', 'min-w-0', 'max-w-full');
   });
 
   it('未来线新对话按次轮换赌注句，不再固定为时段问候', () => {

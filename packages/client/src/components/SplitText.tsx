@@ -138,12 +138,20 @@ const SplitText: React.FC<SplitTextProps> = ({
       <span className="sr-only">{text}</span>
       <p
         ref={ref}
-        className={`split-parent inline overflow-hidden ${className}`}
+        className={`split-parent block overflow-hidden ${className}`}
         style={{ textAlign, whiteSpace: 'normal', wordWrap: 'break-word' }}
         aria-hidden="true"
       >
         {words.map((word, wordIndex) => (
-          <span key={wordIndex} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
+          <span
+            key={wordIndex}
+            style={{
+              display: 'inline-block',
+              maxWidth: '100%',
+              overflowWrap: 'anywhere',
+              whiteSpace: 'normal',
+            }}
+          >
             {word.map((letter, letterIndex) => {
               const index =
                 words.slice(0, wordIndex).reduce((acc, w) => acc + w.length, 0) + letterIndex;

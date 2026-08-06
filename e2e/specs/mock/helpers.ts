@@ -33,8 +33,7 @@ export function isAgentGenerationStart(response: Response) {
   );
 }
 
-const modelSelectorTrigger = (page: Page) =>
-  page.getByRole('button', { name: 'Select a model' }).first();
+const modelSelectorTrigger = (page: Page) => page.getByTestId('model-selector-button').first();
 
 export const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -58,7 +57,7 @@ export async function selectModelSpec(page: Page, label: string) {
     return;
   }
   await trigger.click();
-  await page.getByRole('option', { name: new RegExp(`(^|\\s)${escapeRegExp(label)}\\b`) }).click();
+  await page.getByRole('option', { name: new RegExp(escapeRegExp(label)) }).click();
   await expect(trigger).toContainText(label);
 }
 

@@ -100,6 +100,13 @@ modelSpecs:
     - 'Mock Provider D'
     - 'agents'
   list:
+    - name: 'future-lines'
+      label: '人生设计室'
+      preset:
+        endpoint: 'Mock Provider A'
+        model: 'mock-model-a'
+        greeting: '是什么把你带到这里来的？从哪儿说起都行——一件小事、一个决定、或者只是一种说不清的感觉。'
+
     - name: 'e2e-mock-provider-a'
       label: 'Mock Provider A'
       preset:

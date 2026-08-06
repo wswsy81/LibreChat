@@ -200,17 +200,20 @@ export default function Landing() {
       className={`flex max-h-full min-h-0 w-full flex-1 transform-gpu flex-col items-center overflow-y-auto pb-16 pt-8 transition-all duration-200 ${getDynamicMargin}`}
       style={{ justifyContent: 'safe center' }}
     >
-      <div ref={contentRef} className="flex flex-col items-center gap-0 p-2">
+      <div
+        ref={contentRef}
+        className="flex w-full min-w-0 max-w-full flex-col items-center gap-0 p-2"
+      >
         <div
-          className={`flex ${textHasMultipleLines ? 'flex-col' : 'flex-col'} items-center justify-center gap-2`}
+          className={`flex w-full min-w-0 max-w-full ${textHasMultipleLines ? 'flex-col' : 'flex-col'} items-center justify-center gap-2`}
         >
           {/* 人生设计室:去机器人头像(见 DESIGN.md 禁机器人头像) */}
           {((isAgent || isAssistant) && name) || name ? (
-            <div className="flex flex-col items-center gap-0 p-2">
+            <div className="flex w-full min-w-0 max-w-full flex-col items-center gap-0 p-2">
               <SplitText
                 key={`split-text-${name}`}
                 text={name}
-                className={`${getTextSizeClass(name)} font-life-serif font-black text-life-ink dark:text-text-primary`}
+                className={`w-full min-w-0 max-w-full ${getTextSizeClass(name)} font-life-serif font-black text-life-ink dark:text-text-primary`}
                 delay={50}
                 textAlign="center"
                 animationFrom={{ opacity: 0, transform: 'translate3d(0,50px,0)' }}
@@ -225,7 +228,7 @@ export default function Landing() {
             <SplitText
               key={`split-text-${greetingText}${user?.name ? '-user' : ''}`}
               text={greetingText}
-              className={`${getTextSizeClass(greetingText)} font-life-serif font-black text-life-ink dark:text-text-primary`}
+              className={`w-full min-w-0 max-w-full ${getTextSizeClass(greetingText)} font-life-serif font-black text-life-ink dark:text-text-primary`}
               delay={50}
               textAlign="center"
               animationFrom={{ opacity: 0, transform: 'translate3d(0,50px,0)' }}
@@ -244,7 +247,7 @@ export default function Landing() {
               dangerouslySetInnerHTML={{ __html: sanitizeDescription(description) }}
             />
           ) : (
-            <div className="animate-fadeIn mt-5 max-w-[36em] text-left text-[15px] font-normal leading-8 text-life-muted dark:text-gray-400">
+            <div className="animate-fadeIn mt-5 w-full min-w-0 max-w-[36em] text-left text-[15px] font-normal leading-8 text-life-muted dark:text-gray-400">
               {/* 旧会话 greeting 里存有 **加粗** markdown:解析成 strong,不再裸奔 */}
               {description.split(/\*\*(.+?)\*\*/g).map((part, index) =>
                 index % 2 === 1 ? (

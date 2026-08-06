@@ -22,4 +22,20 @@ describe('SplitText', () => {
       expect(Array.from(textSpans)[i].textContent).toBe(emojis[i]);
     }
   });
+
+  it('allows long text without spaces to wrap inside its container', () => {
+    const { container } = render(
+      <SplitText text="是什么把你带到这里来的？从哪儿说起都行" className="w-full max-w-full" />,
+    );
+
+    const paragraph = container.querySelector('p.split-parent');
+    const word = paragraph?.querySelector(':scope > span');
+
+    expect(paragraph).toHaveClass('block', 'w-full', 'max-w-full');
+    expect(word).toHaveStyle({
+      maxWidth: '100%',
+      overflowWrap: 'anywhere',
+      whiteSpace: 'normal',
+    });
+  });
 });
