@@ -108,6 +108,9 @@ function createMockReq(capabilities) {
   return {
     user: { id: 'user_123' },
     config: {
+      actions: {
+        allowedDomains: ['https://api.example.com'],
+      },
       endpoints: {
         [EModelEndpoint.agents]: {
           capabilities,
@@ -1519,7 +1522,11 @@ describe('ToolService - Action Capability Gating', () => {
     it('loadToolsForExecution resolves both actions when they share a hostname', async () => {
       mockLoadActionSets.mockResolvedValue([actionA, actionB]);
       const req = createMockReq([AgentCapabilities.actions]);
-      req.config = {};
+      req.config = {
+        actions: {
+          allowedDomains: [SHARED_DOMAIN],
+        },
+      };
 
       await loadToolsForExecution({
         req,
@@ -1547,7 +1554,11 @@ describe('ToolService - Action Capability Gating', () => {
             model: 'gpt-4o-mini',
             endpoint: 'openAI',
           },
-          config: {},
+          config: {
+            actions: {
+              allowedDomains: [SHARED_DOMAIN],
+            },
+          },
         },
         res: {},
         apiKey: 'sk-test',
