@@ -42,7 +42,8 @@ for file in \
   reveal-common-variables.v1.json \
   house-opening-bank.v1.json \
   house-opening-bank.v2.json \
-  constitution.v1.json; do
+  constitution.v1.json \
+  constitution.v3.json; do
   if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
     install -m 644 "$ENGINE_DIR/banks/$file" "$RUNTIME_CONFIG_DIR/$file"
   fi
@@ -76,6 +77,7 @@ chmod 644 \
   "$RUNTIME_CONFIG_DIR"/house-opening-bank.v1.json \
   "$RUNTIME_CONFIG_DIR"/house-opening-bank.v2.json \
   "$RUNTIME_CONFIG_DIR"/constitution.v1.json \
+  "$RUNTIME_CONFIG_DIR"/constitution.v3.json \
   "$RUNTIME_CONFIG_DIR"/.last-good/global-prompt.v1.md \
   "$ENGINE_LAST_GOOD_DIR"/runtime-copy.v1.json \
   "$ENGINE_LAST_GOOD_DIR"/rescue-bank.v1.json \
