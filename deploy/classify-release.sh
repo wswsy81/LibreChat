@@ -20,6 +20,7 @@ IDENTITY_CHANGED=false
 MIGRATION_CHANGED=false
 CONFIG_ONLY=false
 ENGINE_ONLY=false
+CLIENT_ONLY=false
 CONFIG_KIND=none
 HAS_RULES=false
 HAS_BANKS=false
@@ -44,6 +45,8 @@ if [[ "$COUNT" -gt 0 ]]; then
     NON_ENGINE=$(printf '%s\n' "$FILES" | grep -Ev '^projects/未来线/future-engine-shim/' || true)
     [[ -z "$NON_ENGINE" ]] && ENGINE_ONLY=true
   fi
+  NON_CLIENT=$(printf '%s\n' "$FILES" | grep -Ev '^(client/|packages/client/)' || true)
+  [[ -z "$NON_CLIENT" ]] && CLIENT_ONLY=true
 fi
 
 if [[ "$CONFIG_ONLY" == true && "$LOCK_CHANGED" == false && "$SCHEMA_CHANGED" == false && "$IDENTITY_CHANGED" == false && "$MIGRATION_CHANGED" == false ]]; then
@@ -62,6 +65,11 @@ if [[ "$CONFIG_ONLY" == true && "$LOCK_CHANGED" == false && "$SCHEMA_CHANGED" ==
   SERVICE=config
   MIN_SECONDS=60
   MAX_SECONDS=180
+elif [[ "$CLIENT_ONLY" == true && "$LOCK_CHANGED" == false && "$SCHEMA_CHANGED" == false && "$IDENTITY_CHANGED" == false && "$MIGRATION_CHANGED" == false ]]; then
+  CHANNEL=client-static
+  SERVICE=client
+  MIN_SECONDS=60
+  MAX_SECONDS=180
 elif [[ "$ENGINE_ONLY" == true && "$LOCK_CHANGED" == false && "$SCHEMA_CHANGED" == false && "$IDENTITY_CHANGED" == false && "$MIGRATION_CHANGED" == false ]]; then
   CHANNEL=engine-hotfix
   SERVICE=future-engine
@@ -75,7 +83,7 @@ elif [[ "$COUNT" -gt 0 ]]; then
 fi
 
 node -e '
-const [count, lock, schema, identity, migration, configOnly, engineOnly, hasRules, hasBanks, hasProductSkills, configKind, channel, service, min, max] = process.argv.slice(1);
+const [count, lock, schema, identity, migration, configOnly, engineOnly, clientOnly, hasRules, hasBanks, hasProductSkills, configKind, channel, service, min, max] = process.argv.slice(1);
 process.stdout.write(JSON.stringify({
   selectedBy: "classifier",
   channel,
@@ -90,10 +98,11 @@ process.stdout.write(JSON.stringify({
     migrationChanged: migration === "true",
     configOnly: configOnly === "true",
     engineOnly: engineOnly === "true",
+    clientOnly: clientOnly === "true",
     hasRules: hasRules === "true",
     hasBanks: hasBanks === "true",
     hasProductSkills: hasProductSkills === "true"
   },
   note: "分类器按实际 diff 自动选择最小安全通道；无法可靠判定时进入 full"
 }, null, 2) + "\n");
-' "$COUNT" "$LOCK_CHANGED" "$SCHEMA_CHANGED" "$IDENTITY_CHANGED" "$MIGRATION_CHANGED" "$CONFIG_ONLY" "$ENGINE_ONLY" "$HAS_RULES" "$HAS_BANKS" "$HAS_PRODUCT_SKILLS" "$CONFIG_KIND" "$CHANNEL" "$SERVICE" "$MIN_SECONDS" "$MAX_SECONDS"
+' "$COUNT" "$LOCK_CHANGED" "$SCHEMA_CHANGED" "$IDENTITY_CHANGED" "$MIGRATION_CHANGED" "$CONFIG_ONLY" "$ENGINE_ONLY" "$CLIENT_ONLY" "$HAS_RULES" "$HAS_BANKS" "$HAS_PRODUCT_SKILLS" "$CONFIG_KIND" "$CHANNEL" "$SERVICE" "$MIN_SECONDS" "$MAX_SECONDS"

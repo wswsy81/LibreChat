@@ -73,8 +73,13 @@ case "$SERVICE" in
       --runInBand \
       --coverage=false
     ;;
+  client)
+    cd "$APP_DIR"
+    npm run frontend
+    test -s client/dist/index.html
+    ;;
   *)
-    echo "usage: bash deploy/verify-hotfix.sh <config|api|future-engine>" >&2
+    echo "usage: bash deploy/verify-hotfix.sh <config|api|client|future-engine>" >&2
     exit 2
     ;;
 esac

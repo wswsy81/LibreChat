@@ -9,9 +9,9 @@ OUTPUT=${2:-}
 SUITE=${TEST_EVIDENCE_SUITE:-manual}
 
 case "$SCOPE" in
-  config-only|engine-hotfix|api-hotfix|full|release-pipeline) ;;
+  config-only|engine-hotfix|api-hotfix|client-static|full|release-pipeline) ;;
   *)
-    echo "usage: bash deploy/write-test-evidence.sh <config-only|engine-hotfix|api-hotfix|full|release-pipeline> <output>" >&2
+    echo "usage: bash deploy/write-test-evidence.sh <config-only|engine-hotfix|api-hotfix|client-static|full|release-pipeline> <output>" >&2
     exit 2
     ;;
 esac
@@ -23,7 +23,7 @@ esac
 LIBRECHAT_REVISION=reused-active
 ENGINE_REVISION=reused-active
 case "$SCOPE" in
-  api-hotfix)
+  api-hotfix|client-static)
     LIBRECHAT_REVISION=$(bash "$SCRIPT_DIR/verify-revision.sh" "$APP_DIR" HEAD librechat_revision)
     ;;
   config-only|engine-hotfix|release-pipeline)

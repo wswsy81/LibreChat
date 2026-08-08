@@ -79,6 +79,15 @@ case "${1:-}" in
       fi
     done
     ;;
+  push)
+    target=${2:-}
+    if [[ "$target" == *librechat* ]]; then
+      digest="sha256:$(printf 'e%.0s' {1..64})"
+    else
+      digest="sha256:$(printf 'f%.0s' {1..64})"
+    fi
+    printf '%s: digest: %s size: 1\n' "$target" "$digest"
+    ;;
   image)
     if [[ "${2:-}" != inspect ]]; then exit 0; fi
     if [[ " $* " != *" --format "* ]]; then exit 0; fi
@@ -90,6 +99,7 @@ case "${1:-}" in
         ;;
       '{{.Architecture}}') printf 'amd64\n' ;;
       '{{.Config.User}}') printf 'node\n' ;;
+      '{{.Size}}') printf '1000\n' ;;
       *org.opencontainers.image.revision*)
         if [[ "$target" == "$FAKE_NEW_API" || "$target" == "$FAKE_TRANSPORT_API" ]]; then
           printf '%s\n' "$FAKE_API_REVISION"
@@ -104,7 +114,12 @@ case "${1:-}" in
     target=${*: -1}
     if [[ "$target" == LibreChat ]]; then printf '%s\n' "$FAKE_CURRENT_API"; else printf '%s\n' "$FAKE_CURRENT_ENGINE"; fi
     ;;
-  compose) exit 0 ;;
+  compose)
+    if [[ " $* " == *" config --quiet "* && "${FAKE_COMPOSE_CONFIG_FAIL:-0}" == 1 ]]; then
+      exit 1
+    fi
+    exit 0
+    ;;
   exec)
     [[ "${FAKE_HEALTH_FAIL:-0}" != 1 ]]
     ;;
@@ -112,6 +127,17 @@ case "${1:-}" in
 esac
 EOF
 chmod +x "$FAKE_BIN/docker"
+cat > "$FAKE_BIN/npm" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == run && "${2:-}" == frontend ]]; then
+  mkdir -p client/dist
+  printf '<html>client build</html>\n' > client/dist/index.html
+  exit 0
+fi
+exit 0
+EOF
+chmod +x "$FAKE_BIN/npm"
 
 export PATH="$FAKE_BIN:$PATH"
 export FAKE_DOCKER_LOG="$FAKE_LOG"
@@ -132,6 +158,16 @@ export FAKE_API_REVISION="$LIBRECHAT_REVISION"
 export FAKE_ENGINE_REVISION="$ENGINE_REVISION"
 export RUNTIME_WRITER_UID
 export RUNTIME_WRITER_GID
+export REGISTRY_PUSH=false
+export AUTO_STAGE=false
+export STAGE_GATE_MODE=not-required
+export CLIENT_ARTIFACT=false
+
+AUTO_STAGE=false bash "$SCRIPT_DIR/build-client-release.sh" CLIENT-BUILD-TEST >/dev/null
+grep -qx 'release_service=client' "$RELEASE_ROOT/CLIENT-BUILD-TEST.manifest"
+grep -qx 'selected_channel=client-static' "$RELEASE_ROOT/CLIENT-BUILD-TEST.manifest"
+grep -Eq '^client_artifact_sha256=[0-9a-f]{64}$' "$RELEASE_ROOT/CLIENT-BUILD-TEST.manifest"
+[[ -s "$RELEASE_ROOT/CLIENT-BUILD-TEST.client.tar.zst" ]]
 RUNTIME_WRITER_UID=$(id -u)
 RUNTIME_WRITER_GID=$(id -g)
 
@@ -144,6 +180,14 @@ grep -qx "LIBRECHAT_RELEASE_IMAGE=$NEW_API" "$RELEASE_ROOT/API-HOTFIX-TEST.env"
 grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$CURRENT_ENGINE" "$RELEASE_ROOT/API-HOTFIX-TEST.env"
 grep -qx 'release_service=api' "$RELEASE_ROOT/API-HOTFIX-TEST.manifest"
 [[ $(grep -c '^build ' "$FAKE_LOG") -eq 1 ]]
+
+REGISTRY_PUSH=true STAGE_GATE_MODE=required AUTO_STAGE=false TEST_EVIDENCE_FILE="$API_EVIDENCE" \
+  SELECTED_CHANNEL=api-hotfix RELEASE_MODE=hotfix RELEASE_SERVICE=api \
+  bash "$SCRIPT_DIR/build-release.sh" API-REGISTRY-TEST >/dev/null
+grep -qx "librechat_registry_ref=ghcr.io/wswsy81/yiweilife-librechat@sha256:$(printf 'e%.0s' {1..64})" "$RELEASE_ROOT/API-REGISTRY-TEST.manifest"
+grep -qx 'future_engine_registry_ref=not-applicable' "$RELEASE_ROOT/API-REGISTRY-TEST.manifest"
+grep -qx 'stage_gate=required' "$RELEASE_ROOT/API-REGISTRY-TEST.manifest"
+grep -qx 'state=candidate_ready_local' "$RELEASE_ROOT/API-REGISTRY-TEST.stage-status"
 
 : > "$FAKE_LOG"
 DOCKER_BUILDKIT=0 BUILD_CPU_QUOTA=60000 TEST_EVIDENCE_FILE="$API_EVIDENCE" \
@@ -268,6 +312,89 @@ grep -qx '{"version":2}' "$APP_DIR/runtime-config/rules.v1.json"
 bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CONFIG-ONLY-TEST.rollback.env" >/dev/null
 grep -qx '{}' "$APP_DIR/runtime-config/rules.v1.json"
 
+set +e
+FAKE_COMPOSE_CONFIG_FAIL=1 bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CONFIG-ONLY-TEST.env" >/dev/null 2>&1
+config_apply_fail_status=$?
+set -e
+[[ $config_apply_fail_status -ne 0 ]]
+grep -qx '{}' "$APP_DIR/runtime-config/rules.v1.json"
+
+CLIENT_RELEASE_SHA=$(printf '9%.0s' {1..64})
+mkdir -p "$APP_DIR/client-releases/$CLIENT_RELEASE_SHA"
+printf '<html>static release</html>\n' > "$APP_DIR/client-releases/$CLIENT_RELEASE_SHA/index.html"
+CLIENT_API=$(sed -n 's/^LIBRECHAT_RELEASE_IMAGE=//p' "$APP_DIR/.release.env")
+CLIENT_ENGINE=$(sed -n 's/^FUTURE_ENGINE_RELEASE_IMAGE=//p' "$APP_DIR/.release.env")
+cat > "$RELEASE_ROOT/CLIENT-STATIC-TEST.evidence" <<EOF
+schema=yiwei.release-test-evidence.v1
+status=passed
+scope=client-static
+suite=release-test
+librechat_revision=reused-active
+future_engine_revision=reused-active
+finished_at=2026-08-08T00:00:00Z
+EOF
+CLIENT_EVIDENCE_SHA=$(shasum -a 256 "$RELEASE_ROOT/CLIENT-STATIC-TEST.evidence" | awk '{print $1}')
+cat > "$RELEASE_ROOT/CLIENT-STATIC-TEST.env" <<EOF
+LIBRECHAT_RELEASE_IMAGE=$CLIENT_API
+FUTURE_ENGINE_RELEASE_IMAGE=$CLIENT_ENGINE
+EOF
+cat > "$RELEASE_ROOT/CLIENT-STATIC-TEST.manifest" <<EOF
+manifest_schema=yiwei.release-manifest.v2
+release_id=CLIENT-STATIC-TEST
+release_service=client
+stage_gate=not-required
+test_evidence_status=passed
+test_evidence_scope=client-static
+test_evidence_sha256=$CLIENT_EVIDENCE_SHA
+test_evidence_file=CLIENT-STATIC-TEST.evidence
+librechat_revision=reused-active
+future_engine_revision=reused-active
+librechat_image=$CLIENT_API
+future_engine_image=$CLIENT_ENGINE
+runtime_config_rules_sha256=not-applicable
+client_release_sha256=$CLIENT_RELEASE_SHA
+EOF
+: > "$FAKE_LOG"
+bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CLIENT-STATIC-TEST.env" >/dev/null
+[[ $(readlink "$APP_DIR/client-releases/current") == "$CLIENT_RELEASE_SHA" ]]
+! grep -q 'compose .* up --detach' "$FAKE_LOG"
+grep -qx 'client_release_changed=true' "$RELEASE_ROOT/CLIENT-STATIC-TEST.apply"
+grep -qx 'client_release_action=remove' "$RELEASE_ROOT/CLIENT-STATIC-TEST.rollback.manifest"
+bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CLIENT-STATIC-TEST.rollback.env" >/dev/null
+[[ ! -e "$APP_DIR/client-releases/current" ]]
+bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CLIENT-STATIC-TEST.env" >/dev/null
+[[ $(readlink "$APP_DIR/client-releases/current") == "$CLIENT_RELEASE_SHA" ]]
+
+CLIENT_FAIL_SHA=$(printf '8%.0s' {1..64})
+mkdir -p "$APP_DIR/client-releases/$CLIENT_FAIL_SHA"
+printf '<html>failed static release</html>\n' > "$APP_DIR/client-releases/$CLIENT_FAIL_SHA/index.html"
+cp "$RELEASE_ROOT/CLIENT-STATIC-TEST.evidence" "$RELEASE_ROOT/CLIENT-STATIC-FAIL.evidence"
+CLIENT_FAIL_EVIDENCE_SHA=$(shasum -a 256 "$RELEASE_ROOT/CLIENT-STATIC-FAIL.evidence" | awk '{print $1}')
+cp "$RELEASE_ROOT/CLIENT-STATIC-TEST.env" "$RELEASE_ROOT/CLIENT-STATIC-FAIL.env"
+cat > "$RELEASE_ROOT/CLIENT-STATIC-FAIL.manifest" <<EOF
+manifest_schema=yiwei.release-manifest.v2
+release_id=CLIENT-STATIC-FAIL
+release_service=client
+stage_gate=not-required
+test_evidence_status=passed
+test_evidence_scope=client-static
+test_evidence_sha256=$CLIENT_FAIL_EVIDENCE_SHA
+test_evidence_file=CLIENT-STATIC-FAIL.evidence
+librechat_revision=reused-active
+future_engine_revision=reused-active
+librechat_image=$CLIENT_API
+future_engine_image=$CLIENT_ENGINE
+runtime_config_rules_sha256=not-applicable
+client_release_sha256=$CLIENT_FAIL_SHA
+EOF
+set +e
+FAKE_HEALTH_FAIL=1 HEALTH_ATTEMPTS=1 HEALTH_SLEEP_SECONDS=0 \
+  bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CLIENT-STATIC-FAIL.env" >/dev/null 2>&1
+client_fail_status=$?
+set -e
+[[ $client_fail_status -ne 0 ]]
+[[ $(readlink "$APP_DIR/client-releases/current") == "$CLIENT_RELEASE_SHA" ]]
+
 : > "$FAKE_LOG"
 set +e
 FAKE_HEALTH_FAIL=1 HEALTH_ATTEMPTS=1 HEALTH_SLEEP_SECONDS=0 \
@@ -313,8 +440,9 @@ CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
 mkdir -p "$CLASSIFY_REPO/client"
 printf 'export {};\n' > "$CLASSIFY_REPO/client/change.ts"
 git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m full >/dev/null
-FULL_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
-[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$FULL_CLASS") == full ]]
+CLIENT_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$CLIENT_CLASS") == client-static ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.clientOnly)' "$CLIENT_CLASS") == true ]]
 
 REVISION_REPO="$TEST_ROOT/revision"
 mkdir -p "$REVISION_REPO"

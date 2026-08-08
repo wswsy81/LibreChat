@@ -336,19 +336,21 @@ if (cluster.isMaster) {
 
     /** Load index.html for SPA serving */
     const indexPath = path.join(appConfig.paths.dist, 'index.html');
-    let indexHTML = fs.readFileSync(indexPath, 'utf8');
-
-    /** Support serving in subdirectory if DOMAIN_CLIENT is set */
-    if (process.env.DOMAIN_CLIENT) {
+    const loadIndexHTML = () => {
+      let indexHTML = fs.readFileSync(indexPath, 'utf8');
+      if (!process.env.DOMAIN_CLIENT) {
+        return indexHTML;
+      }
       const clientUrl = new URL(process.env.DOMAIN_CLIENT);
       const baseHref = clientUrl.pathname.endsWith('/')
         ? clientUrl.pathname
         : `${clientUrl.pathname}/`;
-      if (baseHref !== '/') {
-        logger.info(`Setting base href to ${baseHref}`);
-        indexHTML = indexHTML.replace(/base href="\/"/, `base href="${baseHref}"`);
+      if (baseHref === '/') {
+        return indexHTML;
       }
-    }
+      indexHTML = indexHTML.replace(/base href="\/"/, `base href="${baseHref}"`);
+      return indexHTML;
+    };
 
     const sendIndexHtml = (req, res) => {
       res.set({
@@ -360,7 +362,7 @@ if (cluster.isMaster) {
 
       const lang = req.cookies.lang || req.headers['accept-language']?.split(',')[0] || 'en-US';
       const saneLang = lang.replace(/"/g, '&quot;');
-      let updatedIndexHtml = indexHTML.replace(/lang="en-US"/g, `lang="${saneLang}"`);
+      let updatedIndexHtml = loadIndexHTML().replace(/lang="en-US"/g, `lang="${saneLang}"`);
       updatedIndexHtml = maybeInjectQueryDevtoolsBootstrap(updatedIndexHtml, req);
 
       res.type('html');

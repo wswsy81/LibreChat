@@ -15,7 +15,7 @@
    bash deploy/build-full-release.sh B5-20260719
    ```
 
-7. 先把候选可恢复地 stage 到生产。脚本会备份、预检磁盘，只清理 dangling image/build cache，使用 zstd 流式传输；已正确加载的镜像会跳过，并生成绑定候选 env/manifest SHA 与 Linux 实际 image ID 的 transport 证明：
+7. 候选生成后默认在后台 stage 到生产。新候选 push 到 OCI Registry 并记录不可变 digest，生产只 pull 缺失层；旧候选继续兼容 zstd save/load。脚本会备份、预检磁盘，生成 `candidate_ready_local -> staging -> deployable/failed` 状态和 transport 证明：
 
    ```bash
    bash deploy/stage-release.sh .releases/B5-20260719.env
@@ -27,9 +27,21 @@
    bash deploy/apply-release.sh .releases/B5-20260719.env
    ```
 
-`apply-release.sh` 会先验证 v2 manifest、测试证据、transport 证明与镜像内 revision label，保存当前两个容器的 image ID，原子同步 manifest 绑定的 `rules.v1.json` 并生成可再次 apply 的配置 rollback，然后只重建 image ID 真正变化的服务并等待两个深健康端点。健康失败会同时恢复旧 image ID 与旧规则配置；成功后才更新 `.release.env`。候选 manifest 保持不可变，apply 结果单独写入同名 `.apply` 文件。
+`apply-release.sh` 会先验证 v2 manifest、测试证据、`deployable` 状态、transport 证明与镜像内 revision label，保存当前两个容器的 image ID，原子同步 manifest 绑定的 `rules.v1.json` 和前端静态指针，然后只重建 image ID 真正变化的服务。健康失败会同时恢复旧 image ID、旧规则和旧前端；成功后才更新 `.release.env`。
 
-已有全绿候选在 apply 阶段只做 provenance、双 health 与 canary，不重跑本地大套件。`stage-release.sh` 可重复执行；网络中断后再次运行会跳过 revision label 已匹配的镜像，不从头重传。
+## 前端静态通道
+
+只改 `client/` 或 `packages/client/` 时，分类器输出 `client-static`，不构建、不传输、不重启 API 镜像：
+
+```bash
+bash deploy/build-client-release.sh CLIENT-20260808T120000Z
+# 后台 stage 完成后
+bash deploy/apply-release.sh .releases/CLIENT-20260808T120000Z.env
+```
+
+前端产物以 tar.zst SHA 为不可变目录，`apply` 只原子切换 `client-releases/current` 指针。API 每次返回 SPA `index.html` 时从当前指针读取，静态文件立即生效；健康失败自动恢复上一个指针。首次切换会生成可再次 apply 的“移除指针”rollback；该通道不改业务数据，因此不重复导出 Mongo/Postgres。
+
+已有全绿候选在 apply 阶段只做 provenance、双 health 与 canary，不重跑本地大套件。`stage-release.sh` 可重复执行；已 `deployable` 的同一候选会直接返回，网络中断后再次运行会跳过 revision label 已匹配的镜像，不从头重传，也不重复做 VERIFIED 备份。
 
 ## 配置通道
 
@@ -63,7 +75,7 @@ bash deploy/apply-release.sh .releases/ENGINE-HOTFIX-20260724T120000Z.env
 
 这条路径会先生成 revision 绑定的测试证据，再只构建变化服务；不会跳过目标服务测试、不可变镜像、双健康、rollback manifest 或失败自动回滚。若前端与 Engine 同时变化，使用 `build-full-release.sh`。
 
-时间目标：Engine 代码热修 5–8 分钟；前端＋Engine 完整版本 10–20 分钟；候选 staging 与 apply 分离，已经 stage 的候选切换 1–3 分钟，正常 apply 通常只有几秒。大镜像传输不再占用切换窗口。
+时间目标：纯前端 1–3 分钟；Engine 代码热修 5–8 分钟；前端＋Engine 完整版本 10–20 分钟；已经 stage 的候选 apply 1–3 分钟。镜像预算为 LibreChat 2.1GB、Engine 1.0GB，超过即拒绝生成候选。
 
 ## 日常 compose 与回滚
 

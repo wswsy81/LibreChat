@@ -1,7 +1,7 @@
 # v0.8.7
 
-# Base node image
-FROM node:24.16.0-alpine AS node
+# Build image
+FROM node:24.16.0-alpine AS builder
 
 RUN apk upgrade --no-cache
 RUN apk add --no-cache jemalloc
@@ -61,11 +61,25 @@ RUN \
     npm prune --production; \
     npm cache clean --force
 
+# Runtime image starts from a clean filesystem so pruned devDependencies do not
+# remain reachable through older Docker layers.
+FROM node:24.16.0-alpine AS runtime
+
+RUN apk upgrade --no-cache
+RUN apk add --no-cache jemalloc python3 py3-pip uv ffmpeg
+
+ENV LD_PRELOAD=/usr/lib/libjemalloc.so.2
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.5-python3.12-alpine /usr/local/bin/uv /usr/local/bin/uvx /bin/
+RUN uv --version
+
+RUN mkdir -p /app && chown node:node /app
+WORKDIR /app
+COPY --from=builder --chown=node:node /app /app
+
 # Optional build metadata surfaced in Settings -> About for support triage.
-# Declared here (after the heavy install/build steps) so that commit/date
-# changing on every CI run does not bust the cache for dependency install
-# and frontend build layers. When unset, the backend falls back to local
-# git resolution (if .git is present), and finally to empty values.
+# Declared after the heavy install/build steps so commit/date changes do not
+# invalidate dependency and frontend build caches.
 ARG BUILD_COMMIT=
 ARG BUILD_BRANCH=
 ARG BUILD_DATE=
@@ -79,6 +93,7 @@ LABEL org.opencontainers.image.title="yiweilife-librechat"
 # Node API setup
 EXPOSE 3080
 ENV HOST=0.0.0.0
+USER node
 CMD ["npm", "run", "backend"]
 
 # Optional: for client with nginx routing

@@ -104,6 +104,7 @@ services:
       # 与 future-engine 的 ADVISOR_PRODUCT_RUNNER_REQUIRED 成对,必须同时切换。
       - FUTURELINE_PRODUCT_RUNNER_ENABLED=${FUTURELINE_PRODUCT_RUNNER_ENABLED:-off}
       - RUNTIME_CONFIG_DIR=/app/runtime-config
+      - CLIENT_DIST_PATH=/app/client-releases/current
       - LIBRECHAT_PROMPT_FILE=/app/runtime-config/global-prompt.v1.md
       - LIBRECHAT_PROMPT_LAST_GOOD_FILE=/app/runtime-config/.last-good/global-prompt.v1.md
       - MONGO_URI=mongodb://librechat:${MONGO_APP_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat
@@ -113,6 +114,7 @@ services:
       - ./logs:/app/logs
       - ./images:/app/client/public/images
       - ./runtime-config:/app/runtime-config
+      - ./client-releases:/app/client-releases:ro
     networks:
       trusted-data: {}
       edge:

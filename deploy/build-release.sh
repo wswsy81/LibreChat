@@ -17,6 +17,14 @@ TEST_EVIDENCE_FILE=${TEST_EVIDENCE_FILE:-}
 BUILD_CACHE_DIR=${BUILD_CACHE_DIR:-"$RELEASE_ROOT/.build-cache"}
 BUILD_CPU_QUOTA=${BUILD_CPU_QUOTA:-}
 BUILD_CPU_PERIOD=${BUILD_CPU_PERIOD:-100000}
+TARGET_PLATFORM=${TARGET_PLATFORM:-linux/amd64}
+REGISTRY_PREFIX=${REGISTRY_PREFIX:-ghcr.io/wswsy81}
+REGISTRY_PUSH=${REGISTRY_PUSH:-true}
+AUTO_STAGE=${AUTO_STAGE:-true}
+STAGE_GATE_MODE=${STAGE_GATE_MODE:-required}
+CLIENT_ARTIFACT=${CLIENT_ARTIFACT:-true}
+MAX_LIBRECHAT_IMAGE_BYTES=${MAX_LIBRECHAT_IMAGE_BYTES:-2100000000}
+MAX_FUTURE_ENGINE_IMAGE_BYTES=${MAX_FUTURE_ENGINE_IMAGE_BYTES:-1000000000}
 CORPUS_SCHEMA_REL=library/corpora/schemas/bank-item.schema.json
 CORPUS_SCHEMA_IN_CONTEXT="$PROJECT_DIR/$CORPUS_SCHEMA_REL"
 GENERATED_CORPUS_SCHEMA=false
@@ -49,6 +57,34 @@ case "$SELECTED_CHANNEL" in
 esac
 [[ "$SELECTED_BY" == classifier || "$SELECTED_BY" == owner ]] || {
   echo "SELECTED_BY must be classifier or owner" >&2
+  exit 1
+}
+[[ "$REGISTRY_PUSH" == true || "$REGISTRY_PUSH" == false ]] || {
+  echo "REGISTRY_PUSH must be true or false" >&2
+  exit 1
+}
+[[ "$AUTO_STAGE" == true || "$AUTO_STAGE" == false ]] || {
+  echo "AUTO_STAGE must be true or false" >&2
+  exit 1
+}
+[[ "$STAGE_GATE_MODE" == required || "$STAGE_GATE_MODE" == not-required ]] || {
+  echo "STAGE_GATE_MODE must be required or not-required" >&2
+  exit 1
+}
+[[ "$CLIENT_ARTIFACT" == true || "$CLIENT_ARTIFACT" == false ]] || {
+  echo "CLIENT_ARTIFACT must be true or false" >&2
+  exit 1
+}
+[[ "$TARGET_PLATFORM" == linux/amd64 ]] || {
+  echo "Future Lines production candidates must target linux/amd64" >&2
+  exit 1
+}
+[[ "$REGISTRY_PREFIX" =~ ^[a-z0-9.-]+(:[0-9]+)?(/[a-z0-9._-]+)*$ ]] || {
+  echo "REGISTRY_PREFIX is invalid: $REGISTRY_PREFIX" >&2
+  exit 1
+}
+[[ "$MAX_LIBRECHAT_IMAGE_BYTES" =~ ^[1-9][0-9]*$ && "$MAX_FUTURE_ENGINE_IMAGE_BYTES" =~ ^[1-9][0-9]*$ ]] || {
+  echo "image byte budgets must be positive integers" >&2
   exit 1
 }
 [[ -f "$TEST_EVIDENCE_FILE" ]] || {
@@ -232,12 +268,15 @@ promote_cache() {
 
 API_TAG="yiweilife/librechat:$RELEASE_ID"
 ENGINE_TAG="yiweilife/future-engine:$RELEASE_ID"
+API_REGISTRY_TAG="$REGISTRY_PREFIX/yiweilife-librechat:$RELEASE_ID"
+ENGINE_REGISTRY_TAG="$REGISTRY_PREFIX/yiweilife-future-engine:$RELEASE_ID"
 
 if [[ "$RELEASE_SERVICE" == api || "$RELEASE_SERVICE" == all ]]; then
   echo "Building immutable LibreChat release image: $API_TAG"
   mapfile -t API_CACHE_ARGS < <(cache_args api)
   "${DOCKER[@]}" build \
     ${BUILD_RESOURCE_ARGS[@]+"${BUILD_RESOURCE_ARGS[@]}"} \
+    --platform "$TARGET_PLATFORM" \
     ${API_CACHE_ARGS[@]+"${API_CACHE_ARGS[@]}"} \
     --build-arg "BUILD_COMMIT=$LIBRECHAT_REVISION" \
     --build-arg "BUILD_BRANCH=$(git -C "$APP_DIR" branch --show-current 2>/dev/null || printf unknown)" \
@@ -255,6 +294,7 @@ if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == all ]]; then
   echo "Building immutable future-engine release image: $ENGINE_TAG"
   "${DOCKER[@]}" build \
     ${BUILD_RESOURCE_ARGS[@]+"${BUILD_RESOURCE_ARGS[@]}"} \
+    --platform "$TARGET_PLATFORM" \
     --file "$ENGINE_DIR/Dockerfile" \
     --target runtime \
     ${ENGINE_CACHE_ARGS[@]+"${ENGINE_CACHE_ARGS[@]}"} \
@@ -267,6 +307,45 @@ if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == all ]]; then
 else
   ENGINE_IMAGE=$(active_image FUTURE_ENGINE_RELEASE_IMAGE)
 fi
+
+image_size_bytes() {
+  "${DOCKER[@]}" image inspect --format '{{.Size}}' "$1"
+}
+
+enforce_image_budget() {
+  local image=$1
+  local budget=$2
+  local label=$3
+  local size
+  size=$(image_size_bytes "$image")
+  [[ "$size" =~ ^[0-9]+$ ]] || {
+    echo "$label image size is invalid: $size" >&2
+    exit 1
+  }
+  [[ "$size" -le "$budget" ]] || {
+    echo "$label image exceeds byte budget: size=$size budget=$budget" >&2
+    exit 1
+  }
+  printf '%s' "$size"
+}
+
+push_registry_image() {
+  local source_tag=$1
+  local registry_tag=$2
+  local output digest
+  "${DOCKER[@]}" tag "$source_tag" "$registry_tag"
+  if ! output=$("${DOCKER[@]}" push "$registry_tag" 2>&1); then
+    printf '%s\n' "$output" >&2
+    echo "registry push failed for $registry_tag" >&2
+    exit 1
+  fi
+  digest=$(printf '%s\n' "$output" | sed -n 's/^.*digest: \(sha256:[0-9a-f]\{64\}\).*$/\1/p' | tail -n 1)
+  [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+    echo "registry push did not return an immutable digest for $registry_tag" >&2
+    exit 1
+  }
+  printf '%s@%s' "${registry_tag%:*}" "$digest"
+}
 
 IMAGE_ID_PATTERN='^sha256:[0-9a-f]{64}$'
 [[ "$API_IMAGE" =~ $IMAGE_ID_PATTERN ]] || {
@@ -299,11 +378,34 @@ if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == all ]]; then
     'test -s /app/mcp-server.js && test -s /app/profile.js'
 fi
 
+API_IMAGE_BYTES=not-applicable
+ENGINE_IMAGE_BYTES=not-applicable
+API_REGISTRY_REF=not-applicable
+ENGINE_REGISTRY_REF=not-applicable
+STAGE_GATE=not-required
+if [[ "$RELEASE_SERVICE" == api || "$RELEASE_SERVICE" == all ]]; then
+  STAGE_GATE=$STAGE_GATE_MODE
+  API_IMAGE_BYTES=$(enforce_image_budget "$API_IMAGE" "$MAX_LIBRECHAT_IMAGE_BYTES" LibreChat)
+  if [[ "$REGISTRY_PUSH" == true ]]; then
+    API_REGISTRY_REF=$(push_registry_image "$API_TAG" "$API_REGISTRY_TAG")
+  fi
+fi
+if [[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == all ]]; then
+  STAGE_GATE=$STAGE_GATE_MODE
+  ENGINE_IMAGE_BYTES=$(enforce_image_budget "$ENGINE_IMAGE" "$MAX_FUTURE_ENGINE_IMAGE_BYTES" future-engine)
+  if [[ "$REGISTRY_PUSH" == true ]]; then
+    ENGINE_REGISTRY_REF=$(push_registry_image "$ENGINE_TAG" "$ENGINE_REGISTRY_TAG")
+  fi
+fi
+
 install -d -m 700 "$RELEASE_ROOT"
 ENV_FILE="$RELEASE_ROOT/$RELEASE_ID.env"
 MANIFEST_FILE="$RELEASE_ROOT/$RELEASE_ID.manifest"
 EVIDENCE_ARTIFACT="$RELEASE_ROOT/$RELEASE_ID.evidence"
-[[ ! -e "$ENV_FILE" && ! -e "$MANIFEST_FILE" && ! -e "$EVIDENCE_ARTIFACT" ]] || {
+CLIENT_ARCHIVE_FILE="$RELEASE_ROOT/$RELEASE_ID.client.tar.zst"
+STAGE_STATUS_FILE="$RELEASE_ROOT/$RELEASE_ID.stage-status"
+STAGE_LOG_FILE="$RELEASE_ROOT/$RELEASE_ID.stage.log"
+[[ ! -e "$ENV_FILE" && ! -e "$MANIFEST_FILE" && ! -e "$EVIDENCE_ARTIFACT" && ! -e "$CLIENT_ARCHIVE_FILE" && ! -e "$STAGE_STATUS_FILE" ]] || {
   echo "release already exists: $RELEASE_ID" >&2
   exit 1
 }
@@ -316,6 +418,28 @@ fi
   echo "failed to bind test evidence artifact to candidate" >&2
   exit 1
 }
+
+CLIENT_ARCHIVE_NAME=not-applicable
+CLIENT_ARCHIVE_SHA256=not-applicable
+CLIENT_ARCHIVE_BYTES=not-applicable
+if [[ "$CLIENT_ARTIFACT" == true && ( "$RELEASE_SERVICE" == api || "$RELEASE_SERVICE" == all ) ]]; then
+  command -v zstd >/dev/null 2>&1 || { echo "zstd is required to create the immutable client artifact" >&2; exit 1; }
+  CLIENT_TMP=$(mktemp -d "${TMPDIR:-/tmp}/yiwei-client-artifact.XXXXXX")
+  CLIENT_CONTAINER=$("${DOCKER[@]}" create "$API_IMAGE")
+  cleanup_client_artifact() {
+    "${DOCKER[@]}" rm --force "$CLIENT_CONTAINER" >/dev/null 2>&1 || true
+    rm -rf -- "$CLIENT_TMP"
+  }
+  trap 'cleanup_client_artifact; cleanup_build_context' EXIT
+  "${DOCKER[@]}" cp "$CLIENT_CONTAINER:/app/client/dist" "$CLIENT_TMP/dist"
+  tar -C "$CLIENT_TMP/dist" -cf - . | zstd -3 -T0 -o "$CLIENT_ARCHIVE_FILE" >/dev/null
+  [[ -s "$CLIENT_ARCHIVE_FILE" ]] || { echo "client artifact archive is empty" >&2; exit 1; }
+  CLIENT_ARCHIVE_NAME=$(basename -- "$CLIENT_ARCHIVE_FILE")
+  CLIENT_ARCHIVE_SHA256=$(sha256_file "$CLIENT_ARCHIVE_FILE")
+  CLIENT_ARCHIVE_BYTES=$(wc -c < "$CLIENT_ARCHIVE_FILE" | tr -d ' ')
+  cleanup_client_artifact
+  trap cleanup_build_context EXIT
+fi
 
 umask 077
 ENV_TMP="$RELEASE_ROOT/.$RELEASE_ID.env.tmp"
@@ -340,6 +464,15 @@ MANIFEST_TMP="$RELEASE_ROOT/.$RELEASE_ID.manifest.tmp"
   printf 'future_engine_image=%s\n' "$ENGINE_IMAGE"
   printf 'librechat_tag=%s\n' "$([[ "$RELEASE_SERVICE" == api || "$RELEASE_SERVICE" == all ]] && printf '%s' "$API_TAG" || printf reused-active)"
   printf 'future_engine_tag=%s\n' "$([[ "$RELEASE_SERVICE" == future-engine || "$RELEASE_SERVICE" == all ]] && printf '%s' "$ENGINE_TAG" || printf reused-active)"
+  printf 'librechat_registry_ref=%s\n' "$API_REGISTRY_REF"
+  printf 'future_engine_registry_ref=%s\n' "$ENGINE_REGISTRY_REF"
+  printf 'librechat_image_size_bytes=%s\n' "$API_IMAGE_BYTES"
+  printf 'future_engine_image_size_bytes=%s\n' "$ENGINE_IMAGE_BYTES"
+  printf 'target_platform=%s\n' "$TARGET_PLATFORM"
+  printf 'stage_gate=%s\n' "$STAGE_GATE"
+  printf 'client_artifact_file=%s\n' "$CLIENT_ARCHIVE_NAME"
+  printf 'client_artifact_sha256=%s\n' "$CLIENT_ARCHIVE_SHA256"
+  printf 'client_artifact_bytes=%s\n' "$CLIENT_ARCHIVE_BYTES"
   printf 'test_evidence_status=passed\n'
   printf 'test_evidence_scope=%s\n' "$EVIDENCE_SCOPE"
   printf 'test_evidence_sha256=%s\n' "$TEST_EVIDENCE_SHA256"
@@ -351,7 +484,23 @@ chmod 600 "$ENV_TMP" "$MANIFEST_TMP"
 mv "$ENV_TMP" "$ENV_FILE"
 mv "$MANIFEST_TMP" "$MANIFEST_FILE"
 
+{
+  printf 'schema=yiwei.release-stage-status.v1\n'
+  printf 'state=candidate_ready_local\n'
+  printf 'release_id=%s\n' "$RELEASE_ID"
+  printf 'candidate_env_sha256=%s\n' "$(sha256_file "$ENV_FILE")"
+  printf 'candidate_manifest_sha256=%s\n' "$(sha256_file "$MANIFEST_FILE")"
+  printf 'updated_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+} > "$STAGE_STATUS_FILE"
+chmod 600 "$STAGE_STATUS_FILE"
+
 echo "Release built without touching running containers."
 echo "Scope: $RELEASE_SERVICE"
 echo "Candidate: $ENV_FILE"
-echo "Apply once after a verified backup: bash deploy/apply-release.sh .releases/$RELEASE_ID.env"
+if [[ "$AUTO_STAGE" == true && "$STAGE_GATE" == required ]]; then
+  bash "$SCRIPT_DIR/stage-release.sh" --background "$ENV_FILE"
+  echo "Background staging log: $STAGE_LOG_FILE"
+else
+  echo "Stage next: bash deploy/stage-release.sh .releases/$RELEASE_ID.env"
+fi
+echo "Apply only after state=deployable: bash deploy/apply-release.sh .releases/$RELEASE_ID.env"

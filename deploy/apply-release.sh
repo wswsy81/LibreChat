@@ -9,6 +9,7 @@ ENGINE_SOURCE_DIR=${ENGINE_SOURCE_DIR_OVERRIDE:-"$ENGINE_DIR"}
 PROJECT_DIR=$(cd -- "$ENGINE_SOURCE_DIR/.." && pwd)
 RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
 RUNTIME_CONFIG_DIR=${RUNTIME_CONFIG_DIR:-"$APP_DIR/runtime-config"}
+CLIENT_RELEASES_DIR=${CLIENT_RELEASES_DIR:-"$APP_DIR/client-releases"}
 ENGINE_LAST_GOOD_DIR=${ENGINE_LAST_GOOD_DIR:-"$ENGINE_DIR/data/runtime-last-good"}
 RUNTIME_WRITER_UID=${RUNTIME_WRITER_UID:-1000}
 RUNTIME_WRITER_GID=${RUNTIME_WRITER_GID:-1000}
@@ -143,6 +144,7 @@ ENGINE_IMAGE=$ENGINE_SOURCE_IMAGE
 
 MANIFEST_FILE="${CANDIDATE%.env}.manifest"
 TRANSPORT_FILE="${CANDIDATE%.env}.transport"
+STAGE_STATUS_FILE="${CANDIDATE%.env}.stage-status"
 APPLY_RESULT_FILE="${CANDIDATE%.env}.apply"
 MANIFEST_SCHEMA=""
 if [[ -f "$MANIFEST_FILE" ]]; then
@@ -214,6 +216,30 @@ if [[ "$MANIFEST_SCHEMA" == yiwei.release-manifest.v2 ]]; then
       exit 1
     }
   fi
+
+  STAGE_GATE=$(read_release_optional stage_gate "$MANIFEST_FILE")
+  if [[ "$STAGE_GATE" == required ]]; then
+    [[ -s "$TRANSPORT_FILE" && -s "$STAGE_STATUS_FILE" ]] || {
+      echo "candidate is not deployable: transport and stage status are required" >&2
+      exit 1
+    }
+    [[ "$(read_release_value schema "$STAGE_STATUS_FILE")" == yiwei.release-stage-status.v1 ]] || {
+      echo "candidate stage status schema is unsupported" >&2
+      exit 1
+    }
+    [[ "$(read_release_value state "$STAGE_STATUS_FILE")" == deployable ]] || {
+      echo "candidate stage state is not deployable" >&2
+      exit 1
+    }
+    [[ "$(read_release_value candidate_env_sha256 "$STAGE_STATUS_FILE")" == "$(sha256_file "$CANDIDATE")" ]] || {
+      echo "candidate stage status env SHA mismatch" >&2
+      exit 1
+    }
+    [[ "$(read_release_value candidate_manifest_sha256 "$STAGE_STATUS_FILE")" == "$(sha256_file "$MANIFEST_FILE")" ]] || {
+      echo "candidate stage status manifest SHA mismatch" >&2
+      exit 1
+    }
+  fi
 fi
 
 if [[ -f "$TRANSPORT_FILE" ]]; then
@@ -227,6 +253,11 @@ if [[ -f "$TRANSPORT_FILE" ]]; then
   }
   [[ "$(read_release_value status "$TRANSPORT_FILE")" == passed ]] || {
     echo "candidate transport proof is not passed" >&2
+    exit 1
+  }
+  TRANSPORT_MODE=$(read_release_optional transport_mode "$TRANSPORT_FILE")
+  [[ -z "$TRANSPORT_MODE" || "$TRANSPORT_MODE" == legacy-save-load || "$TRANSPORT_MODE" == registry-pull || "$TRANSPORT_MODE" == artifact-only ]] || {
+    echo "candidate transport mode is unsupported" >&2
     exit 1
   }
   [[ "$(read_release_value candidate_env_sha256 "$TRANSPORT_FILE")" == "$(sha256_file "$CANDIDATE")" ]] || {
@@ -253,6 +284,24 @@ if [[ -f "$TRANSPORT_FILE" ]]; then
     echo "candidate transport future-engine revision mismatch" >&2
     exit 1
   }
+  if [[ "$TRANSPORT_MODE" == registry-pull ]]; then
+    [[ "$(read_release_value librechat_registry_ref "$TRANSPORT_FILE")" == "$(read_release_value librechat_registry_ref "$MANIFEST_FILE")" ]] || {
+      echo "candidate transport LibreChat registry ref mismatch" >&2
+      exit 1
+    }
+    [[ "$(read_release_value future_engine_registry_ref "$TRANSPORT_FILE")" == "$(read_release_value future_engine_registry_ref "$MANIFEST_FILE")" ]] || {
+      echo "candidate transport future-engine registry ref mismatch" >&2
+      exit 1
+    }
+  fi
+  TRANSPORT_CLIENT_SHA=$(read_release_optional client_artifact_sha256 "$TRANSPORT_FILE")
+  MANIFEST_CLIENT_SHA=$(read_release_optional client_artifact_sha256 "$MANIFEST_FILE")
+  if [[ -n "$MANIFEST_CLIENT_SHA" && "$MANIFEST_CLIENT_SHA" != not-applicable ]]; then
+    [[ "$TRANSPORT_CLIENT_SHA" == "$MANIFEST_CLIENT_SHA" ]] || {
+      echo "candidate transport client artifact SHA mismatch" >&2
+      exit 1
+    }
+  fi
   API_IMAGE=$(read_release_value librechat_loaded_image "$TRANSPORT_FILE")
   ENGINE_IMAGE=$(read_release_value future_engine_loaded_image "$TRANSPORT_FILE")
   [[ "$API_IMAGE" =~ $IMAGE_ID_PATTERN && "$ENGINE_IMAGE" =~ $IMAGE_ID_PATTERN ]] || {
@@ -293,7 +342,74 @@ if [[ "$MANIFEST_SCHEMA" == yiwei.release-manifest.v2 ]]; then
 fi
 
 EFFECTIVE_ENV=$(mktemp "$RELEASE_ROOT/.effective-release.XXXXXX")
-trap 'rm -f -- "$EFFECTIVE_ENV"' EXIT
+CLIENT_SWITCH_APPLIED=false
+RULES_SWITCH_APPLIED=false
+SERVICE_SWITCH_ATTEMPTED=false
+ROLLBACK_ENV=
+RULES_ROLLBACK_FILE=
+CLIENT_ROLLBACK_SHA=not-applicable
+
+atomic_client_link() {
+  local target=$1
+  local tmp="$CLIENT_RELEASES_DIR/.current.$$.tmp"
+  install -d -m 755 "$CLIENT_RELEASES_DIR"
+  rm -f -- "$tmp"
+  ln -s "$target" "$tmp"
+  python3 - "$tmp" "$CLIENT_RELEASES_DIR/current" <<'PY'
+import os
+import sys
+
+os.replace(sys.argv[1], sys.argv[2])
+PY
+}
+
+restore_client_pointer() {
+  if [[ "$CLIENT_ROLLBACK_SHA" == not-applicable ]]; then
+    rm -f -- "$CLIENT_RELEASES_DIR/current"
+  else
+    atomic_client_link "$CLIENT_ROLLBACK_SHA"
+  fi
+  CLIENT_SWITCH_APPLIED=false
+}
+
+rollback_apply_state() {
+  local rollback_failed=false
+  if [[ "$CLIENT_SWITCH_APPLIED" == true ]]; then
+    restore_client_pointer || rollback_failed=true
+  fi
+  if [[ "$RULES_SWITCH_APPLIED" == true && -n "$RULES_ROLLBACK_FILE" ]]; then
+    if install -m 644 "$RULES_ROLLBACK_FILE" "$RUNTIME_CONFIG_DIR/rules.v1.json"; then
+      RULES_SWITCH_APPLIED=false
+    else
+      rollback_failed=true
+    fi
+  fi
+  if [[ "$SERVICE_SWITCH_ATTEMPTED" == true && ${#CHANGED_SERVICES[@]} -gt 0 && -s "$ROLLBACK_ENV" ]]; then
+    local rollback_compose=(
+      "${DOCKER[@]}" compose
+      --file "$APP_DIR/docker-compose.prod.yml"
+      --env-file "$APP_DIR/.env"
+      --env-file "$ROLLBACK_ENV"
+    )
+    if "${rollback_compose[@]}" up --detach --no-deps --force-recreate "${CHANGED_SERVICES[@]}"; then
+      SERVICE_SWITCH_ATTEMPTED=false
+    else
+      rollback_failed=true
+    fi
+  fi
+  [[ "$rollback_failed" == false ]]
+}
+
+cleanup_apply() {
+  local status=$?
+  trap - EXIT
+  rm -f -- "$EFFECTIVE_ENV"
+  if [[ $status -ne 0 ]]; then
+    rollback_apply_state || echo "automatic apply rollback was incomplete" >&2
+  fi
+  exit "$status"
+}
+trap cleanup_apply EXIT
 chmod 600 "$EFFECTIVE_ENV"
 {
   printf 'LIBRECHAT_RELEASE_IMAGE=%s\n' "$API_IMAGE"
@@ -305,6 +421,53 @@ CURRENT_ENGINE=$("${DOCKER[@]}" inspect --format '{{.Image}}' future-engine)
 CHANGED_SERVICES=()
 [[ "$ENGINE_IMAGE" == "$CURRENT_ENGINE" ]] || CHANGED_SERVICES+=(future-engine)
 [[ "$API_IMAGE" == "$CURRENT_API" ]] || CHANGED_SERVICES+=(api)
+
+CLIENT_RELEASE_SHA=
+if [[ -f "$MANIFEST_FILE" ]]; then
+  CLIENT_RELEASE_SHA=$(read_release_optional client_release_sha256 "$MANIFEST_FILE")
+  if [[ -z "$CLIENT_RELEASE_SHA" ]]; then
+    CLIENT_RELEASE_SHA=$(read_release_optional client_artifact_sha256 "$MANIFEST_FILE")
+  fi
+fi
+CLIENT_CHANGED=false
+CLIENT_PREVIOUS_TARGET=
+if [[ -L "$CLIENT_RELEASES_DIR/current" ]]; then
+  CLIENT_PREVIOUS_TARGET=$(readlink "$CLIENT_RELEASES_DIR/current")
+elif [[ -e "$CLIENT_RELEASES_DIR/current" ]]; then
+  echo "current client release pointer must be a symlink" >&2
+  exit 1
+fi
+CLIENT_RELEASE_ACTION=$(read_release_optional client_release_action "$MANIFEST_FILE")
+if [[ -z "$CLIENT_RELEASE_ACTION" ]]; then
+  if [[ -n "$CLIENT_RELEASE_SHA" && "$CLIENT_RELEASE_SHA" != not-applicable ]]; then
+    CLIENT_RELEASE_ACTION=switch
+  else
+    CLIENT_RELEASE_ACTION=none
+  fi
+fi
+case "$CLIENT_RELEASE_ACTION" in
+switch)
+  [[ "$CLIENT_RELEASE_SHA" =~ ^[0-9a-f]{64}$ ]] || {
+    echo "candidate client release SHA is invalid" >&2
+    exit 1
+  }
+  [[ -s "$CLIENT_RELEASES_DIR/$CLIENT_RELEASE_SHA/index.html" ]] || {
+    echo "candidate client release is not staged: $CLIENT_RELEASE_SHA" >&2
+    exit 1
+  }
+  [[ "$CLIENT_PREVIOUS_TARGET" == "$CLIENT_RELEASE_SHA" ]] || CLIENT_CHANGED=true
+  ;;
+remove)
+  [[ -z "$CLIENT_RELEASE_SHA" || "$CLIENT_RELEASE_SHA" == not-applicable ]] || {
+    echo "client remove action cannot include a release SHA" >&2
+    exit 1
+  }
+  [[ -z "$CLIENT_PREVIOUS_TARGET" ]] || CLIENT_CHANGED=true
+  CLIENT_RELEASE_SHA=not-applicable
+  ;;
+none) ;;
+*) echo "candidate client release action is unsupported" >&2; exit 1 ;;
+esac
 
 RULES_CHANGED=false
 RULES_SOURCE=""
@@ -336,7 +499,7 @@ if [[ "$MANIFEST_SCHEMA" == yiwei.release-manifest.v2 ]]; then
   fi
 fi
 
-[[ ${#CHANGED_SERVICES[@]} -gt 0 || "$RULES_CHANGED" == true ]] || {
+[[ ${#CHANGED_SERVICES[@]} -gt 0 || "$RULES_CHANGED" == true || "$CLIENT_CHANGED" == true ]] || {
   echo "candidate is identical to the running release and runtime config; nothing to switch" >&2
   exit 1
 }
@@ -393,6 +556,71 @@ if [[ "$RULES_CHANGED" == true ]]; then
     echo "runtime rules atomic sync failed SHA verification" >&2
     exit 1
   }
+  RULES_SWITCH_APPLIED=true
+fi
+
+if [[ "$CLIENT_CHANGED" == true ]]; then
+  if [[ -n "$CLIENT_PREVIOUS_TARGET" ]]; then
+    CLIENT_ROLLBACK_SHA=$(basename -- "$CLIENT_PREVIOUS_TARGET")
+    [[ "$CLIENT_ROLLBACK_SHA" =~ ^[0-9a-f]{64}$ ]] || {
+      echo "current client release target is invalid: $CLIENT_PREVIOUS_TARGET" >&2
+      exit 1
+    }
+    [[ -s "$CLIENT_RELEASES_DIR/$CLIENT_ROLLBACK_SHA/index.html" ]] || {
+      echo "current client release target is missing index.html: $CLIENT_ROLLBACK_SHA" >&2
+      exit 1
+    }
+  fi
+  if [[ "$RULES_CHANGED" != true ]]; then
+    ROLLBACK_EVIDENCE="$RELEASE_ROOT/$RELEASE_NAME.rollback.evidence"
+    {
+      printf 'schema=yiwei.release-test-evidence.v1\n'
+      printf 'status=passed\n'
+      printf 'scope=config-only\n'
+      printf 'suite=generated-rollback\n'
+      printf 'librechat_revision=reused-active\n'
+      printf 'future_engine_revision=reused-active\n'
+      printf 'finished_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$ROLLBACK_EVIDENCE"
+    chmod 600 "$ROLLBACK_EVIDENCE"
+    ROLLBACK_EVIDENCE_SHA=$(sha256_file "$ROLLBACK_EVIDENCE")
+    {
+      printf 'manifest_schema=yiwei.release-manifest.v2\n'
+      printf 'release_id=%s.rollback\n' "$RELEASE_NAME"
+      printf 'release_service=config\n'
+      printf 'stage_gate=not-required\n'
+      printf 'test_evidence_status=passed\n'
+      printf 'test_evidence_scope=config-only\n'
+      printf 'test_evidence_sha256=%s\n' "$ROLLBACK_EVIDENCE_SHA"
+      printf 'test_evidence_file=%s.rollback.evidence\n' "$RELEASE_NAME"
+      printf 'librechat_revision=reused-active\n'
+      printf 'future_engine_revision=reused-active\n'
+      printf 'librechat_image=%s\n' "$CURRENT_API"
+      printf 'future_engine_image=%s\n' "$CURRENT_ENGINE"
+      printf 'runtime_config_rules_sha256=not-applicable\n'
+    } > "$ROLLBACK_MANIFEST"
+    chmod 600 "$ROLLBACK_MANIFEST"
+  fi
+  if [[ "$CLIENT_ROLLBACK_SHA" == not-applicable ]]; then
+    printf 'client_release_action=remove\nclient_release_sha256=not-applicable\n' >> "$ROLLBACK_MANIFEST"
+  else
+    printf 'client_release_action=switch\nclient_release_sha256=%s\n' "$CLIENT_ROLLBACK_SHA" >> "$ROLLBACK_MANIFEST"
+  fi
+
+  if [[ "$CLIENT_RELEASE_ACTION" == remove ]]; then
+    rm -f -- "$CLIENT_RELEASES_DIR/current"
+  else
+    atomic_client_link "$CLIENT_RELEASE_SHA"
+  fi
+  CLIENT_SWITCH_APPLIED=true
+  if [[ "$CLIENT_RELEASE_ACTION" == remove ]]; then
+    [[ ! -e "$CLIENT_RELEASES_DIR/current" ]] || { echo "client release pointer removal failed" >&2; exit 1; }
+  else
+    [[ "$(readlink "$CLIENT_RELEASES_DIR/current")" == "$CLIENT_RELEASE_SHA" ]] || {
+      echo "client release symlink switch failed" >&2
+      exit 1
+    }
+  fi
 fi
 
 if [[ " ${CHANGED_SERVICES[*]} " == *" future-engine "* ]]; then
@@ -415,6 +643,7 @@ COMPOSE=(
 
 if [[ ${#CHANGED_SERVICES[@]} -gt 0 ]]; then
   echo "Switching content-addressed service(s): ${CHANGED_SERVICES[*]}"
+  SERVICE_SWITCH_ATTEMPTED=true
   "${COMPOSE[@]}" up --detach --no-deps --force-recreate "${CHANGED_SERVICES[@]}"
 else
   echo "Applying runtime config without rebuilding or recreating services"
@@ -438,20 +667,10 @@ done
 
 if [[ "$healthy" != true ]]; then
   echo "release health check failed; rolling changed service(s) back: ${CHANGED_SERVICES[*]}" >&2
-  if [[ ${#CHANGED_SERVICES[@]} -gt 0 ]]; then
-    ROLLBACK_COMPOSE=(
-      "${DOCKER[@]}" compose
-      --file "$APP_DIR/docker-compose.prod.yml"
-      --env-file "$APP_DIR/.env"
-      --env-file "$ROLLBACK_ENV"
-    )
-    "${ROLLBACK_COMPOSE[@]}" up --detach --no-deps --force-recreate "${CHANGED_SERVICES[@]}"
-  fi
-  if [[ -n "$RULES_ROLLBACK_FILE" ]]; then
-    install -m 644 "$RULES_ROLLBACK_FILE" "$RUNTIME_CONFIG_DIR/rules.v1.json"
-  fi
-  printf 'apply_result=rolled_back\napply_seconds=%s\nruntime_config_rolled_back=%s\nrecorded_at=%s\n' \
-    "$(( $(date +%s) - APPLY_STARTED_EPOCH ))" "$RULES_CHANGED" \
+  ROLLBACK_RESULT=rolled_back
+  rollback_apply_state || ROLLBACK_RESULT=rollback_incomplete
+  printf 'apply_result=%s\napply_seconds=%s\nruntime_config_rolled_back=%s\nrecorded_at=%s\n' \
+    "$ROLLBACK_RESULT" "$(( $(date +%s) - APPLY_STARTED_EPOCH ))" "$RULES_CHANGED" \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$APPLY_RESULT_FILE"
   chmod 600 "$APPLY_RESULT_FILE"
   exit 1
@@ -461,9 +680,10 @@ ACTIVE_TMP="$APP_DIR/.release.env.next"
 install -m 600 "$EFFECTIVE_ENV" "$ACTIVE_TMP"
 mv "$ACTIVE_TMP" "$APP_DIR/.release.env"
 
-printf 'apply_result=healthy\napply_seconds=%s\nchanged_services=%s\nruntime_config_rules_changed=%s\nruntime_config_rules_previous_sha256=%s\nruntime_config_rules_active_sha256=%s\nrecorded_at=%s\n' \
+printf 'apply_result=healthy\napply_seconds=%s\nchanged_services=%s\nruntime_config_rules_changed=%s\nruntime_config_rules_previous_sha256=%s\nruntime_config_rules_active_sha256=%s\nclient_release_changed=%s\nclient_release_previous=%s\nclient_release_active=%s\nrecorded_at=%s\n' \
   "$(( $(date +%s) - APPLY_STARTED_EPOCH ))" "${CHANGED_SERVICES[*]}" "$RULES_CHANGED" \
   "${RULES_PREVIOUS_SHA:-not-applicable}" "$(sha256_file "$RUNTIME_CONFIG_DIR/rules.v1.json")" \
+  "$CLIENT_CHANGED" "${CLIENT_ROLLBACK_SHA:-not-applicable}" "${CLIENT_RELEASE_SHA:-not-applicable}" \
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$APPLY_RESULT_FILE"
 chmod 600 "$APPLY_RESULT_FILE"
 

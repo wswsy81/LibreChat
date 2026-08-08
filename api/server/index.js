@@ -155,20 +155,21 @@ const startServer = async () => {
   });
 
   const indexPath = path.join(appConfig.paths.dist, 'index.html');
-  let indexHTML = fs.readFileSync(indexPath, 'utf8');
-
-  // In order to provide support to serving the application in a sub-directory
-  // We need to update the base href if the DOMAIN_CLIENT is specified and not the root path
-  if (process.env.DOMAIN_CLIENT) {
+  const loadIndexHTML = () => {
+    let indexHTML = fs.readFileSync(indexPath, 'utf8');
+    if (!process.env.DOMAIN_CLIENT) {
+      return indexHTML;
+    }
     const clientUrl = new URL(process.env.DOMAIN_CLIENT);
     const baseHref = clientUrl.pathname.endsWith('/')
       ? clientUrl.pathname
       : `${clientUrl.pathname}/`;
-    if (baseHref !== '/') {
-      logger.info(`Setting base href to ${baseHref}`);
-      indexHTML = indexHTML.replace(/base href="\/"/, `base href="${baseHref}"`);
+    if (baseHref === '/') {
+      return indexHTML;
     }
-  }
+    indexHTML = indexHTML.replace(/base href="\/"/, `base href="${baseHref}"`);
+    return indexHTML;
+  };
 
   const sendIndexHtml = (req, res) => {
     res.set({
@@ -180,7 +181,7 @@ const startServer = async () => {
 
     const lang = req.cookies.lang || req.headers['accept-language']?.split(',')[0] || 'en-US';
     const saneLang = lang.replace(/"/g, '&quot;');
-    let updatedIndexHtml = indexHTML.replace(/lang="en-US"/g, `lang="${saneLang}"`);
+    let updatedIndexHtml = loadIndexHTML().replace(/lang="en-US"/g, `lang="${saneLang}"`);
     updatedIndexHtml = maybeInjectQueryDevtoolsBootstrap(updatedIndexHtml, req);
 
     res.type('html');

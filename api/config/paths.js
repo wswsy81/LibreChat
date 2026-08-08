@@ -1,14 +1,19 @@
 const path = require('path');
 
+const root = path.resolve(__dirname, '..', '..');
+const dist = process.env.CLIENT_DIST_PATH
+  ? path.resolve(process.env.CLIENT_DIST_PATH)
+  : path.join(root, 'client', 'dist');
+
 module.exports = {
-  root: path.resolve(__dirname, '..', '..'),
-  uploads: path.resolve(__dirname, '..', '..', 'uploads'),
-  clientPath: path.resolve(__dirname, '..', '..', 'client'),
-  dist: path.resolve(__dirname, '..', '..', 'client', 'dist'),
-  publicPath: path.resolve(__dirname, '..', '..', 'client', 'public'),
-  fonts: path.resolve(__dirname, '..', '..', 'client', 'public', 'fonts'),
-  assets: path.resolve(__dirname, '..', '..', 'client', 'public', 'assets'),
-  imageOutput: path.resolve(__dirname, '..', '..', 'client', 'public', 'images'),
+  root,
+  uploads: path.join(root, 'uploads'),
+  clientPath: path.join(root, 'client'),
+  dist,
+  publicPath: path.join(root, 'client', 'public'),
+  fonts: path.join(root, 'client', 'public', 'fonts'),
+  assets: path.join(root, 'client', 'public', 'assets'),
+  imageOutput: path.join(root, 'client', 'public', 'images'),
   structuredTools: path.resolve(__dirname, '..', 'app', 'clients', 'tools', 'structured'),
   pluginManifest: path.resolve(__dirname, '..', 'app', 'clients', 'tools', 'manifest.json'),
 };

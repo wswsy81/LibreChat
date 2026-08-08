@@ -24,7 +24,12 @@ let channel = brain.channel;
 let service = brain.service;
 let executors = [];
 let targetSeconds = brain.targetSeconds;
-if (app.facts.changedFiles > 0 || brain.channel === "full") {
+if (app.channel === "client-static" && brain.facts.changedFiles === 0) {
+  channel = "client-static";
+  service = "client";
+  targetSeconds = { min: 60, max: 180 };
+  executors = ["deploy/build-client-release.sh"];
+} else if (app.facts.changedFiles > 0 || brain.channel === "full") {
   channel = "full";
   service = "all";
   targetSeconds = { min: 600, max: 1200 };

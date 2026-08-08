@@ -19,10 +19,10 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 ## 硬规则
 
 1. 先读 `state/当前状态.md`、LibreChat `CLAUDE.md`、当前 spec 和本 skill 的 `references/definition-of-done.md`。
-2. 先查生产 `.release.env`、`.releases/*.env`、manifest 与本地已推送 revision。只要已有正确候选，必须直接 `apply-release.sh`，禁止重建。
-3. 只在没有可用候选时构建：单服务用 `build-hotfix-release.sh` 或 `RELEASE_SERVICE=<api|future-engine> build-release.sh`；双服务用 `build-release.sh`。生产机无 host Node/npm 时，跳过依赖 host Node 的 wrapper，但不跳过已有本地/镜像门禁。
-4. 生产写入前必须有已验证且非空的备份、候选 env 和精确 rollback env。
-5. 切换只用 `deploy/apply-release.sh <candidate.env>`。不直接改浮动 tag，不直接 `compose build/up`。
+2. 先查生产 `.release.env`、`.releases/*.env`、manifest、transport、stage status 与本地已推送 revision。只要已有正确候选，已 `deployable` 就直接 `apply-release.sh`，禁止重建。
+3. 只在没有可用候选时构建：纯前端用 `build-client-release.sh`，单服务用 `build-hotfix-release.sh`，跨服务用 `build-full-release.sh`。新代码候选默认后台 stage，镜像以 Registry digest 按缺失层 pull，旧候选才兼容 save/load。
+4. 生产写入前必须有已验证且非空的备份、候选 env 和精确 rollback env；纯前端只需 apply 时生成的精确指针 rollback，不重复导出业务数据库。
+5. 切换只用 `deploy/apply-release.sh <candidate.env>`。新候选必须是 `deployable`；纯前端只原子切换 `client-releases/current`，不重建 API 镜像。不直接改浮动 tag，不直接 `compose build/up`。
 6. 一个候选 apply 失败后依赖自动回滚。只有在失败被证明为宿主发布脚本/权限问题、修复已有定向测试且无需重建时，才允许重试一次。第二次失败立即停止。
 7. 不在 2 核生产机上重跑已有证据的全量测试。复用与候选 revision 对应的本地全量结果，生产只跑 release 定向门禁与 canary。
 8. 任何测试文案都要用 trap 恢复，并比对恢复后 SHA。
@@ -33,19 +33,20 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 
 1. **恢复上下文**：确认分支、已推送 revision、改动服务、活动 release、最新候选、备份与 rollback。
 2. **候选优先**：比较候选双 digest 与运行容器 digest。候选已在且不同，直接进入第 4 步。
-3. **必要时构建**：按变更面选 `api`、`future-engine` 或 `all`；记录 release ID、revision、digest 和构建秒数。
-4. **切换**：用候选 env 调用 `apply-release.sh`。脚本必须只 recreate digest 变化的服务，双 health 失败自动回滚。
-5. **生产验收**：按 `references/definition-of-done.md` 的 fail-closed 原则检查：
+3. **必要时构建**：按变更面选 `client-static`、`api`、`future-engine` 或 `all`；记录 release ID、revision、digest、体积与构建秒数。
+4. **后台 staging**：候选自动进入 `candidate_ready_local -> staging -> deployable/failed`，Registry 候选只 pull digest 缺失层。
+5. **切换**：只对 `deployable` 候选调用 `apply-release.sh`；双 health 失败同时回滚镜像、规则与前端指针。
+6. **生产验收**：按 `references/definition-of-done.md` 的 fail-closed 原则检查：
    - `.release.env` 与容器 digest 一致；
    - `user=node`、`restart=0`、`no-new-privileges:true`；
    - API `/health` 200；engine `/health` 200、工具数和 dependencies 正常；
    - 公网 `/`、`/home`、`/login`、`/faq`、`/health` 全部 200；
    - 最近日志无新 `error|exception|fatal|EACCES`（明确的非致命 RAG 告警单列）。
-6. **运行时控制面 canary**：仅当改动 runtime-copy/prompt 管道时执行。
+7. **运行时控制面 canary**：仅当改动 runtime-copy/prompt 管道时执行。
    - JSON：同一 engine 进程内修改后无重启读到，再恢复 SHA。
    - MCP/schema：改一个 describe 标记，重启 engine，live `tools/list` 看到；恢复并再启后消失。
    - prompt：改 prompt 标记，重启 API，last-good 出现；恢复并再启后 SHA 一致。
-7. **收尾**：只在全绿后同步生产源码、清理 staging/重复备份、更新 `state/当前状态.md`，再 commit + push。保护 `.env`、`runtime-config/`、`data/`、`banks-live/`、`uploads/`、`images/`、`data-node/`、`.releases/`。
+8. **收尾**：只在全绿后清理明确无引用的 staging/重复备份、更新 `state/当前状态.md`，再 commit + push；不同步整仓生产源码。保护 `.env`、`runtime-config/`、`data/`、`banks-live/`、`uploads/`、`images/`、`data-node/`、`.releases/`。
 
 ## 发布产物保留
 
@@ -58,9 +59,13 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 
 ## 时间预算
 
-- 已有候选：目标 1–3 分钟内切换和基础验收。
-- 单服务构建：目标 5 分钟内。
-- 超过 5 分钟没有新的可见进展，立即报告当前阶段、耗时和阻断，不要静默等待。
+- 已 stage 候选：目标 1–3 分钟内切换和基础验收。
+- Prompt／mode card 热更新：目标 1–3 分钟，不运行全量测试、不构建镜像。
+- 纯前端静态包：目标 1–3 分钟，不构建、不传输镜像、不重启 API。
+- Engine 代码热修：目标 5–8 分钟。
+- 前端＋Engine 完整版本：目标 10–20 分钟。
+- 镜像预算：LibreChat 不得超过 2.1GB，future-engine 不得超过 1.0GB。
+- 超过 60 秒没有新的可见进展，立即报告当前阶段、耗时和阻断。
 - 不把上游模型 503/CPU 过载当成发布失败；发布只验证目标代码和服务健康，上游容量单独报告。
 
 ## 交付报告
