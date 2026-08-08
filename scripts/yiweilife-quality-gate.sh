@@ -37,10 +37,12 @@ if [[ "$MODE" == "--full" ]]; then
     src/components/Skills/dialogs/__tests__/UploadSkillDialog.spec.tsx
   # A single long-lived API run grows beyond 6 GB and lets integration suites
   # leak native workspace caches and sockets into later suites. Four sequential
-  # shards keep every Jest process short-lived without reducing coverage.
+  # shards keep every Jest process short-lived without reducing coverage. Run
+  # each shard in band as well: parallel workers intermittently cross-talk over
+  # ephemeral Supertest sockets, producing random 400/parse/socket failures.
   api_isolated_pattern='server/services/AuthService\.spec\.js$|server/middleware/optionalShareFileAuth\.spec\.js$|server/routes/__tests__/convos-import\.spec\.js$'
   for shard in 1 2 3 4; do
-    run npm run test:api -- --maxWorkers=2 --shard="${shard}/4" \
+    run npm run test:api -- --runInBand --shard="${shard}/4" \
       --testPathIgnorePatterns="$api_isolated_pattern"
   done
   # These suites specifically depend on a fresh workspace-module/socket state.
