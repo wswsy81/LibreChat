@@ -68,11 +68,14 @@ run bash -n deploy/classify-release.sh
 run bash -n deploy/plan-release.sh
 run bash -n deploy/verify-revision.sh
 run bash -n deploy/write-test-evidence.sh
+run bash -n deploy/deploy-product-skills.sh
+run bash -n deploy/stage-release.sh
 run bash -n deploy/apply-release.sh
 run bash -n deploy/verify-hotfix.sh
 run bash -n deploy/verify-local.sh
 run bash -n deploy/compose.sh
 run bash deploy/release.test.sh
+run bash deploy/stage-release.test.sh
 run bash deploy/backup.test.sh
 
 if [[ "$MODE" == "--full" ]]; then

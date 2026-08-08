@@ -129,16 +129,19 @@ sha256_file() {
   fi
 }
 
-API_IMAGE=$(read_release_value LIBRECHAT_RELEASE_IMAGE "$CANDIDATE")
-ENGINE_IMAGE=$(read_release_value FUTURE_ENGINE_RELEASE_IMAGE "$CANDIDATE")
+API_SOURCE_IMAGE=$(read_release_value LIBRECHAT_RELEASE_IMAGE "$CANDIDATE")
+ENGINE_SOURCE_IMAGE=$(read_release_value FUTURE_ENGINE_RELEASE_IMAGE "$CANDIDATE")
 IMAGE_ID_PATTERN='^sha256:[0-9a-f]{64}$'
-[[ "$API_IMAGE" =~ $IMAGE_ID_PATTERN && "$ENGINE_IMAGE" =~ $IMAGE_ID_PATTERN ]] || {
+[[ "$API_SOURCE_IMAGE" =~ $IMAGE_ID_PATTERN && "$ENGINE_SOURCE_IMAGE" =~ $IMAGE_ID_PATTERN ]] || {
   echo "release env must contain two content-addressed sha256 image IDs" >&2
   exit 1
 }
-"${DOCKER[@]}" image inspect "$API_IMAGE" "$ENGINE_IMAGE" >/dev/null
+API_IMAGE=$API_SOURCE_IMAGE
+ENGINE_IMAGE=$ENGINE_SOURCE_IMAGE
 
 MANIFEST_FILE="${CANDIDATE%.env}.manifest"
+TRANSPORT_FILE="${CANDIDATE%.env}.transport"
+APPLY_RESULT_FILE="${CANDIDATE%.env}.apply"
 MANIFEST_SCHEMA=""
 if [[ -f "$MANIFEST_FILE" ]]; then
   MANIFEST_SCHEMA=$(read_release_optional manifest_schema "$MANIFEST_FILE")
@@ -188,13 +191,112 @@ if [[ "$MANIFEST_SCHEMA" == yiwei.release-manifest.v2 ]]; then
     echo "candidate evidence future-engine revision does not match manifest" >&2
     exit 1
   }
-  if [[ "$LIBRECHAT_REVISION" != reused-active ]]; then
-    bash "$SCRIPT_DIR/verify-revision.sh" "$APP_DIR" "$LIBRECHAT_REVISION" librechat_revision pushed >/dev/null
-  fi
-  if [[ "$ENGINE_REVISION" != reused-active ]]; then
-    bash "$SCRIPT_DIR/verify-revision.sh" "$ENGINE_SOURCE_DIR" "$ENGINE_REVISION" future_engine_revision pushed >/dev/null
+  MANIFEST_API_IMAGE=$(read_release_optional librechat_image "$MANIFEST_FILE")
+  MANIFEST_ENGINE_IMAGE=$(read_release_optional future_engine_image "$MANIFEST_FILE")
+  if [[ -n "$MANIFEST_API_IMAGE" || -n "$MANIFEST_ENGINE_IMAGE" ]]; then
+    [[ "$MANIFEST_API_IMAGE" == "$API_SOURCE_IMAGE" ]] || {
+      echo "candidate env LibreChat image does not match manifest" >&2
+      exit 1
+    }
+    [[ "$MANIFEST_ENGINE_IMAGE" == "$ENGINE_SOURCE_IMAGE" ]] || {
+      echo "candidate env future-engine image does not match manifest" >&2
+      exit 1
+    }
+  else
+    [[ "$LIBRECHAT_REVISION" == reused-active && "$ENGINE_REVISION" == reused-active ]] || {
+      echo "candidate manifest is missing bound image IDs" >&2
+      exit 1
+    }
+    [[ "$(read_release_value suite "$EVIDENCE_FILE")" == generated-rollback ]] || {
+      echo "only a generated rollback may omit bound image IDs" >&2
+      exit 1
+    }
   fi
 fi
+
+if [[ -f "$TRANSPORT_FILE" ]]; then
+  [[ "$MANIFEST_SCHEMA" == yiwei.release-manifest.v2 ]] || {
+    echo "transport proof requires a v2 candidate manifest" >&2
+    exit 1
+  }
+  [[ "$(read_release_value schema "$TRANSPORT_FILE")" == yiwei.release-transport.v1 ]] || {
+    echo "candidate transport proof schema is unsupported" >&2
+    exit 1
+  }
+  [[ "$(read_release_value status "$TRANSPORT_FILE")" == passed ]] || {
+    echo "candidate transport proof is not passed" >&2
+    exit 1
+  }
+  [[ "$(read_release_value candidate_env_sha256 "$TRANSPORT_FILE")" == "$(sha256_file "$CANDIDATE")" ]] || {
+    echo "candidate transport env SHA mismatch" >&2
+    exit 1
+  }
+  [[ "$(read_release_value candidate_manifest_sha256 "$TRANSPORT_FILE")" == "$(sha256_file "$MANIFEST_FILE")" ]] || {
+    echo "candidate transport manifest SHA mismatch" >&2
+    exit 1
+  }
+  [[ "$(read_release_value librechat_source_image "$TRANSPORT_FILE")" == "$API_SOURCE_IMAGE" ]] || {
+    echo "candidate transport LibreChat source image mismatch" >&2
+    exit 1
+  }
+  [[ "$(read_release_value future_engine_source_image "$TRANSPORT_FILE")" == "$ENGINE_SOURCE_IMAGE" ]] || {
+    echo "candidate transport future-engine source image mismatch" >&2
+    exit 1
+  }
+  [[ "$(read_release_value librechat_revision "$TRANSPORT_FILE")" == "$LIBRECHAT_REVISION" ]] || {
+    echo "candidate transport LibreChat revision mismatch" >&2
+    exit 1
+  }
+  [[ "$(read_release_value future_engine_revision "$TRANSPORT_FILE")" == "$ENGINE_REVISION" ]] || {
+    echo "candidate transport future-engine revision mismatch" >&2
+    exit 1
+  }
+  API_IMAGE=$(read_release_value librechat_loaded_image "$TRANSPORT_FILE")
+  ENGINE_IMAGE=$(read_release_value future_engine_loaded_image "$TRANSPORT_FILE")
+  [[ "$API_IMAGE" =~ $IMAGE_ID_PATTERN && "$ENGINE_IMAGE" =~ $IMAGE_ID_PATTERN ]] || {
+    echo "candidate transport proof must contain two loaded image IDs" >&2
+    exit 1
+  }
+fi
+
+"${DOCKER[@]}" image inspect "$API_IMAGE" "$ENGINE_IMAGE" >/dev/null
+
+verify_runtime_image() {
+  local image=$1
+  local revision=$2
+  local label=$3
+  local architecture user image_revision
+  architecture=$("${DOCKER[@]}" image inspect --format '{{.Architecture}}' "$image")
+  [[ "$architecture" == amd64 ]] || {
+    echo "$label image must be linux/amd64, got: $architecture" >&2
+    exit 1
+  }
+  user=$("${DOCKER[@]}" image inspect --format '{{.Config.User}}' "$image")
+  [[ "$user" == node || "$user" == 1000 ]] || {
+    echo "$label image must run as node/1000, got: ${user:-root}" >&2
+    exit 1
+  }
+  if [[ "$revision" != reused-active ]]; then
+    image_revision=$("${DOCKER[@]}" image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")
+    [[ "$image_revision" == "$revision" ]] || {
+      echo "$label image revision label does not match manifest" >&2
+      exit 1
+    }
+  fi
+}
+
+if [[ "$MANIFEST_SCHEMA" == yiwei.release-manifest.v2 ]]; then
+  verify_runtime_image "$API_IMAGE" "$LIBRECHAT_REVISION" LibreChat
+  verify_runtime_image "$ENGINE_IMAGE" "$ENGINE_REVISION" future-engine
+fi
+
+EFFECTIVE_ENV=$(mktemp "$RELEASE_ROOT/.effective-release.XXXXXX")
+trap 'rm -f -- "$EFFECTIVE_ENV"' EXIT
+chmod 600 "$EFFECTIVE_ENV"
+{
+  printf 'LIBRECHAT_RELEASE_IMAGE=%s\n' "$API_IMAGE"
+  printf 'FUTURE_ENGINE_RELEASE_IMAGE=%s\n' "$ENGINE_IMAGE"
+} > "$EFFECTIVE_ENV"
 
 CURRENT_API=$("${DOCKER[@]}" inspect --format '{{.Image}}' LibreChat)
 CURRENT_ENGINE=$("${DOCKER[@]}" inspect --format '{{.Image}}' future-engine)
@@ -274,6 +376,8 @@ if [[ "$RULES_CHANGED" == true ]]; then
     printf 'test_evidence_file=%s.rollback.evidence\n' "$RELEASE_NAME"
     printf 'librechat_revision=reused-active\n'
     printf 'future_engine_revision=reused-active\n'
+    printf 'librechat_image=%s\n' "$CURRENT_API"
+    printf 'future_engine_image=%s\n' "$CURRENT_ENGINE"
     printf 'runtime_config_rules_sha256=%s\n' "$RULES_PREVIOUS_SHA"
     printf 'runtime_config_rules_restore_file=%s\n' "$RULES_ROLLBACK_FILE"
   } > "$ROLLBACK_MANIFEST"
@@ -303,7 +407,7 @@ COMPOSE=(
   "${DOCKER[@]}" compose
   --file "$APP_DIR/docker-compose.prod.yml"
   --env-file "$APP_DIR/.env"
-  --env-file "$CANDIDATE"
+  --env-file "$EFFECTIVE_ENV"
 )
 "${COMPOSE[@]}" config --quiet
 
@@ -344,22 +448,22 @@ if [[ "$healthy" != true ]]; then
   if [[ -n "$RULES_ROLLBACK_FILE" ]]; then
     install -m 644 "$RULES_ROLLBACK_FILE" "$RUNTIME_CONFIG_DIR/rules.v1.json"
   fi
-  if [[ -f "$MANIFEST_FILE" ]]; then
-    printf 'apply_result=rolled_back\napply_seconds=%s\nruntime_config_rolled_back=%s\n' \
-      "$(( $(date +%s) - APPLY_STARTED_EPOCH ))" "$RULES_CHANGED" >> "$MANIFEST_FILE"
-  fi
+  printf 'apply_result=rolled_back\napply_seconds=%s\nruntime_config_rolled_back=%s\nrecorded_at=%s\n' \
+    "$(( $(date +%s) - APPLY_STARTED_EPOCH ))" "$RULES_CHANGED" \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$APPLY_RESULT_FILE"
+  chmod 600 "$APPLY_RESULT_FILE"
   exit 1
 fi
 
 ACTIVE_TMP="$APP_DIR/.release.env.next"
-install -m 600 "$CANDIDATE" "$ACTIVE_TMP"
+install -m 600 "$EFFECTIVE_ENV" "$ACTIVE_TMP"
 mv "$ACTIVE_TMP" "$APP_DIR/.release.env"
 
-if [[ -f "$MANIFEST_FILE" ]]; then
-  printf 'apply_result=healthy\napply_seconds=%s\nchanged_services=%s\nruntime_config_rules_changed=%s\nruntime_config_rules_previous_sha256=%s\nruntime_config_rules_active_sha256=%s\n' \
-    "$(( $(date +%s) - APPLY_STARTED_EPOCH ))" "${CHANGED_SERVICES[*]}" "$RULES_CHANGED" \
-    "${RULES_PREVIOUS_SHA:-not-applicable}" "$(sha256_file "$RUNTIME_CONFIG_DIR/rules.v1.json")" >> "$MANIFEST_FILE"
-fi
+printf 'apply_result=healthy\napply_seconds=%s\nchanged_services=%s\nruntime_config_rules_changed=%s\nruntime_config_rules_previous_sha256=%s\nruntime_config_rules_active_sha256=%s\nrecorded_at=%s\n' \
+  "$(( $(date +%s) - APPLY_STARTED_EPOCH ))" "${CHANGED_SERVICES[*]}" "$RULES_CHANGED" \
+  "${RULES_PREVIOUS_SHA:-not-applicable}" "$(sha256_file "$RUNTIME_CONFIG_DIR/rules.v1.json")" \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$APPLY_RESULT_FILE"
+chmod 600 "$APPLY_RESULT_FILE"
 
 echo "Release healthy and active: $RELEASE_NAME"
 echo "Rollback manifest: $ROLLBACK_ENV"

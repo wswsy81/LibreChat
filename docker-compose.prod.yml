@@ -47,7 +47,7 @@ services:
       - FUTURE_ENGINE_RULES_FILE=/app/runtime-config/rules.v1.json
       - FUTURE_ENGINE_BANK_ROOT=/app/runtime-config
       - FUTURE_ENGINE_LAST_GOOD_ROOT=/app/data/runtime-last-good
-      - FUTURE_ENGINE_PRODUCT_SKILL_ROOT=/app/product-skills
+      - FUTURE_ENGINE_PRODUCT_SKILL_ROOT=/app/runtime-config/product-skills
       - FUTURE_ENGINE_PRODUCT_PLUGIN_ROOT=/app/product-plugins
       - ADVISOR_GATEWAY_ENABLED=on
       # 产品运行时成对开关:必须与 api 的 FUTURELINE_PRODUCT_RUNNER_ENABLED 同时切换,

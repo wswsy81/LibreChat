@@ -3,7 +3,7 @@
 ## Future Lines deployment routing
 
 - For any Future Lines deploy, release, production verification, hotfix, or resumed release, use `.claude/skills/yiwei-fast-deploy/SKILL.md` first.
-- Reuse a valid existing candidate release before building anything. With a candidate present, the path is `apply-release.sh -> canary`.
+- Reuse a valid existing candidate release before building anything. With a candidate present, the path is `stage-release.sh` when not already staged, then `apply-release.sh -> canary`; image transfer must not occupy the cutover window.
 - Do not use generic `land-and-deploy` as the Future Lines production release executor; it is only for PR merge orchestration.
 
 ## Project Overview

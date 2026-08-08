@@ -84,11 +84,21 @@ case "${1:-}" in
     if [[ " $* " != *" --format "* ]]; then exit 0; fi
     format=${4:-}
     target=${5:-}
-    if [[ "$format" == '{{.Id}}' ]]; then
-      if [[ "$target" == yiweilife/librechat:* ]]; then printf '%s\n' "$FAKE_NEW_API"; else printf '%s\n' "$FAKE_NEW_ENGINE"; fi
-    else
-      printf 'node\n'
-    fi
+    case "$format" in
+      '{{.Id}}')
+        if [[ "$target" == yiweilife/librechat:* ]]; then printf '%s\n' "$FAKE_NEW_API"; else printf '%s\n' "$FAKE_NEW_ENGINE"; fi
+        ;;
+      '{{.Architecture}}') printf 'amd64\n' ;;
+      '{{.Config.User}}') printf 'node\n' ;;
+      *org.opencontainers.image.revision*)
+        if [[ "$target" == "$FAKE_NEW_API" || "$target" == "$FAKE_TRANSPORT_API" ]]; then
+          printf '%s\n' "$FAKE_API_REVISION"
+        else
+          printf '%s\n' "$FAKE_ENGINE_REVISION"
+        fi
+        ;;
+      *) exit 1 ;;
+    esac
     ;;
   inspect)
     target=${*: -1}
@@ -109,6 +119,8 @@ export FAKE_CURRENT_API="$CURRENT_API"
 export FAKE_CURRENT_ENGINE="$CURRENT_ENGINE"
 export FAKE_NEW_API="$NEW_API"
 export FAKE_NEW_ENGINE="$NEW_ENGINE"
+export FAKE_TRANSPORT_API="sha256:$(printf 'e%.0s' {1..64})"
+export FAKE_TRANSPORT_ENGINE="sha256:$(printf 'f%.0s' {1..64})"
 export APP_DIR_OVERRIDE="$APP_DIR"
 export ENGINE_DIR_OVERRIDE="$ENGINE_DIR"
 export RELEASE_ROOT
@@ -116,6 +128,8 @@ export LIBRECHAT_REVISION
 export ENGINE_REVISION
 LIBRECHAT_REVISION=$(git -C "$APP_DIR" rev-parse HEAD)
 ENGINE_REVISION=$(git -C "$ENGINE_DIR" rev-parse HEAD)
+export FAKE_API_REVISION="$LIBRECHAT_REVISION"
+export FAKE_ENGINE_REVISION="$ENGINE_REVISION"
 export RUNTIME_WRITER_UID
 export RUNTIME_WRITER_GID
 RUNTIME_WRITER_UID=$(id -u)
@@ -182,6 +196,27 @@ grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$APP_DIR/.release.env"
 [[ -s "$ENGINE_DIR/data/runtime-last-good/runtime-copy.v1.json" ]]
 [[ -s "$ENGINE_DIR/data/runtime-last-good/rescue-bank.v1.json" ]]
 [[ -s "$ENGINE_DIR/data/runtime-last-good/topics-bank.v1.json" ]]
+
+ENGINE_CANDIDATE="$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
+ENGINE_MANIFEST="$RELEASE_ROOT/ENGINE-HOTFIX-TEST.manifest"
+ENGINE_TRANSPORT="$RELEASE_ROOT/ENGINE-HOTFIX-TEST.transport"
+cat > "$ENGINE_TRANSPORT" <<EOF
+schema=yiwei.release-transport.v1
+status=passed
+candidate_env_sha256=$(shasum -a 256 "$ENGINE_CANDIDATE" | awk '{print $1}')
+candidate_manifest_sha256=$(shasum -a 256 "$ENGINE_MANIFEST" | awk '{print $1}')
+librechat_source_image=$CURRENT_API
+future_engine_source_image=$NEW_ENGINE
+librechat_loaded_image=$CURRENT_API
+future_engine_loaded_image=$FAKE_TRANSPORT_ENGINE
+librechat_revision=reused-active
+future_engine_revision=$ENGINE_REVISION
+EOF
+: > "$FAKE_LOG"
+bash "$SCRIPT_DIR/apply-release.sh" "$ENGINE_CANDIDATE" >/dev/null
+grep -qx "LIBRECHAT_RELEASE_IMAGE=$CURRENT_API" "$APP_DIR/.release.env"
+grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$FAKE_TRANSPORT_ENGINE" "$APP_DIR/.release.env"
+grep -q "$FAKE_TRANSPORT_ENGINE" "$FAKE_LOG"
 
 ENGINE_SOURCE_DIR="$TEST_ROOT/engine-source"
 RUNTIME_ENGINE_DIR="$TEST_ROOT/runtime-engine"
@@ -257,6 +292,15 @@ printf '{}\n' > "$CLASSIFY_REPO/projects/未来线/config/rules.v1.json"
 git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m config >/dev/null
 CONFIG_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$CONFIG_CLASS") == config-only ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+mkdir -p "$CLASSIFY_REPO/projects/未来线/product-skills/advisor-mode-routing/v1/prompts"
+printf 'prompt\n' > "$CLASSIFY_REPO/projects/未来线/product-skills/advisor-mode-routing/v1/prompts/free-chat.md"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m product-skill >/dev/null
+PRODUCT_SKILL_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$PRODUCT_SKILL_CLASS") == config-only ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).configKind)' "$PRODUCT_SKILL_CLASS") == product-skill-copy ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.hasProductSkills)' "$PRODUCT_SKILL_CLASS") == true ]]
 
 CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
 mkdir -p "$CLASSIFY_REPO/projects/未来线/future-engine-shim"

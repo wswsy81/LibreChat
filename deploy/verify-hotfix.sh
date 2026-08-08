@@ -44,7 +44,9 @@ case "$SERVICE" in
       rules-engine.test.js \
       runtime-copy.test.js \
       runtime-copy-request-hot.test.js \
-      advisor-constitution.test.js
+      advisor-constitution.test.js \
+      product-skill-registry.test.js \
+      advisor-product-runtime.test.js
     ;;
   future-engine)
     # 光有 node 不够:测试还要 devDependencies(mongodb-memory-server 等)。

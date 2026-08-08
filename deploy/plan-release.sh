@@ -32,13 +32,9 @@ if (app.facts.changedFiles > 0 || brain.channel === "full") {
 } else if (brain.channel === "engine-hotfix") {
   executors = ["deploy/build-hotfix-release.sh future-engine"];
 } else if (brain.channel === "config-only") {
-  if (brain.configKind === "bank-copy") {
-    executors = ["future-engine-shim/scripts/deploy-banks.sh"];
-  } else if (brain.configKind === "mixed") {
-    executors = ["deploy/build-config-release.sh", "future-engine-shim/scripts/deploy-banks.sh"];
-  } else {
-    executors = ["deploy/build-config-release.sh"];
-  }
+  if (brain.facts.hasRules) executors.push("deploy/build-config-release.sh");
+  if (brain.facts.hasBanks) executors.push("future-engine-shim/scripts/deploy-banks.sh");
+  if (brain.facts.hasProductSkills) executors.push("deploy/deploy-product-skills.sh");
 } else {
   channel = "none";
   service = "none";
