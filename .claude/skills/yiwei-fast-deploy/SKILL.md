@@ -20,8 +20,8 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 
 1. 先读 `state/当前状态.md`、LibreChat `CLAUDE.md`、当前 spec 和本 skill 的 `references/definition-of-done.md`。
 2. 先查生产 `.release.env`、`.releases/*.env`、manifest、transport、stage status 与本地已推送 revision。只要已有正确候选，已 `deployable` 就直接 `apply-release.sh`，禁止重建。
-3. 只在没有可用候选时构建：纯前端用 `build-client-release.sh`，单服务用 `build-hotfix-release.sh`，跨服务用 `build-full-release.sh`。新代码候选默认后台 stage，镜像以 Registry digest 按缺失层 pull，旧候选才兼容 save/load。
-4. 生产写入前必须有已验证且非空的备份、候选 env 和精确 rollback env；纯前端只需 apply 时生成的精确指针 rollback，不重复导出业务数据库。
+3. 只在没有可用候选时构建：前端/API/Engine 分别用 `build-client-release.sh`、`build-hotfix-release.sh api`、`build-hotfix-release.sh future-engine`。只有依赖/基础镜像、迁移、身份隔离、共享包或跨服务变更用 `build-full-release.sh`；发布脚本、测试夹具和文档不生成产品候选。
+4. 无数据变更的 API/Engine/前端/config 复用最新 VERIFIED 备份和精确 rollback，不重复导出 Mongo/Postgres。
 5. 切换只用 `deploy/apply-release.sh <candidate.env>`。新候选必须是 `deployable`；纯前端只原子切换 `client-releases/current`，不重建 API 镜像。不直接改浮动 tag，不直接 `compose build/up`。
 6. 一个候选 apply 失败后依赖自动回滚。只有在失败被证明为宿主发布脚本/权限问题、修复已有定向测试且无需重建时，才允许重试一次。第二次失败立即停止。
 7. 不在 2 核生产机上重跑已有证据的全量测试。复用与候选 revision 对应的本地全量结果，生产只跑 release 定向门禁与 canary。
@@ -34,7 +34,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 1. **恢复上下文**：确认分支、已推送 revision、改动服务、活动 release、最新候选、备份与 rollback。
 2. **候选优先**：比较候选双 digest 与运行容器 digest。候选已在且不同，直接进入第 4 步。
 3. **必要时构建**：按变更面选 `client-static`、`api`、`future-engine` 或 `all`；记录 release ID、revision、digest、体积与构建秒数。
-4. **后台 staging**：候选自动进入 `candidate_ready_local -> staging -> deployable/failed`，Registry 候选只 pull digest 缺失层。
+4. **可见 staging**：前台推进 `candidate_ready_local -> staging -> deployable/failed`，Registry 候选只 pull digest 缺失层；不使用会随 Codex 任务退出的 `nohup`。
 5. **切换**：只对 `deployable` 候选调用 `apply-release.sh`；双 health 失败同时回滚镜像、规则与前端指针。
 6. **生产验收**：按 `references/definition-of-done.md` 的 fail-closed 原则检查：
    - `.release.env` 与容器 digest 一致；
@@ -63,6 +63,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 - Prompt／mode card 热更新：目标 1–3 分钟，不运行全量测试、不构建镜像。
 - 纯前端静态包：目标 1–3 分钟，不构建、不传输镜像、不重启 API。
 - Engine 代码热修：目标 5–8 分钟。
+- LibreChat API 热修：目标 5–10 分钟。
 - 前端＋Engine 完整版本：目标 10–20 分钟。
 - 镜像预算：LibreChat 不得超过 2.1GB，future-engine 不得超过 1.0GB。
 - 超过 60 秒没有新的可见进展，立即报告当前阶段、耗时和阻断。

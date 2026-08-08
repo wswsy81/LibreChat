@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 export DOCKER_BUILDKIT=${DOCKER_BUILDKIT:-1}
+export COPYFILE_DISABLE=1
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_DIR=${APP_DIR_OVERRIDE:-"$(cd -- "$SCRIPT_DIR/.." && pwd)"}
@@ -404,7 +405,6 @@ MANIFEST_FILE="$RELEASE_ROOT/$RELEASE_ID.manifest"
 EVIDENCE_ARTIFACT="$RELEASE_ROOT/$RELEASE_ID.evidence"
 CLIENT_ARCHIVE_FILE="$RELEASE_ROOT/$RELEASE_ID.client.tar.zst"
 STAGE_STATUS_FILE="$RELEASE_ROOT/$RELEASE_ID.stage-status"
-STAGE_LOG_FILE="$RELEASE_ROOT/$RELEASE_ID.stage.log"
 [[ ! -e "$ENV_FILE" && ! -e "$MANIFEST_FILE" && ! -e "$EVIDENCE_ARTIFACT" && ! -e "$CLIENT_ARCHIVE_FILE" && ! -e "$STAGE_STATUS_FILE" ]] || {
   echo "release already exists: $RELEASE_ID" >&2
   exit 1
@@ -470,6 +470,7 @@ MANIFEST_TMP="$RELEASE_ROOT/.$RELEASE_ID.manifest.tmp"
   printf 'future_engine_image_size_bytes=%s\n' "$ENGINE_IMAGE_BYTES"
   printf 'target_platform=%s\n' "$TARGET_PLATFORM"
   printf 'stage_gate=%s\n' "$STAGE_GATE"
+  printf 'data_backup_required=%s\n' "$([[ "$RELEASE_MODE" == full ]] && printf true || printf false)"
   printf 'client_artifact_file=%s\n' "$CLIENT_ARCHIVE_NAME"
   printf 'client_artifact_sha256=%s\n' "$CLIENT_ARCHIVE_SHA256"
   printf 'client_artifact_bytes=%s\n' "$CLIENT_ARCHIVE_BYTES"
@@ -498,8 +499,7 @@ echo "Release built without touching running containers."
 echo "Scope: $RELEASE_SERVICE"
 echo "Candidate: $ENV_FILE"
 if [[ "$AUTO_STAGE" == true && "$STAGE_GATE" == required ]]; then
-  bash "$SCRIPT_DIR/stage-release.sh" --background "$ENV_FILE"
-  echo "Background staging log: $STAGE_LOG_FILE"
+  bash "$SCRIPT_DIR/stage-release.sh" "$ENV_FILE"
 else
   echo "Stage next: bash deploy/stage-release.sh .releases/$RELEASE_ID.env"
 fi

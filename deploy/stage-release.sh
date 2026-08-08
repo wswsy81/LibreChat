@@ -8,22 +8,21 @@ PRODUCTION_SSH=${PRODUCTION_SSH:-tencentcloud2}
 PRODUCTION_APP_DIR=${PRODUCTION_APP_DIR:-/home/ubuntu/app/librechat}
 MIN_FREE_AFTER_STAGE_BYTES=${MIN_FREE_AFTER_STAGE_BYTES:-2147483648}
 EXPANSION_PERCENT=${EXPANSION_PERCENT:-220}
+PRODUCTION_BACKUP_DIR=${PRODUCTION_BACKUP_DIR:-/root/backups}
 SSH_BIN=${SSH_BIN:-ssh}
 SCP_BIN=${SCP_BIN:-scp}
 ZSTD_BIN=${ZSTD_BIN:-zstd}
 DOCKER_BIN=${DOCKER_BIN:-}
 PREFLIGHT_ONLY=false
-BACKGROUND=false
 CANDIDATE=
 
 usage() {
-  echo "usage: bash deploy/stage-release.sh [--preflight-only|--background] .releases/<release>.env" >&2
+  echo "usage: bash deploy/stage-release.sh [--preflight-only] .releases/<release>.env" >&2
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --preflight-only) PREFLIGHT_ONLY=true ;;
-    --background) BACKGROUND=true ;;
     -h|--help) usage; exit 0 ;;
     *)
       [[ -z "$CANDIDATE" ]] || { usage; exit 2; }
@@ -41,15 +40,6 @@ case "$(cd -- "$(dirname -- "$CANDIDATE")" && pwd)/$(basename -- "$CANDIDATE")" 
   "$RELEASE_ROOT"/*.env) ;;
   *) echo "candidate must live under $RELEASE_ROOT" >&2; exit 1 ;;
 esac
-
-if [[ "$BACKGROUND" == true ]]; then
-  [[ "$PREFLIGHT_ONLY" == false ]] || { echo "--background and --preflight-only are mutually exclusive" >&2; exit 2; }
-  STAGE_LOG=${CANDIDATE%.env}.stage.log
-  nohup bash "$0" "$CANDIDATE" > "$STAGE_LOG" 2>&1 &
-  printf 'background_stage_pid=%s\n' "$!"
-  printf 'background_stage_log=%s\n' "$STAGE_LOG"
-  exit 0
-fi
 
 MANIFEST=${CANDIDATE%.env}.manifest
 EVIDENCE=${CANDIDATE%.env}.evidence
@@ -127,6 +117,12 @@ ENGINE_REGISTRY_REF=$(read_optional future_engine_registry_ref "$MANIFEST")
 CLIENT_ARTIFACT_NAME=$(read_optional client_artifact_file "$MANIFEST")
 CLIENT_ARTIFACT_SHA256=$(read_optional client_artifact_sha256 "$MANIFEST")
 CLIENT_ARTIFACT_BYTES=$(read_optional client_artifact_bytes "$MANIFEST")
+DATA_BACKUP_REQUIRED=$(read_optional data_backup_required "$MANIFEST")
+[[ -n "$DATA_BACKUP_REQUIRED" ]] || DATA_BACKUP_REQUIRED=true
+[[ "$DATA_BACKUP_REQUIRED" == true || "$DATA_BACKUP_REQUIRED" == false ]] || {
+  echo "data_backup_required must be true or false" >&2
+  exit 1
+}
 IMAGE_PATTERN='^sha256:[0-9a-f]{64}$'
 TAG_PATTERN='^[A-Za-z0-9._/-]+:[A-Za-z0-9._-]+$'
 REGISTRY_REF_PATTERN='^[a-z0-9.-]+(:[0-9]+)?(/[a-z0-9._-]+)+@sha256:[0-9a-f]{64}$'
@@ -272,10 +268,12 @@ stage_failed() {
 }
 trap stage_failed EXIT
 
-if [[ "$TRANSPORT_MODE" == artifact-only ]]; then
-  echo "client artifact staging uses the apply-time exact pointer rollback; full data backup skipped" >&2
-else
+if [[ "$DATA_BACKUP_REQUIRED" == true ]]; then
   remote "cd '$PRODUCTION_APP_DIR' && sudo bash deploy/backup.sh"
+  BACKUP_REFERENCE=$(remote "set -e; latest=\$(sudo find '$PRODUCTION_BACKUP_DIR' -mindepth 2 -maxdepth 2 -type f -name VERIFIED -size +0c -print | sort | tail -n 1); test -n \"\$latest\"; printf '%s' \"\${latest%/VERIFIED}\"")
+else
+  BACKUP_REFERENCE=$(remote "set -e; latest=\$(sudo find '$PRODUCTION_BACKUP_DIR' -mindepth 2 -maxdepth 2 -type f -name VERIFIED -size +0c -print | sort | tail -n 1); test -n \"\$latest\"; printf '%s' \"\${latest%/VERIFIED}\"")
+  echo "code/config staging reuses verified backup: $BACKUP_REFERENCE" >&2
 fi
 if [[ "$AVAILABLE_BYTES" -lt "$REQUIRED_BYTES" ]]; then
   remote "sudo docker image prune --force >/dev/null; sudo docker builder prune --force >/dev/null"
@@ -340,6 +338,7 @@ TRANSPORT_TMP="$TMP_DIR/$RELEASE_ID.transport"
   printf 'future_engine_registry_ref=%s\n' "${ENGINE_REGISTRY_REF:-not-applicable}"
   printf 'client_artifact_sha256=%s\n' "${CLIENT_ARTIFACT_SHA256:-not-applicable}"
   printf 'client_staged_dir=%s\n' "$([[ -n "$CLIENT_ARTIFACT" ]] && printf 'client-releases/%s' "$CLIENT_ARTIFACT_SHA256" || printf not-applicable)"
+  printf 'backup_reference=%s\n' "$BACKUP_REFERENCE"
 } > "$TRANSPORT_TMP"
 chmod 600 "$TRANSPORT_TMP"
 

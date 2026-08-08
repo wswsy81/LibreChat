@@ -6,18 +6,20 @@
 
 - 确认用户已授权生产变更。
 - 保留无关 dirty worktree，不 reset、不覆盖。
-- 确认目标主机、远程目录、非空备份与精确 rollback env。
+- 确认目标主机、远程目录、最新非空 VERIFIED 备份与精确 rollback env；只有数据/迁移变更必须生成新整库备份。
 - 迁移或数据结构变更要记录发布前计数与内容哈希。
 
 ## 本地与候选门禁
 
-- 复用与候选 revision 完全对应的已有全量测试证据。
+- 复用与候选 revision 完全对应的已有证据；普通发布只要求与改动服务匹配的定向 scope，不要求 full。
+- `full` 仅允许用于依赖/基础镜像、迁移、身份隔离、共享包或跨服务变更；分片必须写 revision 绑定检查点，失败后只补未通过项。
 - 新候选 manifest 必须记录 `yiwei.release-test-evidence.v1` 的 SHA、scope 与相同 revision；任一不一致都拒绝构建或 apply。
 - 跨 daemon 镜像必须先经 `stage-release.sh`：新候选以 Registry digest pull 缺失层，transport 绑定候选 env/manifest SHA、Registry ref、Linux 实际 image ID 与相同 revision label；旧候选 save/load 只作兼容。
 - 新代码候选必须有 `yiwei.release-stage-status.v1` 且 `state=deployable`；`candidate_ready_local`、`staging` 或 `failed` 均禁止 apply。
 - 纯前端候选必须绑定不可变静态包 SHA，stage 后目录必须存在非空 `index.html`；切换只改原子指针，不重建 API 容器。
 - 构建 revision 必须真实存在、等于活动源码 HEAD、已推送且 tracked worktree 干净。
 - 修改发布脚本后至少运行 `bash deploy/release.test.sh`。
+- 发布脚本、测试夹具、文档和评测记录变更不得触发产品镜像候选。
 - 镜像必须是内容寻址 digest，manifest 记录 release ID、revision、digest、构建时间与服务范围。
 - 镜像体积门禁：LibreChat `<= 2.1GB`，future-engine `<= 1.0GB`；超过即拒绝生成候选。
 - 生产 apply 不依赖整仓源码同步；provenance 由构建前已推送 revision、测试证据、transport 和镜像 revision label 共同验证。

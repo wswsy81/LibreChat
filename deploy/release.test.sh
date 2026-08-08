@@ -179,6 +179,7 @@ TEST_EVIDENCE_FILE="$API_EVIDENCE" SELECTED_CHANNEL=api-hotfix RELEASE_MODE=hotf
 grep -qx "LIBRECHAT_RELEASE_IMAGE=$NEW_API" "$RELEASE_ROOT/API-HOTFIX-TEST.env"
 grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$CURRENT_ENGINE" "$RELEASE_ROOT/API-HOTFIX-TEST.env"
 grep -qx 'release_service=api' "$RELEASE_ROOT/API-HOTFIX-TEST.manifest"
+grep -qx 'data_backup_required=false' "$RELEASE_ROOT/API-HOTFIX-TEST.manifest"
 [[ $(grep -c '^build ' "$FAKE_LOG") -eq 1 ]]
 
 REGISTRY_PUSH=true STAGE_GATE_MODE=required AUTO_STAGE=false TEST_EVIDENCE_FILE="$API_EVIDENCE" \
@@ -217,6 +218,7 @@ TEST_EVIDENCE_FILE="$ENGINE_EVIDENCE" SELECTED_CHANNEL=engine-hotfix RELEASE_MOD
 grep -qx "LIBRECHAT_RELEASE_IMAGE=$CURRENT_API" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
 grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$NEW_ENGINE" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env"
 grep -qx 'release_service=future-engine' "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.manifest"
+grep -qx 'data_backup_required=false' "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.manifest"
 [[ $(grep -c '^build ' "$FAKE_LOG") -eq 1 ]]
 grep -qx 'test_evidence_status=passed' "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.manifest"
 grep -qx "test_evidence_sha256=$(shasum -a 256 "$ENGINE_EVIDENCE" | awk '{print $1}')" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.manifest"
@@ -443,6 +445,53 @@ git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m full >/dev/nu
 CLIENT_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$CLIENT_CLASS") == client-static ]]
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.clientOnly)' "$CLIENT_CLASS") == true ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+mkdir -p "$CLASSIFY_REPO/packages/api/src/life"
+printf 'export {};\n' > "$CLASSIFY_REPO/packages/api/src/life/change.ts"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m api >/dev/null
+API_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$API_CLASS") == api-hotfix ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.apiOnly)' "$API_CLASS") == true ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+mkdir -p "$CLASSIFY_REPO/deploy"
+printf '#!/usr/bin/env bash\n' > "$CLASSIFY_REPO/deploy/control.sh"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m control >/dev/null
+CONTROL_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$CONTROL_CLASS") == none ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.controlPlaneOnly)' "$CONTROL_CLASS") == true ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+printf '{"scripts":{}}\n' > "$CLASSIFY_REPO/package.json"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m dependency >/dev/null
+DEPENDENCY_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$DEPENDENCY_CLASS") == full ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.dependencyChanged)' "$DEPENDENCY_CLASS") == true ]]
+
+BRAIN_PLAN_REPO="$TEST_ROOT/brain-plan"
+APP_PLAN_REPO="$TEST_ROOT/app-plan"
+mkdir -p "$BRAIN_PLAN_REPO" "$APP_PLAN_REPO"
+printf 'brain\n' > "$BRAIN_PLAN_REPO/.keep"
+printf 'app\n' > "$APP_PLAN_REPO/.keep"
+init_pushed_repo "$BRAIN_PLAN_REPO" "$TEST_ROOT/brain-plan-origin.git"
+init_pushed_repo "$APP_PLAN_REPO" "$TEST_ROOT/app-plan-origin.git"
+BRAIN_PLAN_BASE=$(git -C "$BRAIN_PLAN_REPO" rev-parse HEAD)
+APP_PLAN_BASE=$(git -C "$APP_PLAN_REPO" rev-parse HEAD)
+mkdir -p "$APP_PLAN_REPO/packages/api/src/life"
+printf 'export {};\n' > "$APP_PLAN_REPO/packages/api/src/life/hotfix.ts"
+git -C "$APP_PLAN_REPO" add . && git -C "$APP_PLAN_REPO" commit -m api-hotfix >/dev/null
+API_PLAN=$(BRAIN_DIR_OVERRIDE="$BRAIN_PLAN_REPO" APP_DIR_OVERRIDE="$APP_PLAN_REPO" \
+  bash "$SCRIPT_DIR/plan-release.sh" "$BRAIN_PLAN_BASE" "$APP_PLAN_BASE")
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$API_PLAN") == api-hotfix ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[0])' "$API_PLAN") == 'deploy/build-hotfix-release.sh api' ]]
+
+mkdir -p "$BRAIN_PLAN_REPO/projects/未来线/future-engine-shim"
+printf 'module.exports = {};\n' > "$BRAIN_PLAN_REPO/projects/未来线/future-engine-shim/hotfix.js"
+git -C "$BRAIN_PLAN_REPO" add . && git -C "$BRAIN_PLAN_REPO" commit -m engine-hotfix >/dev/null
+CROSS_PLAN=$(BRAIN_DIR_OVERRIDE="$BRAIN_PLAN_REPO" APP_DIR_OVERRIDE="$APP_PLAN_REPO" \
+  bash "$SCRIPT_DIR/plan-release.sh" "$BRAIN_PLAN_BASE" "$APP_PLAN_BASE")
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$CROSS_PLAN") == full ]]
 
 REVISION_REPO="$TEST_ROOT/revision"
 mkdir -p "$REVISION_REPO"

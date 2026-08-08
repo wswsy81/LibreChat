@@ -5,7 +5,7 @@
 ## 发布
 
 1. 先查找 revision、digest 与测试证据都匹配的既有候选；存在时禁止重建。
-2. 没有候选时运行 `plan-release.sh <brain-base> <librechat-base>`，自动选择 `config-only`、`engine-hotfix` 或 `full`。
+2. 没有候选时运行 `plan-release.sh <brain-base> <librechat-base>`，自动选择 `config-only`、`client-static`、`api-hotfix`、`engine-hotfix` 或 `full`。发布脚本、测试夹具和文档输出 `none`，不生成产品候选。
 3. 在构建机核对源码。构建脚本会拒绝不存在、不等于活动 HEAD、未推送或带 tracked dirty 的 revision；生产机不再同步整仓源码，apply 改为核对候选证据和镜像内 revision label。
 4. 按通道运行测试；测试成功后生成 `yiwei.release-test-evidence.v1`，候选 manifest 必须绑定相同 revision 和 evidence SHA。
 5. 按风险运行备份：完整版本生成 VERIFIED；代码 hotfix 复用有效 VERIFIED；配置候选生成配置级 rollback。
@@ -15,7 +15,7 @@
    bash deploy/build-full-release.sh B5-20260719
    ```
 
-7. 候选生成后默认在后台 stage 到生产。新候选 push 到 OCI Registry 并记录不可变 digest，生产只 pull 缺失层；旧候选继续兼容 zstd save/load。脚本会备份、预检磁盘，生成 `candidate_ready_local -> staging -> deployable/failed` 状态和 transport 证明：
+7. 候选生成后在当前可见进程 stage 到生产，不使用可能随任务退出的 `nohup`。新候选 push 到 OCI Registry 并记录不可变 digest，生产只 pull 缺失层。无数据变更的日常候选复用最新 VERIFIED 备份，不重复导出 Mongo/Postgres：
 
    ```bash
    bash deploy/stage-release.sh .releases/B5-20260719.env
@@ -35,7 +35,6 @@
 
 ```bash
 bash deploy/build-client-release.sh CLIENT-20260808T120000Z
-# 后台 stage 完成后
 bash deploy/apply-release.sh .releases/CLIENT-20260808T120000Z.env
 ```
 
@@ -75,7 +74,7 @@ bash deploy/apply-release.sh .releases/ENGINE-HOTFIX-20260724T120000Z.env
 
 这条路径会先生成 revision 绑定的测试证据，再只构建变化服务；不会跳过目标服务测试、不可变镜像、双健康、rollback manifest 或失败自动回滚。若前端与 Engine 同时变化，使用 `build-full-release.sh`。
 
-时间目标：纯前端 1–3 分钟；Engine 代码热修 5–8 分钟；前端＋Engine 完整版本 10–20 分钟；已经 stage 的候选 apply 1–3 分钟。镜像预算为 LibreChat 2.1GB、Engine 1.0GB，超过即拒绝生成候选。
+时间目标：Prompt/config 1–3 分钟；纯前端 2–5 分钟；API/Engine 单服务热修 5–10 分钟；已经 stage 的候选 apply 1–3 分钟。从改完到上线的总时间必须如实记录，不再把 build/stage 排除在“部署”之外。
 
 ## 日常 compose 与回滚
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export COPYFILE_DISABLE=1
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_DIR=${APP_DIR_OVERRIDE:-"$(cd -- "$SCRIPT_DIR/.." && pwd)"}
@@ -81,6 +82,7 @@ umask 077
   printf 'librechat_registry_ref=not-applicable\n'
   printf 'future_engine_registry_ref=not-applicable\n'
   printf 'stage_gate=required\n'
+  printf 'data_backup_required=false\n'
   printf 'test_evidence_status=passed\n'
   printf 'test_evidence_scope=client-static\n'
   printf 'test_evidence_sha256=%s\n' "$EVIDENCE_SHA"
@@ -102,7 +104,7 @@ chmod 600 "$ENV_FILE" "$MANIFEST_FILE" "$ARCHIVE_FILE" "$STAGE_STATUS_FILE"
 
 echo "Client-only candidate: $ENV_FILE"
 if [[ "$AUTO_STAGE" == true ]]; then
-  bash "$SCRIPT_DIR/stage-release.sh" --background "$ENV_FILE"
+  bash "$SCRIPT_DIR/stage-release.sh" "$ENV_FILE"
 else
   echo "Stage next: bash deploy/stage-release.sh .releases/$RELEASE_ID.env"
 fi

@@ -20,29 +20,43 @@ APP_PLAN=$(bash "$SCRIPT_DIR/classify-release.sh" "$APP_DIR" "$APP_BASE" "$APP_H
 node -e '
 const brain = JSON.parse(process.argv[1]);
 const app = JSON.parse(process.argv[2]);
-let channel = brain.channel;
-let service = brain.service;
+let channel = "none";
+let service = "none";
 let executors = [];
-let targetSeconds = brain.targetSeconds;
-if (app.channel === "client-static" && brain.facts.changedFiles === 0) {
-  channel = "client-static";
-  service = "client";
-  targetSeconds = { min: 60, max: 180 };
-  executors = ["deploy/build-client-release.sh"];
-} else if (app.facts.changedFiles > 0 || brain.channel === "full") {
+let targetSeconds = { min: 0, max: 0 };
+const active = [brain, app].filter((plan) => plan.channel !== "none");
+if (active.some((plan) => plan.channel === "full") || active.length > 1) {
   channel = "full";
   service = "all";
   targetSeconds = { min: 600, max: 1200 };
   executors = ["deploy/build-full-release.sh"];
+} else if (app.channel === "client-static") {
+  channel = "client-static";
+  service = "client";
+  targetSeconds = app.targetSeconds;
+  executors = ["deploy/build-client-release.sh"];
+} else if (app.channel === "api-hotfix") {
+  channel = "api-hotfix";
+  service = "api";
+  targetSeconds = app.targetSeconds;
+  executors = ["deploy/build-hotfix-release.sh api"];
 } else if (brain.channel === "engine-hotfix") {
+  channel = brain.channel;
+  service = brain.service;
+  targetSeconds = brain.targetSeconds;
   executors = ["deploy/build-hotfix-release.sh future-engine"];
 } else if (brain.channel === "config-only") {
+  channel = brain.channel;
+  service = brain.service;
+  targetSeconds = brain.targetSeconds;
   if (brain.facts.hasRules) executors.push("deploy/build-config-release.sh");
   if (brain.facts.hasBanks) executors.push("future-engine-shim/scripts/deploy-banks.sh");
   if (brain.facts.hasProductSkills) executors.push("deploy/deploy-product-skills.sh");
-} else {
-  channel = "none";
-  service = "none";
+} else if (active.length === 1) {
+  channel = "full";
+  service = "all";
+  targetSeconds = { min: 600, max: 1200 };
+  executors = ["deploy/build-full-release.sh"];
 }
 process.stdout.write(JSON.stringify({
   selectedBy: "classifier",
@@ -52,6 +66,6 @@ process.stdout.write(JSON.stringify({
   executors,
   brain,
   librechat: app,
-  note: "先复用已有全绿候选；只有没有候选时才执行这里给出的最小通道"
+  note: "先复用已有全绿候选；日常发布只运行单服务定向门，发布控制面/文档变更不生成产品候选"
 }, null, 2) + "\n");
 ' "$BRAIN_PLAN" "$APP_PLAN"

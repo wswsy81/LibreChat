@@ -65,7 +65,6 @@ case "$SERVICE" in
       src/mcp/__tests__/MCPFutureEngineIdentity.test.ts \
       --runInBand \
       --coverage=false
-    npm run build
     cd "$APP_DIR/api"
     npx jest \
       server/routes/life.test.js \

@@ -16,6 +16,9 @@ cat > "$REMOTE_APP/deploy/backup.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'backup\n' >> "$FAKE_STATE/backup.log"
+count=$(wc -l < "$FAKE_STATE/backup.log" | tr -d ' ')
+install -d -m 700 "$FAKE_BACKUP_DIR/yiweilife-$count"
+printf 'verified\n' > "$FAKE_BACKUP_DIR/yiweilife-$count/VERIFIED"
 EOF
 chmod +x "$REMOTE_APP/deploy/backup.sh"
 
@@ -155,6 +158,8 @@ chmod +x "$FAKE_BIN"/*
 
 export PATH="$FAKE_BIN:$PATH"
 export FAKE_STATE
+export FAKE_BACKUP_DIR="$TEST_ROOT/backups"
+mkdir -p "$FAKE_BACKUP_DIR"
 export FAKE_API_TAG="$API_TAG"
 export FAKE_ENGINE_TAG="$ENGINE_TAG"
 export FAKE_API_SOURCE="$API_SOURCE"
@@ -170,6 +175,7 @@ APP_DIR_OVERRIDE="$APP_DIR" \
 RELEASE_ROOT="$RELEASE_ROOT" \
 PRODUCTION_SSH=fake \
 PRODUCTION_APP_DIR="$REMOTE_APP" \
+PRODUCTION_BACKUP_DIR="$FAKE_BACKUP_DIR" \
 DOCKER_BIN="$FAKE_BIN/docker" \
 SSH_BIN="$FAKE_BIN/ssh" \
 SCP_BIN="$FAKE_BIN/scp" \
@@ -191,6 +197,7 @@ APP_DIR_OVERRIDE="$APP_DIR" \
 RELEASE_ROOT="$RELEASE_ROOT" \
 PRODUCTION_SSH=fake \
 PRODUCTION_APP_DIR="$REMOTE_APP" \
+PRODUCTION_BACKUP_DIR="$FAKE_BACKUP_DIR" \
 DOCKER_BIN="$FAKE_BIN/docker" \
 SSH_BIN="$FAKE_BIN/ssh" \
 SCP_BIN="$FAKE_BIN/scp" \
@@ -228,6 +235,7 @@ APP_DIR_OVERRIDE="$APP_DIR" \
 RELEASE_ROOT="$RELEASE_ROOT" \
 PRODUCTION_SSH=fake \
 PRODUCTION_APP_DIR="$REMOTE_APP" \
+PRODUCTION_BACKUP_DIR="$FAKE_BACKUP_DIR" \
 DOCKER_BIN="$FAKE_BIN/docker" \
 SSH_BIN="$FAKE_BIN/ssh" \
 SCP_BIN="$FAKE_BIN/scp" \
@@ -269,6 +277,7 @@ future_engine_tag=reused-active
 librechat_registry_ref=not-applicable
 future_engine_registry_ref=not-applicable
 stage_gate=required
+data_backup_required=false
 test_evidence_status=passed
 test_evidence_scope=full
 test_evidence_sha256=$CLIENT_ONLY_EVIDENCE_SHA
@@ -283,6 +292,7 @@ APP_DIR_OVERRIDE="$APP_DIR" \
 RELEASE_ROOT="$RELEASE_ROOT" \
 PRODUCTION_SSH=fake \
 PRODUCTION_APP_DIR="$REMOTE_APP" \
+PRODUCTION_BACKUP_DIR="$FAKE_BACKUP_DIR" \
 DOCKER_BIN="$FAKE_BIN/docker" \
 SSH_BIN="$FAKE_BIN/ssh" \
 SCP_BIN="$FAKE_BIN/scp" \

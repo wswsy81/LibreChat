@@ -16,11 +16,31 @@ run() {
   "$@"
 }
 
+CHECKPOINT_DIR=
+if [[ "$MODE" == --full ]]; then
+  APP_KEY="$(git -C "$REPO_ROOT" rev-parse HEAD)-$(git -C "$REPO_ROOT" diff --binary HEAD | git hash-object --stdin)"
+  ENGINE_KEY="$(git -C "$BRAIN_ROOT" rev-parse HEAD)-$(git -C "$BRAIN_ROOT" diff --binary HEAD | git hash-object --stdin)"
+  CHECKPOINT_DIR=${VERIFY_CHECKPOINT_ROOT:-"$REPO_ROOT/.releases/.verify-checkpoints/$APP_KEY-$ENGINE_KEY"}
+  install -d -m 700 "$CHECKPOINT_DIR"
+  export VERIFY_CHECKPOINT_ROOT="$CHECKPOINT_DIR"
+fi
+
+run_checkpoint() {
+  local label=$1
+  shift
+  if [[ -n "$CHECKPOINT_DIR" && -s "$CHECKPOINT_DIR/$label.passed" ]]; then
+    printf 'verify: checkpoint passed, skip %s\n' "$label"
+    return
+  fi
+  run "$@"
+  [[ -z "$CHECKPOINT_DIR" ]] || printf 'passed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$CHECKPOINT_DIR/$label.passed"
+}
+
 if [[ "$MODE" != "--release" ]]; then
-  run env LIBRECHAT_ROOT="$REPO_ROOT" \
+  run_checkpoint engine-gate env LIBRECHAT_ROOT="$REPO_ROOT" \
     "$BRAIN_ROOT/projects/未来线/scripts/verify-engine.sh" "$MODE"
 fi
-run "$REPO_ROOT/scripts/yiweilife-quality-gate.sh" "$MODE"
+run_checkpoint librechat-gate "$REPO_ROOT/scripts/yiweilife-quality-gate.sh" "$MODE"
 
 if [[ -n "${TEST_EVIDENCE_OUTPUT:-}" ]]; then
   SCOPE=${TEST_EVIDENCE_SCOPE:-full}
