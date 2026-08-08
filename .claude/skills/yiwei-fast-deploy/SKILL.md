@@ -18,7 +18,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 
 ## 硬规则
 
-1. 先读 `state/当前状态.md`、LibreChat `CLAUDE.md`、当前 spec 和本 skill 的 `references/definition-of-done.md`。
+1. 先完整读 `../未来线部署操作手册.md`、大脑仓 `state/当前状态.md`、LibreChat `CLAUDE.md`、当前 spec 和本 skill 的 `references/definition-of-done.md`。手册决定通道与禁止项，不得跳过。
 2. 先查生产 `.release.env`、`.releases/*.env`、manifest、transport、stage status 与本地已推送 revision。只要已有正确候选，已 `deployable` 就直接 `apply-release.sh`，禁止重建。
 3. 只在没有可用候选时构建：前端/API/Engine 分别用 `build-client-release.sh`、`build-hotfix-release.sh api`、`build-hotfix-release.sh future-engine`。只有依赖/基础镜像、迁移、身份隔离、共享包或跨服务变更用 `build-full-release.sh`；发布脚本、测试夹具和文档不生成产品候选。
 4. 无数据变更的 API/Engine/前端/config 复用最新 VERIFIED 备份和精确 rollback，不重复导出 Mongo/Postgres。

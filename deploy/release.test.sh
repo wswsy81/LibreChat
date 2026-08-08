@@ -463,6 +463,14 @@ CONTROL_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSI
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.controlPlaneOnly)' "$CONTROL_CLASS") == true ]]
 
 CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+mkdir -p "$CLASSIFY_REPO/projects/未来线"
+printf '# deployment runbook\n' > "$CLASSIFY_REPO/projects/未来线/未来线部署操作手册.md"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m deployment-runbook >/dev/null
+RUNBOOK_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$RUNBOOK_CLASS") == none ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.controlPlaneOnly)' "$RUNBOOK_CLASS") == true ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
 printf '{"scripts":{}}\n' > "$CLASSIFY_REPO/package.json"
 git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m dependency >/dev/null
 DEPENDENCY_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
