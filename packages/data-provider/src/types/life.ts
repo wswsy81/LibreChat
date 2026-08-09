@@ -354,6 +354,7 @@ export interface LifeArchiveResponse {
 export interface LifeArchiveStatus {
   variableCount: number;
   dossierClaimCount: number;
+  pendingDossierCount: number;
   latestClaimId: string | null;
   mapVersion: string;
   gateReached: boolean;

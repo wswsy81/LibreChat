@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen, Check, Map, Pencil, Save, Trash2, X } from 'lucide-react';
+import { useToastContext } from '@librechat/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
 import type {
@@ -23,6 +24,9 @@ const statusChanged = (before: LifeArchiveStatus, after: LifeArchiveStatus) =>
   after.mapVersion !== before.mapVersion ||
   (!before.gateReached && after.gateReached);
 
+const pendingObservationAdded = (before: LifeArchiveStatus, after: LifeArchiveStatus) =>
+  Number(after.pendingDossierCount || 0) > Number(before.pendingDossierCount || 0);
+
 const openingSeenKey = (announcedAt: string) => `life-archive-opening:${announcedAt}`;
 const ARCHIVE_REFRESH_INTERVAL_MS = 5_000;
 const ARCHIVE_REFRESH_WINDOW_MS = 120_000;
@@ -35,6 +39,7 @@ export default function LifeArchiveDrawer({
   latestAssistantMessage: TMessage | null;
 }) {
   const localize = useLocalize();
+  const { showToast } = useToastContext();
   const queryClient = useQueryClient();
   const archive = useLifeArchiveQuery({
     staleTime: 0,
@@ -67,6 +72,7 @@ export default function LifeArchiveDrawer({
     const refresh = () => {
       queryClient.invalidateQueries([QueryKeys.lifeArchive]);
       queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
+      queryClient.invalidateQueries([QueryKeys.lifeSelfProjection]);
     };
     refresh();
     setRefreshUntil(Date.now() + ARCHIVE_REFRESH_WINDOW_MS);
@@ -81,6 +87,7 @@ export default function LifeArchiveDrawer({
       }
       queryClient.invalidateQueries([QueryKeys.lifeArchive]);
       queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
+      queryClient.invalidateQueries([QueryKeys.lifeSelfProjection]);
     }, ARCHIVE_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [queryClient, refreshUntil]);
@@ -92,6 +99,9 @@ export default function LifeArchiveDrawer({
     if (before && statusChanged(before, status)) {
       setHasGlow(true);
       setRefreshUntil(0);
+    }
+    if (before && pendingObservationAdded(before, status)) {
+      showToast({ message: localize('com_life_me_new_observation'), status: 'success' });
     }
     previousStatus.current = status;
 
@@ -107,7 +117,7 @@ export default function LifeArchiveDrawer({
       setIsOpen(true);
       setHasGlow(false);
     }
-  }, [archive.data?.archiveStatus, latestAssistantText, localize]);
+  }, [archive.data?.archiveStatus, latestAssistantText, localize, showToast]);
 
   useEffect(() => {
     if (!isOpen) return;

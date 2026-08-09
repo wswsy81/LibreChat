@@ -9,7 +9,12 @@ import type { TMessage } from 'librechat-data-provider';
 import LifeArchiveDrawer from './LifeArchiveDrawer';
 
 const mockMutate = jest.fn();
+const mockToast = jest.fn();
 let mockArchive: Record<string, unknown>;
+
+jest.mock('@librechat/client', () => ({
+  useToastContext: () => ({ showToast: mockToast }),
+}));
 
 jest.mock('~/data-provider', () => ({
   useLifeArchiveQuery: () => mockArchive,
@@ -29,6 +34,7 @@ jest.mock('./ArchiveMistMap', () => () => <div data-testid="archive-map" />);
 const baseStatus = {
   variableCount: 1,
   dossierClaimCount: 1,
+  pendingDossierCount: 1,
   latestClaimId: 'claim-1',
   mapVersion: 'map-a',
   gateReached: false,
@@ -157,6 +163,7 @@ test('回合结束后持续刷新，后台归纳晚到也会更新抽屉并停�
   );
   expect(invalidate).toHaveBeenCalledWith([QueryKeys.lifeArchive]);
   expect(invalidate).toHaveBeenCalledWith([QueryKeys.lifeBootstrap]);
+  expect(invalidate).toHaveBeenCalledWith([QueryKeys.lifeSelfProjection]);
 
   invalidate.mockClear();
   act(() => jest.advanceTimersByTime(70_000));
@@ -181,6 +188,33 @@ test('回合结束后持续刷新，后台归纳晚到也会更新抽屉并停�
   expect(invalidate).not.toHaveBeenCalled();
   view.unmount();
   jest.useRealTimers();
+});
+
+test('新的待判断观察晚到时给轻提示，不自动打开抽屉', () => {
+  const view = renderDrawer();
+  mockArchive = {
+    ...mockArchive,
+    data: {
+      ...(mockArchive.data as object),
+      archiveStatus: {
+        ...baseStatus,
+        dossierClaimCount: 2,
+        pendingDossierCount: 2,
+        latestClaimId: 'claim-2',
+      },
+    },
+  };
+  view.rerender(
+    <QueryClientProvider client={new QueryClient()}>
+      <LifeArchiveDrawer isSubmitting={false} latestAssistantMessage={null} />
+    </QueryClientProvider>,
+  );
+
+  expect(mockToast).toHaveBeenCalledWith({
+    message: 'com_life_me_new_observation',
+    status: 'success',
+  });
+  expect(screen.queryByTestId('archive-map')).not.toBeInTheDocument();
 });
 
 test('人物志没有变化时，后台刷新窗口也会在两分钟后自行停止', () => {

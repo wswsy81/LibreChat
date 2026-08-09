@@ -386,7 +386,10 @@ export default function MeRoute() {
               </section>
             )}
             {projection.pending.length > 0 && (
-              <section className="border-t border-life-ink/70 py-10 sm:py-12">
+              <section
+                id="me-pending"
+                className="scroll-mt-6 border-t border-life-ink/70 py-10 sm:py-12"
+              >
                 <SectionTitle
                   eyebrow={localize('com_life_me_pending_eyebrow')}
                   title={localize('com_life_me_pending_title')}

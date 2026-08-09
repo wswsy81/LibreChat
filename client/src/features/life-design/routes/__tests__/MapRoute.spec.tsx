@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
 import MapRoute from '../MapRoute';
 
-const mockExplorer = jest.fn(() => <div data-testid="explorer" />);
+const mockExplorer = jest.fn((_props: unknown) => <div data-testid="explorer" />);
 const mockRefetch = jest.fn();
 let mockBootstrap: Record<string, unknown>;
 
