@@ -17,6 +17,7 @@
 - 跨 daemon 镜像必须先经 `stage-release.sh`：新候选以 Registry digest pull 缺失层，transport 绑定候选 env/manifest SHA、Registry ref、Linux 实际 image ID 与相同 revision label；旧候选 save/load 只作兼容。
 - 新代码候选必须有 `yiwei.release-stage-status.v1` 且 `state=deployable`；`candidate_ready_local`、`staging` 或 `failed` 均禁止 apply。
 - 纯前端候选必须绑定不可变静态包 SHA，stage 后目录必须存在非空 `index.html`；切换只改原子指针，不重建 API 容器。
+- 纯前端 revision 由 evidence、manifest 与静态包 SHA 证明；复用的旧 API/Engine 镜像不得被要求匹配新前端 revision label。
 - 构建 revision 必须真实存在、等于活动源码 HEAD、已推送且 tracked worktree 干净。
 - 修改发布脚本后至少运行 `bash deploy/release.test.sh`。
 - 发布脚本、测试夹具、文档和评测记录变更不得触发产品镜像候选。
@@ -27,7 +28,7 @@
 
 ## 切换后
 
-- `.release.env` 与两个运行容器 digest 完全一致。
+- `.release.env` 与两个运行容器 digest 完全一致，权限为 `0600` 且固定发布用户可读。
 - 变化的服务被 recreate，未变化的服务不应无故重建。
 - 纯前端发布必须 `changed_services` 为空，并记录前后静态 SHA；失败必须恢复旧指针，首次切换也必须有可再次 apply 的移除型 rollback。
 - API 和 engine 内部 health 为 200；engine 工具表、policy 和 dependencies 全绿。
@@ -35,6 +36,7 @@
 - 公网 `/`、`/home`、`/login`、`/faq`、`/health` 均为 200。
 - 检查切换后日志，新的 `error`、`exception`、`fatal`、`EACCES` 必须解释或修复。
 - 对改动的真实用户路径做一次新会话验证；若需登录或会消耗真实邀请码，明确列为待主理人验收，不伪造通过。
+- 首次出现的发布控制面故障必须留下脚本修复、确定性回归和部署手册/skill 回写三份证据。
 
 ## 数据与运行时文案
 

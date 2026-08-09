@@ -26,6 +26,9 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 6. 一个候选 apply 失败后依赖自动回滚。只有在失败被证明为宿主发布脚本/权限问题、修复已有定向测试且无需重建时，才允许重试一次。第二次失败立即停止。
 7. 不在 2 核生产机上重跑已有证据的全量测试。复用与候选 revision 对应的本地全量结果，生产只跑 release 定向门禁与 canary。
 8. 任何测试文案都要用 trap 恢复，并比对恢复后 SHA。
+9. `client-static` 的新前端 revision 由 evidence、manifest 与静态包 SHA 绑定；复用旧 API/Engine 镜像时仍校验 digest、架构和运行用户，但禁止拿新前端 revision 校验旧镜像 label。
+10. staging 前确认生产 `.release.env` 为 `0600` 且固定发布用户可读；root apply 写回后 owner 必须恢复为应用目录 owner。
+11. 新发布故障必须完成“脚本修复＋确定性回归＋部署手册/skill 回写”后才能关闭；现场绕过不算永久修复。
 
 只改发布/备份/skill 管道时使用 `projects/未来线/librechat/deploy/verify-local.sh --release`；业务代码开发用 `--quick`，最终完整交付用 `--full`。
 
@@ -37,7 +40,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 4. **可见 staging**：前台推进 `candidate_ready_local -> staging -> deployable/failed`，Registry 候选只 pull digest 缺失层；不使用会随 Codex 任务退出的 `nohup`。
 5. **切换**：只对 `deployable` 候选调用 `apply-release.sh`；双 health 失败同时回滚镜像、规则与前端指针。
 6. **生产验收**：按 `references/definition-of-done.md` 的 fail-closed 原则检查：
-   - `.release.env` 与容器 digest 一致；
+   - `.release.env` 与容器 digest 一致，权限为 `0600` 且固定发布用户可读；
    - `user=node`、`restart=0`、`no-new-privileges:true`；
    - API `/health` 200；engine `/health` 200、工具数和 dependencies 正常；
    - 公网 `/`、`/home`、`/login`、`/faq`、`/health` 全部 200；
