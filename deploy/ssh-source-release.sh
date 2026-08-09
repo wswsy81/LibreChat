@@ -5,6 +5,7 @@ export COPYFILE_DISABLE=1
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 BRAIN_DIR=$(cd -- "$APP_DIR/../../.." && pwd)
+source "$SCRIPT_DIR/source-release-scope.sh"
 TARGET=${TARGET:-tencentcloud2}
 PRODUCTION_APP_DIR=${PRODUCTION_APP_DIR:-/home/ubuntu/app/librechat}
 RELEASE_ID=${1:-"SOURCE-$(date -u +%Y%m%dT%H%M%SZ)"}
@@ -14,7 +15,7 @@ for command in git ssh scp tar zstd; do
   command -v "$command" >/dev/null 2>&1 || { echo "$command is required" >&2; exit 1; }
 done
 TAR_CREATE=(tar)
-tar --help 2>&1 | grep -q -- '--no-xattrs' && TAR_CREATE+=(--no-xattrs) || true
+tar --no-xattrs -cf /dev/null -T /dev/null 2>/dev/null && TAR_CREATE+=(--no-xattrs) || true
 
 git -C "$APP_DIR" diff --quiet
 git -C "$APP_DIR" diff --cached --quiet
@@ -32,6 +33,24 @@ APP_BASE=${ACTIVE_REVISIONS[0]}
 BRAIN_BASE=${ACTIVE_REVISIONS[1]}
 git -C "$APP_DIR" cat-file -e "$APP_BASE^{commit}"
 git -C "$BRAIN_DIR" cat-file -e "$BRAIN_BASE^{commit}"
+mapfile -t ACTIVE_SOURCE_REVISIONS < <(
+  ssh -o BatchMode=yes "$TARGET" "set -e;
+    source_env='$PRODUCTION_APP_DIR/.source-release.env';
+    if test -s \"\$source_env\"; then
+      sed -n 's/^LIBRECHAT_SOURCE_REVISION=//p; s/^FUTURE_ENGINE_SOURCE_REVISION=//p' \"\$source_env\";
+    fi"
+)
+APP_CHANGE_BASE=$APP_BASE
+BRAIN_CHANGE_BASE=$BRAIN_BASE
+if [[ ${#ACTIVE_SOURCE_REVISIONS[@]} -eq 2 ]]; then
+  git -C "$APP_DIR" cat-file -e "${ACTIVE_SOURCE_REVISIONS[0]}^{commit}"
+  git -C "$BRAIN_DIR" cat-file -e "${ACTIVE_SOURCE_REVISIONS[1]}^{commit}"
+  APP_CHANGE_BASE=${ACTIVE_SOURCE_REVISIONS[0]}
+  BRAIN_CHANGE_BASE=${ACTIVE_SOURCE_REVISIONS[1]}
+elif [[ ${#ACTIVE_SOURCE_REVISIONS[@]} -ne 0 ]]; then
+  echo "expected zero or two active source revisions" >&2
+  exit 1
+fi
 ssh -o BatchMode=yes "$TARGET" "set -e;
   app='$PRODUCTION_APP_DIR';
   owner=\$(stat -c '%U' \"\$app\");
@@ -49,6 +68,8 @@ ssh -o BatchMode=yes "$TARGET" "set -e;
 
 mapfile -t APP_CHANGED < <(git -C "$APP_DIR" -c core.quotePath=false diff --diff-filter=ACMRT --name-only "$APP_BASE" "$APP_REVISION")
 mapfile -t BRAIN_CHANGED < <(git -C "$BRAIN_DIR" -c core.quotePath=false diff --diff-filter=ACMRT --name-only "$BRAIN_BASE" "$BRAIN_REVISION")
+mapfile -t APP_RELEASE_CHANGED < <(git -C "$APP_DIR" -c core.quotePath=false diff --diff-filter=ACMRT --name-only "$APP_CHANGE_BASE" "$APP_REVISION")
+mapfile -t BRAIN_RELEASE_CHANGED < <(git -C "$BRAIN_DIR" -c core.quotePath=false diff --diff-filter=ACMRT --name-only "$BRAIN_CHANGE_BASE" "$BRAIN_REVISION")
 
 DELETED_RUNTIME=$(git -C "$APP_DIR" -c core.quotePath=false diff --diff-filter=D --name-only "$APP_BASE" "$APP_REVISION" \
   | grep -E '^(api/.+\.js|client/|packages/client/|packages/data-provider/)' || true)
@@ -75,11 +96,10 @@ mapfile -t API_FILES < <(printf '%s\n' "${APP_CHANGED[@]}" | grep -E '^api/.+\.j
 mapfile -t ENGINE_FILES < <(printf '%s\n' "${BRAIN_CHANGED[@]}" \
   | grep -E '^projects/未来线/future-engine-shim/.+\.js$' \
   | grep -Ev '(^|/)(__tests__/|scripts/|[^/]+\.test\.js$)' || true)
-CLIENT_CHANGED=false
-printf '%s\n' "${APP_CHANGED[@]}" | grep -Eq '^(client/|packages/client/|packages/data-provider/)' && CLIENT_CHANGED=true || true
+classify_source_release_delta
 
-[[ ${#API_FILES[@]} -gt 0 || ${#ENGINE_FILES[@]} -gt 0 || "$CLIENT_CHANGED" == true ]] || {
-  echo "no deployable source or client changes relative to active images" >&2
+[[ ${#API_RELEASE_FILES[@]} -gt 0 || ${#ENGINE_RELEASE_FILES[@]} -gt 0 || "$CLIENT_CHANGED" == true ]] || {
+  echo "no deployable source or client changes relative to active release" >&2
   exit 1
 }
 
@@ -131,13 +151,21 @@ OVERRIDE_FILE="$BUNDLE_DIR/source.override.yml"
   printf 'future_engine_revision=%s\n' "$BRAIN_REVISION"
   printf 'librechat_image_base_revision=%s\n' "$APP_BASE"
   printf 'future_engine_image_base_revision=%s\n' "$BRAIN_BASE"
-  printf 'api_file_count=%s\n' "${#API_FILES[@]}"
-  printf 'engine_file_count=%s\n' "${#ENGINE_FILES[@]}"
+  printf 'librechat_change_base_revision=%s\n' "$APP_CHANGE_BASE"
+  printf 'future_engine_change_base_revision=%s\n' "$BRAIN_CHANGE_BASE"
+  printf 'api_file_count=%s\n' "${#API_RELEASE_FILES[@]}"
+  printf 'engine_file_count=%s\n' "${#ENGINE_RELEASE_FILES[@]}"
+  printf 'api_mount_file_count=%s\n' "${#API_FILES[@]}"
+  printf 'engine_mount_file_count=%s\n' "${#ENGINE_FILES[@]}"
   printf 'client_changed=%s\n' "$CLIENT_CHANGED"
 } > "$BUNDLE_DIR/manifest"
 
 ARCHIVE="$TMP_DIR/$RELEASE_ID.tar.zst"
+if command -v xattr >/dev/null 2>&1; then
+  xattr -cr "$BUNDLE_DIR"
+fi
 "${TAR_CREATE[@]}" -C "$BUNDLE_DIR" -cf - . | zstd -3 -T0 -o "$ARCHIVE" >/dev/null
+"$SCRIPT_DIR/verify-tar-provenance.sh" "$ARCHIVE"
 ARCHIVE_SHA=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
 CLIENT_SHA=not-applicable
 if [[ "$CLIENT_CHANGED" == true ]]; then
@@ -150,7 +178,7 @@ scp -q "$SCRIPT_DIR/compose.sh" "$SCRIPT_DIR/apply-release.sh" "$SCRIPT_DIR/stag
 
 ssh "$TARGET" bash -s -- \
   "$PRODUCTION_APP_DIR" "$RELEASE_ID" "$ARCHIVE_SHA" "$REMOTE_ARCHIVE" "$CLIENT_SHA" \
-  "${#API_FILES[@]}" "${#ENGINE_FILES[@]}" "$APP_REVISION" "$BRAIN_REVISION" <<'REMOTE'
+  "${#API_RELEASE_FILES[@]}" "${#ENGINE_RELEASE_FILES[@]}" "$APP_REVISION" "$BRAIN_REVISION" <<'REMOTE'
 set -euo pipefail
 app=$1
 release_id=$2

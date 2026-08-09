@@ -33,6 +33,8 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 13. package/lockfile、Dockerfile、compose 关键结构、迁移、身份隔离均未变化时，普通 API/Engine/前端组合默认走 `deploy/ssh-source-release.sh`。该通道复用稳定依赖镜像，通过 SSH 上传内容寻址源码包与静态包，不依赖 GitHub/GHCR/VPN，也不创建两个增量镜像。
 14. SSH 返回多行 revision/digest 时使用逐行数组并断言数量；禁止把去掉结尾换行的管道交给单次 `read`，避免值已读到却因 EOF 状态 1 静默退出。
 15. macOS 创建源码/静态 tar 包时在支持时使用 `--no-xattrs` 并保留 `COPYFILE_DISABLE=1`，禁止让 provenance xattr 警告淹没生产日志。
+16. 连续 `ssh-source` 的服务变化必须相对生产 `.source-release.env` 的活动 source revision 计算；镜像 revision 只作为累计覆盖包 base。纯前端 delta 不得重复 recreate API/Engine。
+17. `--no-xattrs` 必须用真实空归档命令探测，禁止 `tar --help | grep -q` 在 `pipefail` 下误判；上传前必须扫描最终 tar 流并拒绝 provenance header。
 
 只改发布/备份/skill 管道时使用 `projects/未来线/librechat/deploy/verify-local.sh --release`；业务代码开发用 `--quick`，最终完整交付用 `--full`。
 

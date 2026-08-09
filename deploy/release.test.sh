@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export COPYFILE_DISABLE=1
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 TEST_ROOT=$(mktemp -d)
@@ -510,6 +511,46 @@ grep -F 'test \"\$(stat -c '\''%a'\'' \"\$app/.release-src\")\" = 700' \
 grep -F 'mapfile -t ACTIVE_REVISIONS' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 ! grep -F 'read -r APP_BASE BRAIN_BASE' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F "TAR_CREATE+=(--no-xattrs)" "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+grep -F 'tar --no-xattrs -cf /dev/null -T /dev/null' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+grep -F 'APP_RELEASE_CHANGED' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+grep -F 'API_RELEASE_FILES' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+grep -F 'ENGINE_RELEASE_FILES' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+grep -F 'verify-tar-provenance.sh' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+
+source "$SCRIPT_DIR/source-release-scope.sh"
+APP_RELEASE_CHANGED=(client/src/home.tsx packages/client/src/me.tsx docs/release.md)
+BRAIN_RELEASE_CHANGED=(projects/未来线/future-engine-shim/docs/release.md)
+classify_source_release_delta
+[[ "$CLIENT_CHANGED" == true ]]
+[[ ${#API_RELEASE_FILES[@]} -eq 0 ]]
+[[ ${#ENGINE_RELEASE_FILES[@]} -eq 0 ]]
+
+APP_RELEASE_CHANGED=(api/app/clients/life-api.js api/app/clients/life-api.test.js)
+BRAIN_RELEASE_CHANGED=(projects/未来线/future-engine-shim/advisor-gateway.js projects/未来线/future-engine-shim/advisor-gateway.test.js)
+classify_source_release_delta
+[[ "$CLIENT_CHANGED" == false ]]
+[[ ${#API_RELEASE_FILES[@]} -eq 1 ]]
+[[ ${API_RELEASE_FILES[0]} == api/app/clients/life-api.js ]]
+[[ ${#ENGINE_RELEASE_FILES[@]} -eq 1 ]]
+[[ ${ENGINE_RELEASE_FILES[0]} == projects/未来线/future-engine-shim/advisor-gateway.js ]]
+
+PROVENANCE_TEST_DIR="$TEST_ROOT/provenance"
+mkdir -p "$PROVENANCE_TEST_DIR/clean" "$PROVENANCE_TEST_DIR/dirty"
+printf 'clean\n' > "$PROVENANCE_TEST_DIR/clean/file.txt"
+printf 'LIBARCHIVE.xattr.com.apple.provenance\n' > "$PROVENANCE_TEST_DIR/dirty/marker.txt"
+if command -v xattr >/dev/null 2>&1; then
+  xattr -cr "$PROVENANCE_TEST_DIR/clean"
+fi
+TAR_TEST_CREATE=(tar)
+tar --no-xattrs -cf /dev/null -T /dev/null 2>/dev/null && TAR_TEST_CREATE+=(--no-xattrs) || true
+"${TAR_TEST_CREATE[@]}" -C "$PROVENANCE_TEST_DIR/clean" -cf - . | zstd -q -o "$PROVENANCE_TEST_DIR/clean.tar.zst"
+tar -C "$PROVENANCE_TEST_DIR/dirty" -cf - . | zstd -q -o "$PROVENANCE_TEST_DIR/dirty.tar.zst"
+bash "$SCRIPT_DIR/verify-tar-provenance.sh" "$PROVENANCE_TEST_DIR/clean.tar.zst"
+set +e
+bash "$SCRIPT_DIR/verify-tar-provenance.sh" "$PROVENANCE_TEST_DIR/dirty.tar.zst" >/dev/null 2>&1
+provenance_status=$?
+set -e
+[[ $provenance_status -ne 0 ]]
 
 REVISION_REPO="$TEST_ROOT/revision"
 mkdir -p "$REVISION_REPO"
