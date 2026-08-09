@@ -238,7 +238,7 @@ export default function BasicsForm() {
               onChange={(event) => setBirth((prev) => ({ ...prev, year: event.target.value }))}
               className={inputClass}
             >
-              <option value="">{localize('com_life_birth_unset')}</option>
+              <option value="">{localize('com_life_birth_pick')}</option>
               {YEARS.map((year) => (
                 <option key={year} value={year}>
                   {year}
@@ -253,7 +253,7 @@ export default function BasicsForm() {
               onChange={(event) => setBirth((prev) => ({ ...prev, month: event.target.value }))}
               className={inputClass}
             >
-              <option value="">{localize('com_life_birth_unset')}</option>
+              <option value="">{localize('com_life_birth_pick')}</option>
               {range(1, 12).map((month) => (
                 <option key={month} value={month}>
                   {month}
@@ -268,7 +268,7 @@ export default function BasicsForm() {
               onChange={(event) => setBirth((prev) => ({ ...prev, day: event.target.value }))}
               className={inputClass}
             >
-              <option value="">{localize('com_life_birth_unset')}</option>
+              <option value="">{localize('com_life_birth_pick')}</option>
               {range(1, 31).map((day) => (
                 <option key={day} value={day}>
                   {day}
@@ -298,7 +298,7 @@ export default function BasicsForm() {
               onChange={(event) => setBirth((prev) => ({ ...prev, minute: event.target.value }))}
               className={inputClass}
             >
-              <option value="">{localize('com_life_birth_unset')}</option>
+              <option value="">{localize('com_life_birth_minute_unknown')}</option>
               {range(0, 59).map((minute) => (
                 <option key={minute} value={minute}>
                   {String(minute).padStart(2, '0')}

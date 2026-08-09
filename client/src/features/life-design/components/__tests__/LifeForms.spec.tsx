@@ -40,7 +40,13 @@ jest.mock('../../hooks/useEntry', () => () => ({
 }));
 
 jest.mock('~/hooks', () => ({
-  useLocalize: () => (key: string) => key,
+  useLocalize: () => (key: string) =>
+    ({
+      com_life_birth_unset: '不填',
+      com_life_birth_pick: '请选择',
+      com_life_birth_hour_unknown: '时辰不确定',
+      com_life_birth_minute_unknown: '分钟不确定',
+    })[key] ?? key,
 }));
 
 jest.mock('~/utils/track', () => ({ track: jest.fn() }));
@@ -237,6 +243,15 @@ test('关于我可修改注册时填写的性别、年龄和城市', () => {
   fireEvent.click(screen.getByRole('button', { name: 'com_life_basics_save' }));
 
   expect(mockBasicsMutate).toHaveBeenCalledWith({ age: '38', city: '杭州' }, expect.any(Object));
+});
+
+test('出生信息鼓励选择，同时为不确定的时分保留明确出口', () => {
+  render(<BasicsForm />);
+
+  expect(screen.queryByText('不填')).not.toBeInTheDocument();
+  expect(screen.getAllByText('请选择')).toHaveLength(3);
+  expect(screen.getByText('时辰不确定')).toBeInTheDocument();
+  expect(screen.getByText('分钟不确定')).toBeInTheDocument();
 });
 
 test('关于我在前端拒绝不存在的公历日期', () => {
