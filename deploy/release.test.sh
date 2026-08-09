@@ -509,6 +509,7 @@ grep -F 'test \"\$(stat -c '\''%a'\'' \"\$app/.release-src\")\" = 700' \
   "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F 'mapfile -t ACTIVE_REVISIONS' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 ! grep -F 'read -r APP_BASE BRAIN_BASE' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+grep -F "TAR_CREATE+=(--no-xattrs)" "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 
 REVISION_REPO="$TEST_ROOT/revision"
 mkdir -p "$REVISION_REPO"

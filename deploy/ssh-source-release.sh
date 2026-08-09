@@ -13,6 +13,8 @@ RELEASE_ID=${1:-"SOURCE-$(date -u +%Y%m%dT%H%M%SZ)"}
 for command in git ssh scp tar zstd; do
   command -v "$command" >/dev/null 2>&1 || { echo "$command is required" >&2; exit 1; }
 done
+TAR_CREATE=(tar)
+tar --help 2>&1 | grep -q -- '--no-xattrs' && TAR_CREATE+=(--no-xattrs) || true
 
 git -C "$APP_DIR" diff --quiet
 git -C "$APP_DIR" diff --cached --quiet
@@ -95,7 +97,7 @@ if [[ ${#ENGINE_FILES[@]} -gt 0 ]]; then
 fi
 if [[ "$CLIENT_CHANGED" == true ]]; then
   [[ -s "$APP_DIR/client/dist/index.html" ]] || { echo "client/dist/index.html is missing; build the client first" >&2; exit 1; }
-  tar -C "$APP_DIR/client/dist" -cf - . | tar -xf - -C "$BUNDLE_DIR/client"
+  "${TAR_CREATE[@]}" -C "$APP_DIR/client/dist" -cf - . | tar -xf - -C "$BUNDLE_DIR/client"
 fi
 
 OVERRIDE_FILE="$BUNDLE_DIR/source.override.yml"
@@ -135,11 +137,11 @@ OVERRIDE_FILE="$BUNDLE_DIR/source.override.yml"
 } > "$BUNDLE_DIR/manifest"
 
 ARCHIVE="$TMP_DIR/$RELEASE_ID.tar.zst"
-tar -C "$BUNDLE_DIR" -cf - . | zstd -3 -T0 -o "$ARCHIVE" >/dev/null
+"${TAR_CREATE[@]}" -C "$BUNDLE_DIR" -cf - . | zstd -3 -T0 -o "$ARCHIVE" >/dev/null
 ARCHIVE_SHA=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
 CLIENT_SHA=not-applicable
 if [[ "$CLIENT_CHANGED" == true ]]; then
-  CLIENT_SHA=$(tar -C "$BUNDLE_DIR/client" -cf - . | shasum -a 256 | awk '{print $1}')
+  CLIENT_SHA=$("${TAR_CREATE[@]}" -C "$BUNDLE_DIR/client" -cf - . | shasum -a 256 | awk '{print $1}')
 fi
 
 REMOTE_ARCHIVE="/tmp/$RELEASE_ID.$ARCHIVE_SHA.tar.zst"
