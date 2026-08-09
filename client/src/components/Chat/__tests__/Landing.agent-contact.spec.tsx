@@ -6,6 +6,7 @@ import Landing from '../Landing';
 let mockConversation: Record<string, unknown> | null = null;
 let mockAgentsMap: Record<string, any> | undefined;
 let mockAssistantMap: Record<string, any> | undefined;
+let mockUser: { name?: string } | undefined;
 
 jest.mock('@react-spring/web', () => ({
   easings: {
@@ -44,7 +45,7 @@ jest.mock('~/data-provider', () => ({
 }));
 
 jest.mock('~/hooks', () => ({
-  useAuthContext: () => ({ user: undefined }),
+  useAuthContext: () => ({ user: mockUser }),
   useLocalize: () => (key: string) => {
     const translations: Record<string, string> = {
       com_agents_contact: 'Contact',
@@ -98,6 +99,7 @@ describe('Landing agent contact', () => {
     mockConversation = null;
     mockAgentsMap = undefined;
     mockAssistantMap = undefined;
+    mockUser = undefined;
     window.sessionStorage.clear();
   });
 
@@ -212,5 +214,15 @@ describe('Landing agent contact', () => {
     render(<Landing />);
     expect(screen.getByText('Greeting two')).toBeInTheDocument();
     expect(screen.queryByText('Good morning')).not.toBeInTheDocument();
+  });
+
+  it('未来线欢迎语不把账户测试名带到用户页面', () => {
+    mockUser = { name: 'P6 双验测试' };
+    mockConversation = { endpoint: 'openAI', spec: 'future-lines' };
+
+    render(<Landing />);
+
+    expect(screen.getByText('Greeting one')).toBeInTheDocument();
+    expect(screen.queryByText(/P6|双验|测试/)).not.toBeInTheDocument();
   });
 });

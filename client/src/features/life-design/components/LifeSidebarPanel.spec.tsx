@@ -45,9 +45,39 @@ beforeEach(() => {
           stopPoint: null,
         },
       ],
+      unscopedConversations: [],
     },
   };
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+});
+
+test('侧栏显示已经保存但尚未归入生活地图的直接聊天', () => {
+  mockBootstrap = {
+    isLoading: false,
+    data: {
+      domainConversations: [],
+      unscopedConversations: [
+        {
+          conversationId: 'direct-long-chat',
+          title: '刚才聊过的选择',
+        },
+      ],
+    },
+  };
+
+  render(
+    <MemoryRouter initialEntries={['/home']}>
+      <LifeSidebarPanel />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('com_life_unscoped_conversation')).toBeInTheDocument();
+  expect(screen.getByText('刚才聊过的选择')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /刚才聊过的选择/ })).toHaveAttribute(
+    'href',
+    '/c/direct-long-chat',
+  );
+  expect(screen.queryByText('com_life_no_recent_conversations')).toBeNull();
 });
 
 test('侧栏把“开启新对话”收口为“说件新事”的领域入口', () => {

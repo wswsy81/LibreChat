@@ -203,6 +203,22 @@ function domainConversations(bootstrap, conversations) {
   ];
 }
 
+function unscopedConversations(bootstrap, conversations, limit = 6) {
+  const mappedIds = new Set(
+    (Array.isArray(bootstrap?.houseSessions) ? bootstrap.houseSessions : [])
+      .map((session) => session?.sessionId)
+      .filter(Boolean),
+  );
+  return (conversations || [])
+    .filter((conversation) => !mappedIds.has(conversation.conversationId))
+    .slice(0, limit)
+    .map((conversation) => ({
+      conversationId: conversation.conversationId,
+      title: conversation.title || null,
+      updatedAt: conversation.updatedAt || null,
+    }));
+}
+
 function domainConversationForHouse(bootstrap, conversations, entryHouse) {
   return (
     domainConversations(bootstrap, conversations).find(
@@ -535,6 +551,7 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
     );
     const hasProfile = bootstrap.hasSubstantiveProfile === true;
     const domains = domainConversations(bootstrap, completeConversations);
+    const unscoped = unscopedConversations(bootstrap, completeConversations);
     const conversation = activeDomainConversation(bootstrap, completeConversations);
     return res.json({
       authenticated: true,
@@ -543,6 +560,7 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
       lastConversationId: conversation?.conversationId || null,
       lastConversationTitle: conversation?.title || null,
       domainConversations: domains,
+      unscopedConversations: unscoped,
       recommendedRoute: hasProfile ? '/resume' : '/home',
     });
   } catch (error) {

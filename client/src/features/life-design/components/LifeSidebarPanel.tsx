@@ -40,6 +40,7 @@ export default function LifeSidebarPanel() {
     cacheTime: 300_000,
   });
   const domains = bootstrap.data?.domainConversations ?? [];
+  const unscoped = bootstrap.data?.unscopedConversations ?? [];
 
   const closeMobile = () => {
     if (window.innerWidth <= 768) {
@@ -63,7 +64,7 @@ export default function LifeSidebarPanel() {
         ))}
       </div>
     );
-  } else if (domains.length) {
+  } else if (domains.length || unscoped.length) {
     recentContent = (
       <div className="space-y-1">
         {domains.map((conversation) => {
@@ -90,6 +91,30 @@ export default function LifeSidebarPanel() {
               </span>
               <span className="mt-0.5 block truncate font-life-kai text-life-meta leading-5 text-text-secondary">
                 {detail}
+              </span>
+            </Link>
+          );
+        })}
+        {unscoped.map((conversation) => {
+          const active = location.pathname === `/c/${conversation.conversationId}`;
+          return (
+            <Link
+              key={conversation.conversationId}
+              to={`/c/${conversation.conversationId}`}
+              onClick={closeMobile}
+              className={cn(
+                'block border-l-2 px-3 py-2.5 transition-colors',
+                active
+                  ? 'border-life-cinnabar bg-life-cinnabar/5 text-text-primary'
+                  : 'border-transparent text-text-secondary hover:border-life-rule hover:bg-surface-hover hover:text-text-primary',
+              )}
+              aria-current={active ? 'page' : undefined}
+            >
+              <span className="block font-life-serif text-life-sm font-semibold">
+                {localize('com_life_unscoped_conversation')}
+              </span>
+              <span className="mt-0.5 block truncate font-life-kai text-life-meta leading-5 text-text-secondary">
+                {conversation.title || localize('com_life_unscoped_resume_hint')}
               </span>
             </Link>
           );

@@ -10,7 +10,11 @@ import type {
 } from 'librechat-data-provider';
 import BasicsForm from '../components/BasicsForm';
 import { LifeError, LifeLoading } from '../components/PageState';
-import { useLifeDossierAnnotateMutation, useLifeSelfProjectionQuery } from '~/data-provider';
+import {
+  useLifeBootstrapQuery,
+  useLifeDossierAnnotateMutation,
+  useLifeSelfProjectionQuery,
+} from '~/data-provider';
 import type { TranslationKeys } from '~/hooks';
 import { useLocalize } from '~/hooks';
 
@@ -198,6 +202,7 @@ export default function MeRoute() {
   const localize = useLocalize();
   const navigate = useNavigate();
   const query = useLifeSelfProjectionQuery();
+  const bootstrap = useLifeBootstrapQuery();
 
   useEffect(() => {
     if (!query.data || window.location.hash !== '#me-basics') return;
@@ -232,6 +237,7 @@ export default function MeRoute() {
   const hasBirth =
     projection.birthDraft.status !== 'unavailable' ||
     availability.birthDraft === 'temporarily_unavailable';
+  const latestUnscoped = bootstrap.data?.unscopedConversations?.[0] ?? null;
 
   let birthContent;
   if (availability.birthDraft === 'temporarily_unavailable') {
@@ -314,17 +320,23 @@ export default function MeRoute() {
               {localize('com_life_me_empty_eyebrow')}
             </p>
             <h2 id="me-empty-title" className="mt-3 font-life-serif text-life-title font-semibold">
-              {localize('com_life_me_empty_title')}
+              {latestUnscoped
+                ? localize('com_life_me_saved_title')
+                : localize('com_life_me_empty_title')}
             </h2>
             <p className="mt-4 max-w-[34em] font-life-kai text-life-body leading-8 text-life-muted">
-              {localize('com_life_me_empty_help')}
+              {latestUnscoped
+                ? localize('com_life_me_saved_help')
+                : localize('com_life_me_empty_help')}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
-                to="/c/new"
+                to={latestUnscoped ? `/c/${latestUnscoped.conversationId}` : '/c/new'}
                 className="inline-flex min-h-12 items-center rounded-[4px] bg-life-moss px-5 font-life-sans text-life-sm font-medium text-life-paper hover:bg-life-moss-deep"
               >
-                {localize('com_life_me_direct_chat')}
+                {latestUnscoped
+                  ? localize('com_life_me_resume_saved_chat')
+                  : localize('com_life_me_direct_chat')}
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
               <a

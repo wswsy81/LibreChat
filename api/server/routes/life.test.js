@@ -615,6 +615,10 @@ test('active domain restores by its exact session id even after it falls outside
       title: '原来的工作页',
     }),
   ]);
+  expect(response.body.unscopedConversations).toEqual([
+    expect.objectContaining({ conversationId: 'recent-unmapped-1' }),
+    expect.objectContaining({ conversationId: 'recent-unmapped-2' }),
+  ]);
   expect(mockConversationFind).toHaveBeenNthCalledWith(
     2,
     expect.objectContaining({
@@ -622,6 +626,37 @@ test('active domain restores by its exact session id even after it falls outside
       conversationId: { $in: ['older-work-conversation'] },
     }),
   );
+});
+
+test('bootstrap exposes saved direct chats instead of dropping conversations without a house session', async () => {
+  mockEngine.json.mockResolvedValue({
+    profileState: 'empty',
+    hasSubstantiveProfile: false,
+    houseSessions: [],
+  });
+  mockConversationFind.mockReturnValue(
+    conversationQuery([
+      {
+        conversationId: 'direct-long-chat',
+        title: '刚才聊过的选择',
+        updatedAt: '2026-08-09T14:18:06.675Z',
+      },
+    ]),
+  );
+
+  const response = await request(buildApp({ id: 'user-1', name: '张东' })).get(
+    '/api/life/bootstrap',
+  );
+
+  expect(response.status).toBe(200);
+  expect(response.body.domainConversations).toEqual([]);
+  expect(response.body.unscopedConversations).toEqual([
+    {
+      conversationId: 'direct-long-chat',
+      title: '刚才聊过的选择',
+      updatedAt: '2026-08-09T14:18:06.675Z',
+    },
+  ]);
 });
 
 test('onboarding accepts archiveName + entryHouse and returns a one-time house trigger route', async () => {

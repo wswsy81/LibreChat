@@ -192,7 +192,7 @@ export default function Landing() {
     greetingText = getGreeting();
   }
   if (isFutureLines) {
-    greetingText = user?.name ? `${user.name}，${futureLineGreeting}` : futureLineGreeting;
+    greetingText = futureLineGreeting;
   }
 
   return (

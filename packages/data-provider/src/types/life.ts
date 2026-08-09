@@ -91,6 +91,12 @@ export interface LifeDomainConversation {
   stopPoint?: LifeStopPoint | null;
 }
 
+export interface LifeUnscopedConversation {
+  conversationId: string;
+  title?: string | null;
+  updatedAt?: string | null;
+}
+
 export interface LifeBootstrapSummary {
   alias?: string | null;
   lastSurface?: string | null;
@@ -108,6 +114,7 @@ export interface LifeBootstrapResponse {
   activeHouse?: LifeHouseId | null;
   houseSessions?: LifeHouseSession[];
   domainConversations?: LifeDomainConversation[];
+  unscopedConversations?: LifeUnscopedConversation[];
   latestReportId?: string | null;
   reportCount?: number;
   lastConversationId?: string | null;

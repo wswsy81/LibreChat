@@ -11,6 +11,7 @@ const mockAnnotate = jest.fn();
 const mockToast = jest.fn();
 const mockRefetch = jest.fn();
 let mockProjectionQuery: Record<string, unknown>;
+let mockBootstrapQuery: Record<string, unknown>;
 
 const unavailableField = (meaning: string) => ({
   certainty: 'unavailable',
@@ -57,6 +58,7 @@ jest.mock('~/hooks', () => ({
 
 jest.mock('~/data-provider', () => ({
   useLifeSelfProjectionQuery: () => mockProjectionQuery,
+  useLifeBootstrapQuery: () => mockBootstrapQuery,
   useLifeDossierAnnotateMutation: () => ({
     mutate: mockAnnotate,
     isLoading: false,
@@ -88,6 +90,25 @@ beforeEach(() => {
       availability: { birthDraft: 'not_provided' },
     },
   };
+  mockBootstrapQuery = { isLoading: false, data: { unscopedConversations: [] } };
+});
+
+test('已有直接聊天但尚无人物观察时明确告诉用户对话已保存并可返回', () => {
+  mockBootstrapQuery = {
+    isLoading: false,
+    data: {
+      unscopedConversations: [{ conversationId: 'direct-long-chat', title: '刚才聊过的选择' }],
+    },
+  };
+
+  renderMe();
+
+  expect(screen.getByText('com_life_me_saved_title')).toBeInTheDocument();
+  expect(screen.getByText('com_life_me_saved_help')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /com_life_me_resume_saved_chat/ })).toHaveAttribute(
+    'href',
+    '/c/direct-long-chat',
+  );
 });
 
 test('完全无资料仍明确可以直接开始，不生成公式或三张空卡', () => {
