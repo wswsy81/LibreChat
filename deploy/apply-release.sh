@@ -690,6 +690,9 @@ fi
 ACTIVE_TMP="$APP_DIR/.release.env.next"
 install -m 600 "$EFFECTIVE_ENV" "$ACTIVE_TMP"
 mv "$ACTIVE_TMP" "$APP_DIR/.release.env"
+if [[ $EUID -eq 0 ]]; then
+  chown --reference="$APP_DIR" "$APP_DIR/.release.env"
+fi
 
 printf 'apply_result=healthy\napply_seconds=%s\nchanged_services=%s\nruntime_config_rules_changed=%s\nruntime_config_rules_previous_sha256=%s\nruntime_config_rules_active_sha256=%s\nclient_release_changed=%s\nclient_release_previous=%s\nclient_release_active=%s\nrecorded_at=%s\n' \
   "$(( $(date +%s) - APPLY_STARTED_EPOCH ))" "${CHANGED_SERVICES[*]}" "$RULES_CHANGED" \
