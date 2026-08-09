@@ -283,7 +283,7 @@ export default function BasicsForm() {
               onChange={(event) => setBirth((prev) => ({ ...prev, hour: event.target.value }))}
               className={inputClass}
             >
-              <option value="">{localize('com_life_birth_hour_unknown')}</option>
+              <option value="">{localize('com_life_birth_pick')}</option>
               {range(0, 23).map((hour) => (
                 <option key={hour} value={hour}>
                   {String(hour)}
@@ -298,7 +298,7 @@ export default function BasicsForm() {
               onChange={(event) => setBirth((prev) => ({ ...prev, minute: event.target.value }))}
               className={inputClass}
             >
-              <option value="">{localize('com_life_birth_minute_unknown')}</option>
+              <option value="">{localize('com_life_birth_pick')}</option>
               {range(0, 59).map((minute) => (
                 <option key={minute} value={minute}>
                   {String(minute).padStart(2, '0')}

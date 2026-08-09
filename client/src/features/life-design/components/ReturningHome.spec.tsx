@@ -188,3 +188,16 @@ test('老用户可从首页进入“说件新事”的领域选择', () => {
     '/c/new',
   );
 });
+
+test('桌面主操作与随手记属于同一左栏内容流，不再被右栏卡片撑出空洞', () => {
+  render(
+    <MemoryRouter>
+      <ReturningHome bootstrap={bootstrap} />
+    </MemoryRouter>,
+  );
+
+  const mainColumn = screen.getByTestId('home-main-column');
+  expect(mainColumn).toContainElement(screen.getByText(/com_life_last_time/));
+  expect(mainColumn).toContainElement(screen.getByText('com_life_quick_capture'));
+  expect(mainColumn).not.toContainElement(screen.getByText('com_life_testing_now'));
+});

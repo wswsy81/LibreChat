@@ -64,44 +64,88 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
         </h1>
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-          {/* ① 真问题 = 视觉绝对主角 */}
-          <section aria-labelledby="problem-title">
-            <p
-              id="problem-title"
-              className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
+          <div data-testid="home-main-column" className="grid content-start gap-8">
+            {/* ① 真问题 = 视觉绝对主角 */}
+            <section aria-labelledby="problem-title">
+              <p
+                id="problem-title"
+                className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
+              >
+                —— {localize('com_life_last_time')}
+              </p>
+              <p className="mt-4 max-w-[34em] font-life-serif text-life-lead font-semibold text-life-ink underline decoration-life-cinnabar/50 decoration-2 underline-offset-8 dark:text-gray-100">
+                {bootstrap.summary?.lastSurface ||
+                  bootstrap.lastConversationTitle ||
+                  localize('com_life_archive_waiting')}
+              </p>
+              {/* ② 唯一主行动 */}
+              <div className="mt-9 flex flex-wrap items-center gap-4">
+                <Button
+                  type="button"
+                  className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
+                  onClick={() => navigate('/resume')}
+                >
+                  {localize('com_life_continue_here')}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+                <Link
+                  to="/c/new"
+                  className="inline-flex min-h-11 items-center border border-life-moss px-5 font-life-sans text-life-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper"
+                >
+                  {localize('com_life_free_chat_action')}
+                </Link>
+                <button
+                  type="button"
+                  className="min-h-11 border-b border-life-rule px-1 font-life-sans text-life-sm text-life-muted transition hover:border-life-ink hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
+                  onClick={() => navigate('/me')}
+                >
+                  {localize('com_life_nav_me')}
+                </button>
+              </div>
+            </section>
+
+            {/* ⑤ 随手记速记 */}
+            <section
+              className="border border-life-rule bg-[#F7F4EB] p-6 dark:border-white/10 dark:bg-surface-primary"
+              aria-labelledby="capture-title"
             >
-              —— {localize('com_life_last_time')}
-            </p>
-            <p className="mt-4 max-w-[34em] font-life-serif text-life-lead font-semibold text-life-ink underline decoration-life-cinnabar/50 decoration-2 underline-offset-8 dark:text-gray-100">
-              {bootstrap.summary?.lastSurface ||
-                bootstrap.lastConversationTitle ||
-                localize('com_life_archive_waiting')}
-            </p>
-            {/* ② 唯一主行动 */}
-            <div className="mt-9 flex flex-wrap items-center gap-4">
-              <Button
-                type="button"
-                className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
-                onClick={() => navigate('/resume')}
+              <p
+                id="capture-title"
+                className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
               >
-                {localize('com_life_continue_here')}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-              <Link
-                to="/c/new"
-                className="inline-flex min-h-11 items-center border border-life-moss px-5 font-life-sans text-life-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper"
-              >
-                {localize('com_life_free_chat_action')}
-              </Link>
-              <button
-                type="button"
-                className="min-h-11 border-b border-life-rule px-1 font-life-sans text-life-sm text-life-muted transition hover:border-life-ink hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
-                onClick={() => navigate('/me')}
-              >
-                {localize('com_life_nav_me')}
-              </button>
-            </div>
-          </section>
+                {localize('com_life_quick_capture')}
+              </p>
+              <textarea
+                value={note}
+                maxLength={2000}
+                rows={3}
+                placeholder={localize('com_life_inbox_placeholder')}
+                onChange={(event) => setNote(event.target.value)}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                    event.preventDefault();
+                    saveNote();
+                  }
+                }}
+                className="mt-4 w-full resize-none border-b border-life-rule bg-transparent pb-2 font-life-kai text-life-body leading-8 text-[#3E4A40] outline-none placeholder:text-life-muted/60 focus:border-life-ink dark:text-gray-200 dark:placeholder:text-gray-600"
+              />
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <span className="font-life-mono text-life-meta text-life-muted dark:text-gray-500">
+                  {localize('com_life_quick_capture_hint')}
+                </span>
+                <button
+                  type="button"
+                  disabled={!note.trim() || capture.isLoading}
+                  onClick={saveNote}
+                  className="min-h-10 border border-life-moss px-4 font-life-sans text-life-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper disabled:opacity-40"
+                >
+                  {capture.isSuccess && !note
+                    ? localize('com_life_quick_capture_done')
+                    : localize('com_life_inbox_save')}
+                </button>
+              </div>
+            </section>
+          </div>
 
           <aside className="grid gap-5" aria-label={localize('com_life_home_side_summary')}>
             <section
@@ -181,50 +225,6 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
               </section>
             )}
           </aside>
-        </div>
-
-        {/* ⑤ 随手记速记 */}
-        <div className="mt-8 max-w-2xl">
-          <section
-            className="border border-life-rule bg-[#F7F4EB] p-6 dark:border-white/10 dark:bg-surface-primary"
-            aria-labelledby="capture-title"
-          >
-            <p
-              id="capture-title"
-              className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
-            >
-              {localize('com_life_quick_capture')}
-            </p>
-            <textarea
-              value={note}
-              maxLength={2000}
-              rows={3}
-              placeholder={localize('com_life_inbox_placeholder')}
-              onChange={(event) => setNote(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                  event.preventDefault();
-                  saveNote();
-                }
-              }}
-              className="mt-4 w-full resize-none border-b border-life-rule bg-transparent pb-2 font-life-kai text-life-body leading-8 text-[#3E4A40] outline-none placeholder:text-life-muted/60 focus:border-life-ink dark:text-gray-200 dark:placeholder:text-gray-600"
-            />
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <span className="font-life-mono text-life-meta text-life-muted dark:text-gray-500">
-                {localize('com_life_quick_capture_hint')}
-              </span>
-              <button
-                type="button"
-                disabled={!note.trim() || capture.isLoading}
-                onClick={saveNote}
-                className="min-h-10 border border-life-moss px-4 font-life-sans text-life-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper disabled:opacity-40"
-              >
-                {capture.isSuccess && !note
-                  ? localize('com_life_quick_capture_done')
-                  : localize('com_life_inbox_save')}
-              </button>
-            </div>
-          </section>
         </div>
 
         <section className="mt-12" aria-labelledby="life-map-title">

@@ -275,13 +275,13 @@ export default function MeRoute() {
         <p className="font-life-kai text-life-body leading-8 text-life-muted">
           {localize('com_life_me_birth_empty')}
         </p>
-        <a
-          href="#me-basics"
+        <Link
+          to="/me#me-basics"
           className="mt-3 inline-flex min-h-11 items-center border-b border-life-moss font-life-sans text-life-sm font-medium text-life-moss hover:text-life-ink"
         >
           {localize('com_life_me_add_birth')}
           <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-        </a>
+        </Link>
       </div>
     );
   }
@@ -339,12 +339,12 @@ export default function MeRoute() {
                   : localize('com_life_me_direct_chat')}
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
-              <a
-                href="#me-basics"
+              <Link
+                to="/me#me-basics"
                 className="inline-flex min-h-12 items-center rounded-[4px] border border-life-rule px-5 font-life-sans text-life-sm font-medium text-life-ink hover:border-life-ink"
               >
                 {localize('com_life_me_add_birth')}
-              </a>
+              </Link>
             </div>
           </section>
         ) : (
