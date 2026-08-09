@@ -19,8 +19,13 @@ else
   DOCKER=(sudo docker)
 fi
 
+COMPOSE_FILES=(--file "$APP_DIR/docker-compose.prod.yml")
+if [[ -s "$APP_DIR/.release-source.override.yml" ]]; then
+  COMPOSE_FILES+=(--file "$APP_DIR/.release-source.override.yml")
+fi
+
 exec "${DOCKER[@]}" compose \
-  --file "$APP_DIR/docker-compose.prod.yml" \
+  "${COMPOSE_FILES[@]}" \
   --env-file "$APP_DIR/.env" \
   --env-file "$APP_DIR/.release.env" \
   "$@"

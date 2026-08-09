@@ -550,6 +550,7 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
       conversations,
     );
     const hasProfile = bootstrap.hasSubstantiveProfile === true;
+    const hasSavedConversation = completeConversations.length > 0;
     const domains = domainConversations(bootstrap, completeConversations);
     const unscoped = unscopedConversations(bootstrap, completeConversations);
     const conversation = activeDomainConversation(bootstrap, completeConversations);
@@ -561,7 +562,7 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
       lastConversationTitle: conversation?.title || null,
       domainConversations: domains,
       unscopedConversations: unscoped,
-      recommendedRoute: hasProfile ? '/resume' : '/home',
+      recommendedRoute: hasProfile || hasSavedConversation ? '/resume' : '/home',
     });
   } catch (error) {
     logger.error('[life] bootstrap failed', error);

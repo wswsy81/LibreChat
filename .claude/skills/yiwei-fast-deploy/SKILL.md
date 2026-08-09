@@ -29,6 +29,9 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 9. `client-static` 的新前端 revision 由 evidence、manifest 与静态包 SHA 绑定；复用旧 API/Engine 镜像时仍校验 digest、架构和运行用户，但禁止拿新前端 revision 校验旧镜像 label。
 10. staging 前确认生产 `.release.env` 为 `0600` 且固定发布用户可读；root apply 写回后 owner 必须恢复为应用目录 owner。
 11. 新发布故障必须完成“脚本修复＋确定性回归＋部署手册/skill 回写”后才能关闭；现场绕过不算永久修复。
+12. 权限预检必须在传输前验证 SSH 用户等于应用目录 owner、`.release.env=owner:0600`、`.releases=owner:0700`、`sudo -n docker info` 可用。候选文件安装为应用 owner 的 `0600`；root 静态目录只经 `/tmp → sudo install → 原子切换` 写入。禁止直接 SCP 到应用目录或递归 `chown /app`。
+13. package/lockfile、Dockerfile、compose 关键结构、迁移、身份隔离均未变化时，普通 API/Engine/前端组合默认走 `deploy/ssh-source-release.sh`。该通道复用稳定依赖镜像，通过 SSH 上传内容寻址源码包与静态包，不依赖 GitHub/GHCR/VPN，也不创建两个增量镜像。
+14. SSH 返回多行 revision/digest 时使用逐行数组并断言数量；禁止把去掉结尾换行的管道交给单次 `read`，避免值已读到却因 EOF 状态 1 静默退出。
 
 只改发布/备份/skill 管道时使用 `projects/未来线/librechat/deploy/verify-local.sh --release`；业务代码开发用 `--quick`，最终完整交付用 `--full`。
 

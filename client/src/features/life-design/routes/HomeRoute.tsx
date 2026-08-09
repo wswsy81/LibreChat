@@ -140,10 +140,19 @@ export default function HomeRoute() {
         onContinue={() => navigate('/resume')}
       />
     );
-  } else if (bootstrap.data?.hasSubstantiveProfile && !newMatterRequested) {
+  } else if (
+    (bootstrap.data?.hasSubstantiveProfile ||
+      bootstrap.data?.domainConversations?.length ||
+      bootstrap.data?.unscopedConversations?.length) &&
+    !newMatterRequested
+  ) {
     content = <ReturningHome bootstrap={bootstrap.data} />;
   } else {
-    const isNewMatter = bootstrap.data?.hasSubstantiveProfile === true;
+    const isNewMatter = Boolean(
+      bootstrap.data?.hasSubstantiveProfile ||
+        bootstrap.data?.domainConversations?.length ||
+        bootstrap.data?.unscopedConversations?.length,
+    );
     const archiveName = bootstrap.data?.summary?.alias || bootstrap.data?.user?.name || null;
     content = (
       <div className="h-full overflow-y-auto bg-life-paper px-5 py-10 dark:bg-surface-secondary sm:px-8">

@@ -12,6 +12,7 @@ FAKE_BIN="$TEST_ROOT/bin"
 FAKE_STATE="$TEST_ROOT/state"
 mkdir -p "$RELEASE_ROOT" "$REMOTE_APP/deploy" "$FAKE_BIN" "$FAKE_STATE"
 printf 'LIBRECHAT_RELEASE_IMAGE=sha256:%064d\nFUTURE_ENGINE_RELEASE_IMAGE=sha256:%064d\n' 8 9 > "$REMOTE_APP/.release.env"
+chmod 600 "$REMOTE_APP/.release.env"
 cat > "$REMOTE_APP/deploy/backup.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -141,7 +142,20 @@ EOF
 
 cat > "$FAKE_BIN/sudo" <<'EOF'
 #!/usr/bin/env bash
+[[ "${1:-}" == -n ]] && shift
 exec "$@"
+EOF
+
+cat > "$FAKE_BIN/stat" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == -c ]]; then
+  case "${2:-}" in
+    %u) exec /usr/bin/stat -f '%u' "$3" ;;
+    %g) exec /usr/bin/stat -f '%g' "$3" ;;
+    %a) exec /usr/bin/stat -f '%Lp' "$3" ;;
+  esac
+fi
+exec /usr/bin/stat "$@"
 EOF
 
 cat > "$FAKE_BIN/zstd" <<'EOF'
@@ -188,6 +202,7 @@ EXPANSION_PERCENT=1 \
 [[ $(wc -l < "$FAKE_STATE/backup.log") -eq 1 ]]
 TRANSPORT="$REMOTE_APP/.releases/$RELEASE_ID.transport"
 [[ -s "$TRANSPORT" ]]
+[[ $(stat -f '%Lp' "$REMOTE_APP/.releases/$RELEASE_ID.env" 2>/dev/null || stat -c '%a' "$REMOTE_APP/.releases/$RELEASE_ID.env") == 600 ]]
 grep -qx "librechat_loaded_image=$API_LOADED" "$TRANSPORT"
 grep -qx "future_engine_loaded_image=$ENGINE_LOADED" "$TRANSPORT"
 grep -qx "candidate_env_sha256=$(shasum -a 256 "$RELEASE_ROOT/$RELEASE_ID.env" | awk '{print $1}')" "$TRANSPORT"
@@ -305,5 +320,23 @@ grep -qx 'transport_mode=artifact-only' "$REMOTE_APP/.releases/$CLIENT_RELEASE_I
 grep -qx 'state=deployable' "$REMOTE_APP/.releases/$CLIENT_RELEASE_ID.stage-status"
 [[ -s "$REMOTE_APP/client-releases/$CLIENT_ONLY_SHA/index.html" ]]
 [[ $(wc -l < "$FAKE_STATE/backup.log") -eq 2 ]]
+
+chmod 640 "$REMOTE_APP/.release.env"
+if APP_DIR_OVERRIDE="$APP_DIR" \
+  RELEASE_ROOT="$RELEASE_ROOT" \
+  PRODUCTION_SSH=fake \
+  PRODUCTION_APP_DIR="$REMOTE_APP" \
+  PRODUCTION_BACKUP_DIR="$FAKE_BACKUP_DIR" \
+  DOCKER_BIN="$FAKE_BIN/docker" \
+  SSH_BIN="$FAKE_BIN/ssh" \
+  SCP_BIN="$FAKE_BIN/scp" \
+  ZSTD_BIN="$FAKE_BIN/zstd" \
+  MIN_FREE_AFTER_STAGE_BYTES=1 \
+  EXPANSION_PERCENT=1 \
+    bash "$SCRIPT_DIR/stage-release.sh" --preflight-only "$RELEASE_ROOT/$CLIENT_RELEASE_ID.env" >/dev/null 2>&1; then
+  echo 'permission preflight accepted a non-0600 .release.env' >&2
+  exit 1
+fi
+chmod 600 "$REMOTE_APP/.release.env"
 
 printf 'stage release tests passed\n'

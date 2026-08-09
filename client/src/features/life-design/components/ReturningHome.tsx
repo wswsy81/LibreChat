@@ -3,7 +3,11 @@ import { Button } from '@librechat/client';
 import { ArrowRight, LogOut } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { LifeBootstrapResponse } from 'librechat-data-provider';
-import { useLifeArchiveQuery, useLifeInboxMutation } from '~/data-provider';
+import {
+  useLifeArchiveQuery,
+  useLifeInboxMutation,
+  useLifeSelfProjectionQuery,
+} from '~/data-provider';
 import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
 import { useAuthContext, useLocalize } from '~/hooks';
 import { Explorer } from './LifeWheel';
@@ -20,6 +24,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
   const { logout } = useAuthContext();
   const [note, setNote] = useState('');
   const archive = useLifeArchiveQuery({ retry: 0, refetchOnWindowFocus: false });
+  const selfProjection = useLifeSelfProjectionQuery({ retry: 0, refetchOnWindowFocus: false });
   const capture = useLifeInboxMutation();
   const name = bootstrap.summary?.alias || bootstrap.user?.name || localize('com_life_friend');
 
@@ -27,6 +32,16 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
     .filter((signal) => signal.status !== 'resolved')
     .slice(0, 2);
   const timeline = (archive.data?.profile.timeline || []).slice(-3).reverse();
+  const projection = selfProjection.data?.projection;
+  const pending = projection?.pending?.[0] || null;
+  const realitySummary =
+    projection?.selfFormula?.text || projection?.currentState?.text || pending?.text || null;
+  const birthSummary = projection?.birthDraft.formula || null;
+  const selfSummary = realitySummary || birthSummary;
+  const birthFields = projection
+    ? [projection.birthDraft.sun, projection.birthDraft.moon, projection.birthDraft.rising]
+    : [];
+  const exactBirthFields = birthFields.filter((field) => field.certainty === 'exact');
 
   const saveNote = () => {
     const text = note.trim();
@@ -48,78 +63,128 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
           {localize('com_life_welcome_back', { 0: name })}
         </h1>
 
-        {/* ① 真问题 = 视觉绝对主角 */}
-        <section className="mt-8" aria-labelledby="problem-title">
-          <p
-            id="problem-title"
-            className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
-          >
-            —— {localize('com_life_last_time')}
-          </p>
-          <p className="mt-4 max-w-[34em] font-life-serif text-life-lead font-semibold text-life-ink underline decoration-life-cinnabar/50 decoration-2 underline-offset-8 dark:text-gray-100">
-            {bootstrap.summary?.lastSurface || localize('com_life_archive_waiting')}
-          </p>
-          {/* ② 唯一主行动 */}
-          <div className="mt-9 flex flex-wrap items-center gap-4">
-            <Button
-              type="button"
-              className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
-              onClick={() => navigate('/resume')}
-            >
-              {localize('com_life_continue_here')}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-            <Link
-              to="/c/new"
-              className="inline-flex min-h-11 items-center border border-life-moss px-5 font-life-sans text-life-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper"
-            >
-              {localize('com_life_free_chat_action')}
-            </Link>
-            <button
-              type="button"
-              className="min-h-11 border-b border-life-rule px-1 font-life-sans text-life-sm text-life-muted transition hover:border-life-ink hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
-              onClick={() => navigate('/archive')}
-            >
-              {localize('com_life_view_archive')}
-            </button>
-          </div>
-        </section>
-
-        {/* ③ 正在验证 + ⑤ 随手记速记 */}
-        <div className="mt-12 grid gap-5 lg:grid-cols-2">
-          <section
-            className="border border-life-rule bg-[#F7F4EB] p-6 dark:border-white/10 dark:bg-surface-primary"
-            style={{ borderTopWidth: 3, borderTopColor: '#355B47' }}
-            aria-labelledby="testing-title"
-          >
+        <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          {/* ① 真问题 = 视觉绝对主角 */}
+          <section aria-labelledby="problem-title">
             <p
-              id="testing-title"
-              className="font-life-mono text-life-meta tracking-[0.18em] text-life-moss"
+              id="problem-title"
+              className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
             >
-              {localize('com_life_testing_now')}
+              —— {localize('com_life_last_time')}
             </p>
-            {signals.length ? (
-              <ul className="mt-4 space-y-4">
-                {signals.map((signal, index) => (
-                  <li key={signal.id || index}>
-                    <p className="font-life-serif text-life-lead font-semibold leading-8 text-life-ink dark:text-gray-100">
-                      {signal.description}
-                    </p>
-                    {signal.status && (
-                      <span className="mt-1 inline-block font-life-mono text-life-meta text-life-brass">
-                        {signal.status}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-4 text-life-sm leading-7 text-life-muted dark:text-gray-400">
-                {localize('com_life_no_signal_yet')}
-              </p>
-            )}
+            <p className="mt-4 max-w-[34em] font-life-serif text-life-lead font-semibold text-life-ink underline decoration-life-cinnabar/50 decoration-2 underline-offset-8 dark:text-gray-100">
+              {bootstrap.summary?.lastSurface ||
+                bootstrap.lastConversationTitle ||
+                localize('com_life_archive_waiting')}
+            </p>
+            {/* ② 唯一主行动 */}
+            <div className="mt-9 flex flex-wrap items-center gap-4">
+              <Button
+                type="button"
+                className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
+                onClick={() => navigate('/resume')}
+              >
+                {localize('com_life_continue_here')}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Link
+                to="/c/new"
+                className="inline-flex min-h-11 items-center border border-life-moss px-5 font-life-sans text-life-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper"
+              >
+                {localize('com_life_free_chat_action')}
+              </Link>
+              <button
+                type="button"
+                className="min-h-11 border-b border-life-rule px-1 font-life-sans text-life-sm text-life-muted transition hover:border-life-ink hover:text-life-ink dark:text-gray-400 dark:hover:text-gray-200"
+                onClick={() => navigate('/me')}
+              >
+                {localize('com_life_nav_me')}
+              </button>
+            </div>
           </section>
 
+          <aside className="grid gap-5" aria-label={localize('com_life_home_side_summary')}>
+            <section
+              className="border border-life-rule bg-[#F7F4EB] p-6 dark:border-white/10 dark:bg-surface-primary"
+              style={{ borderTopWidth: 3, borderTopColor: '#355B47' }}
+              aria-labelledby="testing-title"
+            >
+              <p
+                id="testing-title"
+                className="font-life-mono text-life-meta tracking-[0.18em] text-life-moss"
+              >
+                {localize('com_life_testing_now')}
+              </p>
+              {signals.length ? (
+                <ul className="mt-4 space-y-4">
+                  {signals.map((signal, index) => (
+                    <li key={signal.id || index}>
+                      <p className="font-life-serif text-life-lead font-semibold leading-8 text-life-ink dark:text-gray-100">
+                        {signal.description}
+                      </p>
+                      {signal.status && (
+                        <span className="mt-1 inline-block font-life-mono text-life-meta text-life-brass">
+                          {signal.status}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-4 text-life-sm leading-7 text-life-muted dark:text-gray-400">
+                  {localize('com_life_no_signal_yet')}
+                </p>
+              )}
+            </section>
+
+            {selfSummary && (
+              <section
+                className="border border-life-rule bg-[#F7F4EB] p-6 dark:border-white/10 dark:bg-surface-primary"
+                style={{ borderTopWidth: 3, borderTopColor: '#B94831' }}
+                aria-labelledby="home-self-title"
+              >
+                <p
+                  id="home-self-title"
+                  className="font-life-mono text-life-meta tracking-[0.18em] text-life-cinnabar"
+                >
+                  {birthSummary && !realitySummary
+                    ? localize('com_life_home_archetype_title')
+                    : localize('com_life_home_self_title')}
+                </p>
+                {exactBirthFields.length > 0 && (
+                  <div className="mt-4 grid grid-cols-3 border-y border-life-rule py-3 text-center">
+                    {exactBirthFields.map((field, index) => (
+                      <span
+                        key={`${field.certainty}-${field.name}-${index}`}
+                        className="font-life-serif text-life-sm font-semibold text-life-ink"
+                      >
+                        {field.certainty === 'exact' ? field.name : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-4 font-life-kai text-life-body leading-8 text-life-ink">
+                  {selfSummary}
+                </p>
+                {pending && (
+                  <p className="mt-3 font-life-mono text-life-meta tracking-[0.1em] text-life-brass">
+                    {localize('com_life_me_status_pending')}
+                  </p>
+                )}
+                <Link
+                  to="/me"
+                  className="mt-5 inline-flex min-h-11 items-center font-life-sans text-life-sm font-medium text-life-moss hover:text-life-ink"
+                >
+                  {localize('com_life_home_self_link')}
+                  <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                </Link>
+              </section>
+            )}
+          </aside>
+        </div>
+
+        {/* ⑤ 随手记速记 */}
+        <div className="mt-8 max-w-2xl">
           <section
             className="border border-life-rule bg-[#F7F4EB] p-6 dark:border-white/10 dark:bg-surface-primary"
             aria-labelledby="capture-title"

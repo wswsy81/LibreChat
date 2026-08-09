@@ -10,6 +10,7 @@ PROJECT_DIR=$(cd -- "$ENGINE_SOURCE_DIR/.." && pwd)
 RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
 RUNTIME_CONFIG_DIR=${RUNTIME_CONFIG_DIR:-"$APP_DIR/runtime-config"}
 CLIENT_RELEASES_DIR=${CLIENT_RELEASES_DIR:-"$APP_DIR/client-releases"}
+SOURCE_OVERRIDE_FILE=${SOURCE_OVERRIDE_FILE:-"$APP_DIR/.release-source.override.yml"}
 ENGINE_LAST_GOOD_DIR=${ENGINE_LAST_GOOD_DIR:-"$ENGINE_DIR/data/runtime-last-good"}
 RUNTIME_WRITER_UID=${RUNTIME_WRITER_UID:-1000}
 RUNTIME_WRITER_GID=${RUNTIME_WRITER_GID:-1000}
@@ -402,6 +403,9 @@ rollback_apply_state() {
       --env-file "$APP_DIR/.env"
       --env-file "$ROLLBACK_ENV"
     )
+    if [[ -s "$SOURCE_OVERRIDE_FILE" ]]; then
+      rollback_compose+=(--file "$SOURCE_OVERRIDE_FILE")
+    fi
     if "${rollback_compose[@]}" up --detach --no-deps --force-recreate "${CHANGED_SERVICES[@]}"; then
       SERVICE_SWITCH_ATTEMPTED=false
     else
@@ -650,6 +654,9 @@ COMPOSE=(
   --env-file "$APP_DIR/.env"
   --env-file "$EFFECTIVE_ENV"
 )
+if [[ -s "$SOURCE_OVERRIDE_FILE" ]]; then
+  COMPOSE+=(--file "$SOURCE_OVERRIDE_FILE")
+fi
 "${COMPOSE[@]}" config --quiet
 
 if [[ ${#CHANGED_SERVICES[@]} -gt 0 ]]; then

@@ -39,6 +39,46 @@ jest.mock('~/data-provider', () => ({
     isLoading: false,
     isSuccess: false,
   }),
+  useLifeSelfProjectionQuery: () => ({
+    data: {
+      schemaVersion: 1,
+      availability: { birthDraft: 'not_provided' },
+      projection: {
+        schemaVersion: 1,
+        revision: 'projection_1234567890abcdef1234',
+        updatedAt: '2026-08-09T14:18:06.675Z',
+        selfFormula: null,
+        birthDraft: {
+          status: 'unavailable',
+          missingFields: ['date', 'time', 'city'],
+          formula: null,
+          sun: { certainty: 'unavailable', name: null, sign: null, meaning: '暂缺' },
+          moon: { certainty: 'unavailable', name: null, sign: null, meaning: '暂缺' },
+          rising: { certainty: 'unavailable', name: null, sign: null, meaning: '暂缺' },
+        },
+        currentState: null,
+        coreTensions: [],
+        confirmed: [],
+        pending: [
+          {
+            id: 'dossier:traits:pending-1',
+            section: 'traits',
+            text: '习惯先把具体选项做出来，再从结果中选择。',
+            status: 'pending',
+            sourceIds: ['message-1'],
+          },
+        ],
+        subtreeRevisions: {
+          self: 'self_1234567890abcdef1234',
+          birth: 'birth_1234567890abcdef1234',
+          currentState: 'current_1234567890abcdef1234',
+          pending: 'pending_1234567890abcdef1234',
+        },
+      },
+    },
+    isLoading: false,
+    isError: false,
+  }),
   useLifeOnboardingMutation: () => ({
     mutate: mockEnter,
     isLoading: false,
@@ -108,6 +148,13 @@ test('renders a natural-language timeline date without crashing the returning ho
   ).toBeInTheDocument();
   expect(screen.getByText('com_life_condition_strained')).toBeInTheDocument();
   expect(screen.getByText('com_life_trend_improving')).toBeInTheDocument();
+  expect(screen.getByText('com_life_testing_now')).toBeInTheDocument();
+  expect(screen.getByText('com_life_home_self_title')).toBeInTheDocument();
+  expect(screen.getByText('习惯先把具体选项做出来，再从结果中选择。')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /com_life_home_self_link/ })).toHaveAttribute(
+    'href',
+    '/me',
+  );
 });
 
 test('老用户点击当前亮灯领域时由领域入口恢复它自己的长期会话', () => {

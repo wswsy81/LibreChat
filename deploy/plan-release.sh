@@ -25,7 +25,17 @@ let service = "none";
 let executors = [];
 let targetSeconds = { min: 0, max: 0 };
 const active = [brain, app].filter((plan) => plan.channel !== "none");
-if (active.some((plan) => plan.channel === "full") || active.length > 1) {
+const hasHardImageRisk = active.some((plan) => {
+  const facts = plan.facts || {};
+  return facts.lockChanged || facts.dependencyChanged || facts.baseImageChanged
+    || facts.schemaChanged || facts.identityOrIsolationChanged || facts.migrationChanged;
+});
+if (!hasHardImageRisk && (active.length > 1 || active.some((plan) => plan.channel === "full"))) {
+  channel = "ssh-source";
+  service = "changed";
+  targetSeconds = { min: 300, max: 600 };
+  executors = ["deploy/ssh-source-release.sh"];
+} else if (active.some((plan) => plan.channel === "full") || active.length > 1) {
   channel = "full";
   service = "all";
   targetSeconds = { min: 600, max: 1200 };
@@ -66,6 +76,6 @@ process.stdout.write(JSON.stringify({
   executors,
   brain,
   librechat: app,
-  note: "先复用已有全绿候选；日常发布只运行单服务定向门，发布控制面/文档变更不生成产品候选"
+  note: "先复用已有全绿候选；无依赖变化的跨服务普通 bug 走 SSH 内容寻址源码发布，不生成增量镜像"
 }, null, 2) + "\n");
 ' "$BRAIN_PLAN" "$APP_PLAN"

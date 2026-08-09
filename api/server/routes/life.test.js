@@ -94,6 +94,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockEngine.json.mockReset();
   mockEngine.text.mockReset();
+  mockConversationFind.mockReset();
+  mockMessageFind.mockReset();
   mockConversationFind.mockReturnValue(conversationQuery([]));
   mockMessageFind.mockReturnValue(messageQuery([]));
   mockReadRedactedPolicyBundle.mockResolvedValue({ runtime: {}, security: {} });
@@ -650,6 +652,7 @@ test('bootstrap exposes saved direct chats instead of dropping conversations wit
 
   expect(response.status).toBe(200);
   expect(response.body.domainConversations).toEqual([]);
+  expect(response.body.recommendedRoute).toBe('/resume');
   expect(response.body.unscopedConversations).toEqual([
     {
       conversationId: 'direct-long-chat',

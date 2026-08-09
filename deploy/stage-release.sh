@@ -197,6 +197,34 @@ remote() {
   "$SSH_BIN" "$PRODUCTION_SSH" "$@"
 }
 
+production_permission_preflight() {
+  remote "set -e;
+    app='$PRODUCTION_APP_DIR';
+    test -d \"\$app\";
+    app_uid=\$(stat -c %u \"\$app\");
+    app_gid=\$(stat -c %g \"\$app\");
+    test \"\$(id -u)\" = \"\$app_uid\";
+    test \"\$(id -g)\" = \"\$app_gid\";
+    test -f \"\$app/.release.env\";
+    test \"\$(stat -c %a \"\$app/.release.env\")\" = 600;
+    test \"\$(stat -c %u \"\$app/.release.env\")\" = \"\$app_uid\";
+    test \"\$(stat -c %g \"\$app/.release.env\")\" = \"\$app_gid\";
+    test -r \"\$app/.release.env\";
+    sudo -n true;
+    sudo -n docker info >/dev/null;
+    sudo -n install -d -o \"\$app_uid\" -g \"\$app_gid\" -m 700 \"\$app/.releases\";
+    sudo -n install -d -m 755 \"\$app/client-releases\";
+    test \"\$(stat -c %u \"\$app/.releases\")\" = \"\$app_uid\";
+    test \"\$(stat -c %g \"\$app/.releases\")\" = \"\$app_gid\";
+    test \"\$(stat -c %a \"\$app/.releases\")\" = 700;
+    sudo -n test -w \"\$app/client-releases\""
+}
+
+production_permission_preflight
+REMOTE_APP_UID=$(remote "stat -c %u '$PRODUCTION_APP_DIR'")
+REMOTE_APP_GID=$(remote "stat -c %g '$PRODUCTION_APP_DIR'")
+printf 'permission_preflight=passed\n'
+
 CANDIDATE_ENV_SHA=$(sha256_file "$CANDIDATE")
 CANDIDATE_MANIFEST_SHA=$(sha256_file "$MANIFEST")
 if remote "set -e; root='$PRODUCTION_APP_DIR/.releases'; status=\"\$root/$RELEASE_ID.stage-status\"; transport=\"\$root/$RELEASE_ID.transport\"; test -s \"\$status\" -a -s \"\$transport\"; grep -qx 'schema=yiwei.release-stage-status.v1' \"\$status\"; grep -qx 'state=deployable' \"\$status\"; grep -qx 'candidate_env_sha256=$CANDIDATE_ENV_SHA' \"\$status\"; grep -qx 'candidate_manifest_sha256=$CANDIDATE_MANIFEST_SHA' \"\$status\"; grep -qx 'status=passed' \"\$transport\"; grep -qx 'candidate_env_sha256=$CANDIDATE_ENV_SHA' \"\$transport\"; grep -qx 'candidate_manifest_sha256=$CANDIDATE_MANIFEST_SHA' \"\$transport\"" >/dev/null 2>&1; then
@@ -347,13 +375,13 @@ remote "install -d -m 700 '$REMOTE_TMP'"
 FILES_TO_COPY=("$CANDIDATE" "$MANIFEST" "$EVIDENCE" "$TRANSPORT_TMP")
 [[ -z "$CLIENT_ARTIFACT" ]] || FILES_TO_COPY+=("$CLIENT_ARTIFACT")
 "$SCP_BIN" -q "${FILES_TO_COPY[@]}" "$PRODUCTION_SSH:$REMOTE_TMP/"
-remote "set -e; sudo install -d -m 700 '$PRODUCTION_APP_DIR/.releases'; for file in '$REMOTE_TMP'/*; do name=\$(basename \"\$file\"); target='$PRODUCTION_APP_DIR/.releases'/\$name; if sudo test -e \"\$target\"; then test \"\$(sha256sum \"\$file\" | awk '{print \$1}')\" = \"\$(sudo sha256sum \"\$target\" | awk '{print \$1}')\"; else sudo install -m 600 \"\$file\" \"\$target\"; fi; done"
+remote "set -e; sudo install -d -o '$REMOTE_APP_UID' -g '$REMOTE_APP_GID' -m 700 '$PRODUCTION_APP_DIR/.releases'; for file in '$REMOTE_TMP'/*; do name=\$(basename \"\$file\"); target='$PRODUCTION_APP_DIR/.releases'/\$name; if sudo test -e \"\$target\"; then test \"\$(sha256sum \"\$file\" | awk '{print \$1}')\" = \"\$(sudo sha256sum \"\$target\" | awk '{print \$1}')\"; sudo chown '$REMOTE_APP_UID:$REMOTE_APP_GID' \"\$target\"; sudo chmod 600 \"\$target\"; else sudo install -o '$REMOTE_APP_UID' -g '$REMOTE_APP_GID' -m 600 \"\$file\" \"\$target\"; fi; done"
 if [[ -n "$CLIENT_ARTIFACT" ]]; then
-  remote "set -e; root='$PRODUCTION_APP_DIR/client-releases'; target=\"\$root/$CLIENT_ARTIFACT_SHA256\"; sudo install -d -m 755 \"\$root\"; if ! sudo test -s \"\$target/index.html\"; then tmp=\"\$root/.${CLIENT_ARTIFACT_SHA256}.tmp.$$\"; sudo rm -rf -- \"\$tmp\" \"\$target\"; sudo install -d -m 755 \"\$tmp\"; sudo '$ZSTD_BIN' -dc '$PRODUCTION_APP_DIR/.releases/$CLIENT_ARTIFACT_NAME' | sudo tar -xf - -C \"\$tmp\"; sudo test -s \"\$tmp/index.html\"; sudo mv \"\$tmp\" \"\$target\"; fi"
+  remote "set -e; root='$PRODUCTION_APP_DIR/client-releases'; target=\"\$root/$CLIENT_ARTIFACT_SHA256\"; sudo install -d -m 755 \"\$root\"; if ! sudo test -s \"\$target/index.html\"; then tmp=\"\$root/.${CLIENT_ARTIFACT_SHA256}.tmp.$$\"; sudo rm -rf -- \"\$tmp\" \"\$target\"; sudo install -d -m 755 \"\$tmp\"; sudo '$ZSTD_BIN' -dc '$PRODUCTION_APP_DIR/.releases/$CLIENT_ARTIFACT_NAME' | sudo tar -xf - -C \"\$tmp\"; sudo find \"\$tmp\" -type d -exec chmod 755 {} +; sudo find \"\$tmp\" -type f -exec chmod 644 {} +; sudo test -s \"\$tmp/index.html\"; sudo mv \"\$tmp\" \"\$target\"; fi"
 fi
 write_stage_status deployable "$TRANSPORT_MODE"
 "$SCP_BIN" -q "$STAGE_STATUS" "$PRODUCTION_SSH:$REMOTE_TMP/"
-remote "set -e; sudo install -m 600 '$REMOTE_TMP/$(basename -- "$STAGE_STATUS")' '$PRODUCTION_APP_DIR/.releases/$(basename -- "$STAGE_STATUS")'; rm -rf -- '$REMOTE_TMP'"
+remote "set -e; sudo install -o '$REMOTE_APP_UID' -g '$REMOTE_APP_GID' -m 600 '$REMOTE_TMP/$(basename -- "$STAGE_STATUS")' '$PRODUCTION_APP_DIR/.releases/$(basename -- "$STAGE_STATUS")'; rm -rf -- '$REMOTE_TMP'"
 
 trap - EXIT
 rm -rf -- "$TMP_DIR"

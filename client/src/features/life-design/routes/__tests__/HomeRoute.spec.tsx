@@ -169,4 +169,25 @@ describe('public registration policy', () => {
       }),
     );
   });
+
+  it('已有直接长聊但人物档案尚未生成时也进入回访首页', () => {
+    mockAuth = {
+      user: { id: 'user-1', name: '张东' },
+      isAuthenticated: true,
+      isAuthReady: true,
+    };
+    mockBootstrap = {
+      isLoading: false,
+      data: {
+        hasSubstantiveProfile: false,
+        user: { id: 'user-1', name: '张东' },
+        unscopedConversations: [{ conversationId: 'direct-long-chat', title: '刚才聊过的选择' }],
+      },
+    };
+
+    renderHome('/home');
+
+    expect(screen.getByTestId('returning')).toBeInTheDocument();
+    expect(screen.queryByTestId('setup')).not.toBeInTheDocument();
+  });
 });
