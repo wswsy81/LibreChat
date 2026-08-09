@@ -97,6 +97,7 @@ export const useLifeDossierAnnotateMutation = (): UseMutationResult<
         queryClient.invalidateQueries([QueryKeys.lifeDossierHtml]);
         queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
         queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+        queryClient.invalidateQueries([QueryKeys.lifeSelfProjection]);
       },
     },
   );
@@ -111,6 +112,7 @@ export const useLifeBasicsMutation = (): UseMutationResult<
   return useMutation((payload: LifeBasicsRequest) => dataService.saveLifeBasics(payload), {
     onSuccess: () => {
       queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+      queryClient.invalidateQueries([QueryKeys.lifeSelfProjection]);
     },
   });
 };
@@ -125,6 +127,7 @@ export const useLifeBirthMutation = (): UseMutationResult<
     onSuccess: () => {
       queryClient.invalidateQueries([QueryKeys.lifeArchive]);
       queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
+      queryClient.invalidateQueries([QueryKeys.lifeSelfProjection]);
     },
   });
 };

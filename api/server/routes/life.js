@@ -807,6 +807,14 @@ router.get('/archive', async (req, res) => {
   }
 });
 
+router.get('/self-projection', async (req, res) => {
+  try {
+    return res.json(await engine.json('/internal/self-projection', { userId: userId(req) }));
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
 router.get('/inbox', async (req, res) => {
   try {
     return res.json(await engine.json('/internal/inbox', { userId: userId(req) }));

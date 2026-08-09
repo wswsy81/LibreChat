@@ -28,7 +28,7 @@ const FIELD_LABELS = {
 const inputClass =
   'w-full rounded-[3px] border border-life-rule bg-life-paper px-3 py-2.5 font-life-sans text-life-sm text-life-ink outline-none transition focus:border-life-ink dark:border-white/20 dark:bg-transparent dark:text-gray-100';
 const labelClass =
-  'font-life-mono text-[10.5px] tracking-[0.14em] text-life-muted dark:text-gray-500';
+  'font-life-mono text-life-meta tracking-[0.14em] text-life-muted dark:text-gray-500';
 
 function numberOrUndefined(value: string): number | undefined {
   if (value.trim() === '') return undefined;
@@ -213,7 +213,7 @@ export default function BasicsForm() {
       </div>
 
       <fieldset className="grid gap-4 border-t border-dashed border-life-rule pt-5 dark:border-white/10">
-        <legend className="pr-3 font-life-mono text-[10.5px] tracking-[0.14em] text-life-cinnabar dark:text-[#D98A76]">
+        <legend className="pr-3 font-life-mono text-life-meta tracking-[0.14em] text-life-cinnabar dark:text-[#D98A76]">
           {localize('com_life_birth_legend')}
         </legend>
         <p className="max-w-[34em] font-life-kai text-life-sm leading-7 text-life-muted dark:text-gray-400">

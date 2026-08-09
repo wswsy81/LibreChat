@@ -38,6 +38,10 @@ export function getLifeArchive(): Promise<t.LifeArchiveResponse> {
   return request.get(endpoints.lifeArchive());
 }
 
+export function getLifeSelfProjection(): Promise<t.LifeSelfProjectionResponse> {
+  return request.get(endpoints.lifeSelfProjection());
+}
+
 export function getLifeInbox(): Promise<t.LifeInboxListResponse> {
   return request.get(endpoints.lifeInbox());
 }

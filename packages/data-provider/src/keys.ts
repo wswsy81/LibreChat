@@ -88,6 +88,7 @@ export enum QueryKeys {
   /* Life design */
   lifeBootstrap = 'lifeBootstrap',
   lifeArchive = 'lifeArchive',
+  lifeSelfProjection = 'lifeSelfProjection',
   lifeInbox = 'lifeInbox',
   lifeReports = 'lifeReports',
   lifeReport = 'lifeReport',

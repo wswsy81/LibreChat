@@ -7,6 +7,8 @@ export { default as ReportRoute } from './routes/ReportRoute';
 export { default as SharedReportRoute } from './routes/SharedReportRoute';
 export { default as AdminRoute } from './routes/AdminRoute';
 export { default as AboutRoute } from './routes/AboutRoute';
+export { default as MapRoute } from './routes/MapRoute';
+export { default as MeRoute } from './routes/MeRoute';
 export { default as LifeSidebarPanel } from './components/LifeSidebarPanel';
 export { default as LegacyRouteGate } from './components/LegacyRouteGate';
 export { default as ShellGate } from './components/ShellGate';

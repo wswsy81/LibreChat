@@ -1,19 +1,33 @@
 import { useRecoilState } from 'recoil';
 import { Link, useLocation } from 'react-router-dom';
-import { Archive, Home, MessageCircleMore, NotebookPen, Plus, UserRound } from 'lucide-react';
+import { Home, Map, MessageCircleMore, NotebookPen, Plus, UserRound } from 'lucide-react';
 import { useLifeBootstrapQuery } from '~/data-provider';
 import { PUBLIC_MAP_LABEL_KEYS } from './PublicMistMap';
 import { useAuthContext, useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 import store from '~/store';
 
-const links = [
-  { href: '/home', label: 'com_life_nav_home', icon: Home },
-  { href: '/resume', label: 'com_life_nav_resume', icon: MessageCircleMore },
-  { href: '/inbox', label: 'com_life_nav_inbox', icon: NotebookPen },
-  { href: '/archive', label: 'com_life_nav_archive', icon: Archive },
-  { href: '/about', label: 'com_life_nav_about', icon: UserRound },
+const primaryLinks = [
+  { href: '/home', label: 'com_life_nav_today', icon: Home },
+  { href: '/c/new', label: 'com_life_nav_direct', icon: MessageCircleMore },
+  { href: '/map', label: 'com_life_nav_map', icon: Map },
+  { href: '/me', label: 'com_life_nav_me', icon: UserRound },
 ] as const;
+
+function primaryLinkActive(href: (typeof primaryLinks)[number]['href'], pathname: string) {
+  if (href === '/c/new') {
+    return pathname === '/resume' || pathname.startsWith('/c/');
+  }
+  if (href === '/me') {
+    return (
+      pathname === '/me' ||
+      pathname === '/about' ||
+      pathname === '/archive' ||
+      pathname.startsWith('/archive/')
+    );
+  }
+  return pathname === href;
+}
 
 export default function LifeSidebarPanel() {
   const localize = useLocalize();
@@ -96,11 +110,8 @@ export default function LifeSidebarPanel() {
       </div>
 
       <div className="space-y-0.5" aria-label={localize('com_life_primary_navigation')}>
-        {links.map((item) => {
-          const active =
-            item.href === '/resume'
-              ? location.pathname === '/resume' || location.pathname.startsWith('/c/')
-              : location.pathname === item.href || location.pathname.startsWith(`${item.href}/`);
+        {primaryLinks.map((item) => {
+          const active = primaryLinkActive(item.href, location.pathname);
           return (
             <Link
               key={item.href}
@@ -123,6 +134,20 @@ export default function LifeSidebarPanel() {
 
       <div className="mx-2 my-5 border-t border-life-rule dark:border-border-light" />
       <div className="min-h-0 flex-1 overflow-y-auto px-2">
+        <Link
+          to="/inbox"
+          onClick={closeMobile}
+          className={cn(
+            'mb-3 flex min-h-11 items-center gap-3 border-l-2 px-3 font-life-sans text-life-sm transition-colors',
+            location.pathname === '/inbox'
+              ? 'border-life-cinnabar bg-life-cinnabar/5 font-medium text-text-primary'
+              : 'border-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+          )}
+          aria-current={location.pathname === '/inbox' ? 'page' : undefined}
+        >
+          <NotebookPen className="h-4 w-4" aria-hidden="true" />
+          {localize('com_life_nav_inbox')}
+        </Link>
         <Link
           to="/home?new=1"
           onClick={closeMobile}

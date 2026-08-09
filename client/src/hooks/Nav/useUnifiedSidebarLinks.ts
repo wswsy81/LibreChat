@@ -1,12 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import {
-  Archive,
-  Home,
-  LayoutDashboard,
-  MessageCircleMore,
-  NotebookPen,
-  UserRound,
-} from 'lucide-react';
+import { Home, LayoutDashboard, Map, MessageCircleMore, UserRound } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSetRecoilState } from 'recoil';
 import type { NavLink } from '~/common';
@@ -38,7 +31,7 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
     }
     return [
       {
-        title: 'com_life_nav_home' as const,
+        title: 'com_life_nav_today' as const,
         icon: Home,
         id: 'life-home',
         Component: LifeSidebarPanel,
@@ -46,36 +39,32 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
         onClick: () => go('/home'),
       },
       {
-        title: 'com_life_nav_resume' as const,
+        title: 'com_life_nav_direct' as const,
         icon: MessageCircleMore,
         id: 'life-resume',
         Component: LifeSidebarPanel,
         isActive: location.pathname === '/resume' || location.pathname.startsWith('/c/'),
-        onClick: () => go('/resume'),
+        onClick: () => go('/c/new'),
       },
       {
-        title: 'com_life_nav_inbox' as const,
-        icon: NotebookPen,
-        id: 'life-inbox',
+        title: 'com_life_nav_map' as const,
+        icon: Map,
+        id: 'life-map',
         Component: LifeSidebarPanel,
-        isActive: location.pathname === '/inbox',
-        onClick: () => go('/inbox'),
+        isActive: location.pathname === '/map',
+        onClick: () => go('/map'),
       },
       {
-        title: 'com_life_nav_archive' as const,
-        icon: Archive,
-        id: 'life-archive',
-        Component: LifeSidebarPanel,
-        isActive: location.pathname === '/archive' || location.pathname.startsWith('/archive/'),
-        onClick: () => go('/archive'),
-      },
-      {
-        title: 'com_life_nav_about' as const,
+        title: 'com_life_nav_me' as const,
         icon: UserRound,
-        id: 'life-about',
+        id: 'life-me',
         Component: LifeSidebarPanel,
-        isActive: location.pathname === '/about',
-        onClick: () => go('/about'),
+        isActive:
+          location.pathname === '/me' ||
+          location.pathname === '/about' ||
+          location.pathname === '/archive' ||
+          location.pathname.startsWith('/archive/'),
+        onClick: () => go('/me'),
       },
       // 运营台:仅管理员可见,排在最后
       ...(isAdmin

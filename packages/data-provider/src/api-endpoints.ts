@@ -48,6 +48,7 @@ export const lifeBootstrap = () => `${lifeRoot}/bootstrap`;
 export const lifeOnboarding = () => `${lifeRoot}/onboarding`;
 export const lifeResume = () => `${lifeRoot}/resume`;
 export const lifeArchive = () => `${lifeRoot}/archive`;
+export const lifeSelfProjection = () => `${lifeRoot}/self-projection`;
 export const lifeInbox = () => `${lifeRoot}/inbox`;
 export const lifeReports = () => `${lifeRoot}/reports`;
 export const lifeReport = (id: string) => `${lifeReports()}/${encodeURIComponent(id)}`;

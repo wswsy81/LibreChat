@@ -194,6 +194,86 @@ export interface LifeBirthResponse {
   litHouses: number;
 }
 
+export type LifeSelfProjectionAvailability = 'ready' | 'not_provided' | 'temporarily_unavailable';
+
+export type LifeSelfProjectionSection = LifeDossierSection | 'blindspots';
+export type LifeSelfProjectionItemStatus = 'confirmed' | 'user_rewrite' | 'pending';
+export type LifeBirthFieldCertainty = 'exact' | 'candidate' | 'unavailable';
+
+export interface LifeSelfProjectionItem {
+  id: string;
+  section: LifeSelfProjectionSection;
+  text: string;
+  status: LifeSelfProjectionItemStatus;
+  sourceIds: string[];
+}
+
+export interface LifeExactBirthField {
+  certainty: 'exact';
+  name: string;
+  sign: string | null;
+  meaning: string;
+}
+
+export interface LifeCandidateBirthField {
+  certainty: 'candidate';
+  candidates: string[];
+  meaning: string;
+}
+
+export interface LifeUnavailableBirthField {
+  certainty: 'unavailable';
+  name: null;
+  sign: null;
+  meaning: string;
+}
+
+export type LifeBirthDraftField =
+  | LifeExactBirthField
+  | LifeCandidateBirthField
+  | LifeUnavailableBirthField;
+
+export interface LifeSelfProjection {
+  schemaVersion: 1;
+  revision: string;
+  updatedAt: string | null;
+  selfFormula: {
+    text: string;
+    basis: 'user_rewrite' | 'confirmed_evidence';
+    sourceIds: string[];
+  } | null;
+  birthDraft: {
+    status: 'unavailable' | 'partial' | 'complete';
+    missingFields: string[];
+    formula: string | null;
+    sun: LifeBirthDraftField;
+    moon: LifeBirthDraftField;
+    rising: LifeBirthDraftField;
+  };
+  currentState: {
+    text: string;
+    sourceIds: string[];
+    expiresAt: string | null;
+  } | null;
+  coreTensions: LifeSelfProjectionItem[];
+  confirmed: LifeSelfProjectionItem[];
+  pending: LifeSelfProjectionItem[];
+  subtreeRevisions: {
+    self: string;
+    birth: string;
+    currentState: string;
+    pending: string;
+  };
+}
+
+export interface LifeSelfProjectionResponse {
+  schemaVersion: 1;
+  projection: LifeSelfProjection;
+  availability: {
+    birthDraft: LifeSelfProjectionAvailability;
+  };
+}
+
 export interface LifeProfileView {
   alias?: string | null;
   archetype?: string | null;

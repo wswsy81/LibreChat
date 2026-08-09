@@ -7,6 +7,7 @@ import type {
   LifeInboxListResponse,
   LifePublicShareResponse,
   LifeReportResponse,
+  LifeSelfProjectionResponse,
 } from 'librechat-data-provider';
 
 export const useLifeBootstrapQuery = (
@@ -30,6 +31,21 @@ export const useLifeArchiveQuery = (
     retry: 1,
     ...config,
   });
+
+export const useLifeSelfProjectionQuery = (
+  config?: UseQueryOptions<LifeSelfProjectionResponse>,
+): QueryObserverResult<LifeSelfProjectionResponse> =>
+  useQuery<LifeSelfProjectionResponse>(
+    [QueryKeys.lifeSelfProjection],
+    dataService.getLifeSelfProjection,
+    {
+      staleTime: 30_000,
+      cacheTime: 60_000,
+      refetchOnWindowFocus: true,
+      retry: 1,
+      ...config,
+    },
+  );
 
 export const useLifeInboxQuery = (
   config?: UseQueryOptions<LifeInboxListResponse>,

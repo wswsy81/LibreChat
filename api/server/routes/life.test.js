@@ -363,6 +363,20 @@ test('authenticated bootstrap merges archive state with the latest valid convers
   );
 });
 
+test('self projection forwards the authenticated user to the read-only Engine view', async () => {
+  mockEngine.json.mockResolvedValue({
+    schemaVersion: 1,
+    projection: { schemaVersion: 1, revision: 'projection_1234567890abcdef1234' },
+    availability: { birthDraft: 'not_provided' },
+  });
+
+  const response = await request(buildApp({ id: 'user-1' })).get('/api/life/self-projection');
+
+  expect(response.status).toBe(200);
+  expect(response.body.availability.birthDraft).toBe('not_provided');
+  expect(mockEngine.json).toHaveBeenCalledWith('/internal/self-projection', { userId: 'user-1' });
+});
+
 test('authenticated bootstrap 读取权威状态失败时返回可重试 503，不推荐首页猜测', async () => {
   mockEngine.json.mockRejectedValueOnce(new Error('engine unavailable'));
 

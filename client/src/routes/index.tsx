@@ -215,6 +215,15 @@ export const router = createBrowserRouter(
                 loadShellComponent(() => import('~/features/life-design/routes/ArchiveRoute')),
             },
             {
+              path: 'map',
+              lazy: () =>
+                loadShellComponent(() => import('~/features/life-design/routes/MapRoute')),
+            },
+            {
+              path: 'me',
+              lazy: () => loadShellComponent(() => import('~/features/life-design/routes/MeRoute')),
+            },
+            {
               path: 'inbox',
               lazy: () =>
                 loadShellComponent(() => import('~/features/life-design/routes/InboxRoute')),
