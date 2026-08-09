@@ -337,8 +337,19 @@ verify_runtime_image() {
 }
 
 if [[ "$MANIFEST_SCHEMA" == yiwei.release-manifest.v2 ]]; then
-  verify_runtime_image "$API_IMAGE" "$LIBRECHAT_REVISION" LibreChat
-  verify_runtime_image "$ENGINE_IMAGE" "$ENGINE_REVISION" future-engine
+  API_IMAGE_REVISION=$LIBRECHAT_REVISION
+  ENGINE_IMAGE_REVISION=$ENGINE_REVISION
+  RELEASE_MODE=$(read_release_optional release_mode "$MANIFEST_FILE")
+  if [[ "$RELEASE_MODE" == static ]]; then
+    [[ "$(read_release_value release_service "$MANIFEST_FILE")" == client ]] || {
+      echo "static release mode is only valid for the client service" >&2
+      exit 1
+    }
+    API_IMAGE_REVISION=reused-active
+    ENGINE_IMAGE_REVISION=reused-active
+  fi
+  verify_runtime_image "$API_IMAGE" "$API_IMAGE_REVISION" LibreChat
+  verify_runtime_image "$ENGINE_IMAGE" "$ENGINE_IMAGE_REVISION" future-engine
 fi
 
 EFFECTIVE_ENV=$(mktemp "$RELEASE_ROOT/.effective-release.XXXXXX")
