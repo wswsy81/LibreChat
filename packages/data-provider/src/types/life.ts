@@ -49,6 +49,19 @@ export interface LifeWheelHouseState {
     asOf: string | null;
     evidenceSummary: string | null;
   };
+  activeLinks?: Array<{
+    conversationId: string;
+    title: string;
+    status: 'provisional' | 'open_goal' | 'paused';
+    relation: 'primary' | 'secondary' | 'context';
+    updatedAt: string | null;
+  }>;
+  pendingCondition?: {
+    candidateId: string;
+    statement: string;
+    level: Exclude<LifeConditionLevel, 'unknown'> | null;
+    evidenceSummary: string | null;
+  } | null;
 }
 
 export interface LifeWheelView {
@@ -109,6 +122,11 @@ export interface LifeCurrentWorkingThread {
   title: string;
   status: 'provisional' | 'open_goal' | 'paused';
   keyUnknowns: string[];
+  affectedHouses?: Array<{
+    houseId: LifeHouseId;
+    publicName: string;
+    relation: 'primary' | 'secondary' | 'context';
+  }>;
   updatedAt: string | null;
 }
 
@@ -435,13 +453,14 @@ export interface LifePublicShareResponse {
 
 export type LifeDossierSection = 'chapters' | 'scenes' | 'traits' | 'tensions' | 'language';
 
-export type LifeDossierAction = 'keep' | 'rewrite' | 'strike';
+export type LifeDossierAction = 'keep' | 'rewrite' | 'strike' | 'merge';
 
 export interface LifeDossierAnnotateRequest {
   section: LifeDossierSection;
   entryId: string;
   action: LifeDossierAction;
   text?: string;
+  targetEntryId?: string;
 }
 
 export interface LifeDossierAnnotateResponse {
@@ -468,4 +487,20 @@ export interface LifeMapHouseAnnotateResponse {
     conf?: number;
     note?: string;
   };
+}
+
+export interface LifeConditionCandidateResolveRequest {
+  conversationId: string;
+  candidateId: string;
+  action: 'confirm' | 'correct';
+  level?: Exclude<LifeConditionLevel, 'unknown'>;
+}
+
+export interface LifeConditionCandidateResolveResponse {
+  ok: boolean;
+  houseKey: LifeHouseId;
+  snapshotId: string;
+  currentLevel: Exclude<LifeConditionLevel, 'unknown'>;
+  status: 'user_confirmed' | 'user_corrected';
+  trend: LifeConditionTrend;
 }

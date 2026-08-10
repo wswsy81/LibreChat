@@ -53,7 +53,13 @@ function dossierEntryId(item: LifeSelfProjectionItem): string | null {
   return item.id.startsWith(prefix) ? item.id.slice(prefix.length) : null;
 }
 
-function ProjectionItem({ item }: { item: LifeSelfProjectionItem }) {
+function ProjectionItem({
+  item,
+  mergeTarget,
+}: {
+  item: LifeSelfProjectionItem;
+  mergeTarget?: LifeSelfProjectionItem | null;
+}) {
   const localize = useLocalize();
   const { showToast } = useToastContext();
   const annotate = useLifeDossierAnnotateMutation();
@@ -63,12 +69,15 @@ function ProjectionItem({ item }: { item: LifeSelfProjectionItem }) {
 
   const submit = (action: LifeDossierAction) => {
     if (!entryId || annotate.isLoading) return;
+    const targetEntryId = mergeTarget ? dossierEntryId(mergeTarget) : null;
+    if (action === 'merge' && !targetEntryId) return;
     annotate.mutate(
       {
         section: item.section as LifeDossierSection,
         entryId,
         action,
         ...(action === 'rewrite' ? { text: text.trim() } : {}),
+        ...(action === 'merge' ? { targetEntryId: targetEntryId as string } : {}),
       },
       {
         onSuccess: () => {
@@ -160,6 +169,16 @@ function ProjectionItem({ item }: { item: LifeSelfProjectionItem }) {
             <X className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {localize('com_life_me_not_me')}
           </button>
+          {mergeTarget?.section === item.section && (
+            <button
+              type="button"
+              disabled={annotate.isLoading}
+              onClick={() => submit('merge')}
+              className="inline-flex min-h-11 items-center font-life-sans text-life-sm text-life-muted hover:text-life-ink disabled:opacity-50"
+            >
+              {localize('com_life_me_merge_previous')}
+            </button>
+          )}
         </div>
       )}
     </article>
@@ -381,8 +400,8 @@ export default function MeRoute() {
                   eyebrow={localize('com_life_me_tensions_eyebrow')}
                   title={localize('com_life_me_tensions_title')}
                 />
-                {projection.coreTensions.map((item) => (
-                  <ProjectionItem key={item.id} item={item} />
+                {projection.coreTensions.map((item, index, items) => (
+                  <ProjectionItem key={item.id} item={item} mergeTarget={items[index - 1]} />
                 ))}
               </section>
             )}
@@ -392,8 +411,15 @@ export default function MeRoute() {
                   eyebrow={localize('com_life_me_confirmed_eyebrow')}
                   title={localize('com_life_me_confirmed_title')}
                 />
-                {confirmed.map((item) => (
-                  <ProjectionItem key={item.id} item={item} />
+                {confirmed.map((item, index, items) => (
+                  <ProjectionItem
+                    key={item.id}
+                    item={item}
+                    mergeTarget={items
+                      .slice(0, index)
+                      .reverse()
+                      .find((prior) => prior.section === item.section)}
+                  />
                 ))}
               </section>
             )}
@@ -409,8 +435,15 @@ export default function MeRoute() {
                 <p className="mb-6 max-w-[34em] font-life-kai text-life-sm leading-7 text-life-muted">
                   {localize('com_life_me_pending_help')}
                 </p>
-                {projection.pending.map((item) => (
-                  <ProjectionItem key={item.id} item={item} />
+                {projection.pending.map((item, index, items) => (
+                  <ProjectionItem
+                    key={item.id}
+                    item={item}
+                    mergeTarget={items
+                      .slice(0, index)
+                      .reverse()
+                      .find((prior) => prior.section === item.section)}
+                  />
                 ))}
               </section>
             )}

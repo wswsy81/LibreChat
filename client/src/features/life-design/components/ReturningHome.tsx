@@ -29,6 +29,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
   const name = bootstrap.summary?.alias || bootstrap.user?.name || localize('com_life_friend');
   const currentWorkingThread = bootstrap.currentWorkingThread || null;
   const currentThreadUnknowns = (currentWorkingThread?.keyUnknowns || []).slice(0, 3);
+  const currentThreadHouses = currentWorkingThread?.affectedHouses || [];
 
   const signals = (archive.data?.profile.signals || [])
     .filter((signal) => signal.status !== 'resolved')
@@ -112,6 +113,21 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+              {currentThreadHouses.length > 0 && (
+                <div
+                  className="mt-5 flex flex-wrap gap-2"
+                  aria-label={localize('com_life_related_houses')}
+                >
+                  {currentThreadHouses.map((house) => (
+                    <span
+                      key={house.houseId}
+                      className="border border-life-moss/45 px-3 py-1 font-life-mono text-life-meta tracking-[0.08em] text-life-moss"
+                    >
+                      {house.publicName}
+                    </span>
+                  ))}
                 </div>
               )}
               {/* ② 唯一主行动 */}

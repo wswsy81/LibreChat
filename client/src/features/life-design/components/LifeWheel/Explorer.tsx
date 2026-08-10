@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@librechat/client';
 import type { LifeDomainConversation, LifeWheelView } from 'librechat-data-provider';
@@ -8,6 +8,7 @@ import LifeWheel from './LifeWheel';
 import { HOUSE_LABEL_KEYS } from './contract';
 import { formatLifeDate } from '../../utils/date';
 import useHouseEntry from '../../hooks/useEntry';
+import { useLifeConditionCandidateResolveMutation } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 import { track } from '~/utils/track';
 
@@ -67,7 +68,9 @@ export default function Explorer({
 }) {
   const localize = useLocalize();
   const { enterHouse, error, isLoading } = useHouseEntry();
+  const resolveCondition = useLifeConditionCandidateResolveMutation();
   const [selectedHouse, setSelectedHouse] = useState<HouseId | null>(wheel?.lanternHouse ?? null);
+  const [correctedLevel, setCorrectedLevel] = useState<Exclude<ConditionLevel, 'unknown'>>('mixed');
   const selected = wheel?.houses.find((house) => house.id === selectedHouse);
   const selectedName = selectedHouse ? localize(HOUSE_LABEL_KEYS[selectedHouse]) : undefined;
   const houseStates = wheel?.houses.reduce<Partial<Record<HouseId, HouseState>>>(
@@ -84,6 +87,15 @@ export default function Explorer({
   const selectedConversation = domainConversations.find(
     (conversation) => conversation.entryHouse === selectedHouse,
   );
+  const activeLink = selected?.activeLinks?.[0] || null;
+  const pendingCondition = selected?.pendingCondition || null;
+  const linkedHouses = (wheel?.houses || [])
+    .filter((house) => (house.activeLinks?.length || 0) > 0)
+    .map((house) => house.id as HouseId);
+
+  useEffect(() => {
+    if (pendingCondition?.level) setCorrectedLevel(pendingCondition.level);
+  }, [pendingCondition?.candidateId, pendingCondition?.level]);
 
   const selectHouse = (entryHouse: HouseId) => {
     setSelectedHouse(entryHouse);
@@ -97,6 +109,16 @@ export default function Explorer({
     enterHouse({ archiveName, entryHouse: selectedHouse });
   };
 
+  const resolvePending = (action: 'confirm' | 'correct') => {
+    if (!pendingCondition || !activeLink || resolveCondition.isLoading) return;
+    resolveCondition.mutate({
+      conversationId: activeLink.conversationId,
+      candidateId: pendingCondition.candidateId,
+      action,
+      ...(action === 'correct' ? { level: correctedLevel } : {}),
+    });
+  };
+
   return (
     <div className="grid gap-7 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)] lg:items-center">
       <div className="border border-life-ink/45 bg-[#F7F4EB] p-2 shadow-[0_18px_70px_rgba(23,32,26,0.08)] dark:border-white/20 sm:p-5">
@@ -105,6 +127,7 @@ export default function Explorer({
           houseStates={houseStates}
           lanternHouse={wheel?.lanternHouse ?? null}
           selectedHouse={selectedHouse}
+          linkedHouses={linkedHouses}
           onSelectHouse={selectHouse}
           className="mx-auto block w-full max-w-[560px]"
         />
@@ -161,6 +184,67 @@ export default function Explorer({
               <blockquote className="mt-4 border-l-2 border-life-brass pl-4 font-life-kai text-life-sm leading-7 text-life-ink">
                 {selected.condition.evidenceSummary}
               </blockquote>
+            )}
+            {activeLink && (
+              <div className="mt-5 border-l-2 border-life-moss pl-4">
+                <p className="font-life-mono text-life-meta tracking-[0.12em] text-life-moss">
+                  {localize('com_life_related_thread')}
+                </p>
+                <p className="mt-2 font-life-kai text-life-sm leading-7 text-life-ink">
+                  {activeLink.title}
+                </p>
+              </div>
+            )}
+            {pendingCondition && (
+              <div className="mt-5 border border-life-brass/50 bg-life-brass/5 p-4">
+                <p className="font-life-mono text-life-meta tracking-[0.12em] text-life-brass">
+                  {localize('com_life_condition_pending_title')}
+                </p>
+                <p className="mt-2 font-life-kai text-life-sm leading-7 text-life-ink">
+                  {pendingCondition.statement}
+                </p>
+                {pendingCondition.evidenceSummary && (
+                  <blockquote className="mt-3 border-l-2 border-life-rule pl-3 font-life-kai text-life-sm leading-7 text-life-muted">
+                    {pendingCondition.evidenceSummary}
+                  </blockquote>
+                )}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  {pendingCondition.level && (
+                    <button
+                      type="button"
+                      disabled={resolveCondition.isLoading}
+                      onClick={() => resolvePending('confirm')}
+                      className="min-h-10 border border-life-moss px-4 font-life-sans text-life-sm text-life-moss hover:bg-life-moss hover:text-life-paper disabled:opacity-50"
+                    >
+                      {localize('com_life_condition_confirm')}
+                    </button>
+                  )}
+                  <select
+                    value={correctedLevel}
+                    onChange={(event) =>
+                      setCorrectedLevel(event.target.value as Exclude<ConditionLevel, 'unknown'>)
+                    }
+                    className="min-h-10 border border-life-rule bg-life-paper px-3 font-life-sans text-life-sm text-life-ink"
+                    aria-label={localize('com_life_condition_correct_label')}
+                  >
+                    {(['depleted', 'strained', 'mixed', 'steady', 'energizing'] as const).map(
+                      (level) => (
+                        <option key={level} value={level}>
+                          {localize(CONDITION_KEYS[level])}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={resolveCondition.isLoading}
+                    onClick={() => resolvePending('correct')}
+                    className="min-h-10 border-b border-life-brass font-life-sans text-life-sm text-life-brass hover:text-life-ink disabled:opacity-50"
+                  >
+                    {localize('com_life_condition_correct')}
+                  </button>
+                </div>
+              </div>
             )}
             <Button
               type="button"

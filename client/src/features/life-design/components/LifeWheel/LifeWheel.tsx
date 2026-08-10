@@ -21,6 +21,7 @@ export interface LifeWheelProps {
   /** 提灯位置（D17 由上层算好传入）；null = 停在圆心（全新用户）。 */
   lanternHouse?: HouseId | null;
   selectedHouse?: HouseId | null;
+  linkedHouses?: readonly HouseId[];
   onSelectHouse?: (id: HouseId) => void;
   /** 无障碍标题，读屏用。 */
   title?: string;
@@ -140,6 +141,7 @@ export default function LifeWheel({
   houseStates,
   lanternHouse = null,
   selectedHouse = null,
+  linkedHouses = [],
   onSelectHouse,
   title,
   className,
@@ -202,12 +204,19 @@ export default function LifeWheel({
           const state = resolveState(house.id);
           const isFog = state.recognition === 'unknown' || state.recognition === 'dismissed';
           const active = house.id === selectedHouse || house.id === focusedHouse;
+          const linked = linkedHouses.includes(house.id);
           const label = polarPoint(CENTER, CENTER, LABEL_R, house.centerAngleDeg);
           const houseName = localize(HOUSE_LABEL_KEYS[house.id]);
           const labelLines = houseLabelLines(houseName);
           const marker = polarPoint(CENTER, CENTER, MARKER_R, house.centerAngleDeg);
           const glyph = trendGlyph(state.trend);
           const hasSnapshot = state.conditionLevel !== 'unknown';
+          let stroke = RECOGNITION_STROKE[state.recognition];
+          if (linked) stroke = '#355B47';
+          if (active) stroke = '#B94831';
+          const strokeWidth = linked
+            ? Math.max(2.4, sectorStrokeWidth(active, house.axisBoundary))
+            : sectorStrokeWidth(active, house.axisBoundary);
 
           return (
             <g
@@ -232,8 +241,8 @@ export default function LifeWheel({
                   house.endAngleDeg,
                 )}
                 fill={active && isFog ? 'rgba(128,96,45,0.1)' : RECOGNITION_FILL[state.recognition]}
-                stroke={active ? '#B94831' : RECOGNITION_STROKE[state.recognition]}
-                strokeWidth={sectorStrokeWidth(active, house.axisBoundary)}
+                stroke={stroke}
+                strokeWidth={strokeWidth}
                 strokeDasharray={isFog && mode === 'interactive' ? '3 5' : undefined}
               />
               <text

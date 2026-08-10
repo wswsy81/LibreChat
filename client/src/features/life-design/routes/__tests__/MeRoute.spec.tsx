@@ -184,6 +184,47 @@ test('部分生辰只展示可靠字段和候选，不拼残缺公式；待判�
   );
 });
 
+test('同小节近义人物认识可由用户显式合并，来源条目不静默删除', async () => {
+  mockProjectionQuery = {
+    ...mockProjectionQuery,
+    data: {
+      schemaVersion: 1,
+      availability: { birthDraft: 'not_provided' },
+      projection: {
+        ...baseProjection,
+        coreTensions: [
+          {
+            id: 'dossier:tensions:tension-1',
+            section: 'tensions',
+            text: '喜欢当前所做的事，但没有收入会焦虑。',
+            status: 'confirmed',
+            sourceIds: ['message:1'],
+          },
+          {
+            id: 'dossier:tensions:tension-2',
+            section: 'tensions',
+            text: '喜欢研究框架，但不确定能否赚钱会焦虑。',
+            status: 'confirmed',
+            sourceIds: ['message:2'],
+          },
+        ],
+      },
+    },
+  };
+  renderMe();
+
+  await userEvent.click(screen.getByRole('button', { name: 'com_life_me_merge_previous' }));
+  expect(mockAnnotate).toHaveBeenCalledWith(
+    {
+      section: 'tensions',
+      entryId: 'tension-2',
+      action: 'merge',
+      targetEntryId: 'tension-1',
+    },
+    expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+  );
+});
+
 test('三项 exact 才显示完整出生公式，并保持它是出生初稿', () => {
   mockProjectionQuery = {
     ...mockProjectionQuery,

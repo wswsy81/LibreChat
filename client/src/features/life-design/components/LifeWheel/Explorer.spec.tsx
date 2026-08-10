@@ -6,12 +6,20 @@ import type { LifeWheelView } from 'librechat-data-provider';
 import Explorer from './Explorer';
 
 const mockEnter = jest.fn();
+const mockResolve = jest.fn();
 
 jest.mock('~/hooks', () => ({
   useLocalize: () => (key: string) => key,
 }));
 
 jest.mock('~/utils/track', () => ({ track: jest.fn() }));
+
+jest.mock('~/data-provider', () => ({
+  useLifeConditionCandidateResolveMutation: () => ({
+    mutate: mockResolve,
+    isLoading: false,
+  }),
+}));
 
 jest.mock('../../hooks/useEntry', () => ({
   __esModule: true,
@@ -114,5 +122,41 @@ describe('Explorer personal life wheel', () => {
     fireEvent.click(screen.getByRole('button', { name: /com_life_start_house/ }));
 
     expect(mockEnter).toHaveBeenCalledWith({ archiveName: '修文', entryHouse: 'h1' });
+  });
+
+  test('关联议题与 AI 状态候选在地图详情可见，确认后提交稳定候选引用', () => {
+    const linkedWheel = {
+      ...wheel,
+      houses: [
+        {
+          ...wheel.houses[0],
+          activeLinks: [
+            {
+              conversationId: 'conv-linked',
+              title: '分开看顾问项目的收入与消耗',
+              status: 'provisional',
+              relation: 'primary',
+              updatedAt: '2026-08-10T12:00:00.000Z',
+            },
+          ],
+          pendingCondition: {
+            candidateId: 'condition-candidate-1',
+            statement: '这项工作可能正在持续消耗你。',
+            level: 'strained',
+            evidenceSummary: '顾问项目带来收入，但做的时候很消耗。',
+          },
+        },
+      ],
+    } as LifeWheelView;
+    render(<Explorer wheel={linkedWheel} archiveName="修文" />);
+
+    expect(screen.getByText('分开看顾问项目的收入与消耗')).toBeInTheDocument();
+    expect(screen.getByText('这项工作可能正在持续消耗你。')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'com_life_condition_confirm' }));
+    expect(mockResolve).toHaveBeenCalledWith({
+      conversationId: 'conv-linked',
+      candidateId: 'condition-candidate-1',
+      action: 'confirm',
+    });
   });
 });

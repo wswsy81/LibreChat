@@ -92,6 +92,10 @@ jest.mock('~/data-provider', () => ({
     isLoading: false,
     error: null,
   }),
+  useLifeConditionCandidateResolveMutation: () => ({
+    mutate: jest.fn(),
+    isLoading: false,
+  }),
 }));
 
 jest.mock('~/hooks', () => ({
@@ -226,6 +230,10 @@ test('今天页优先展示当前共同议题、最多三项未知并精确续�
         '生活里必须保留什么',
         '第四项不应展示',
       ],
+      affectedHouses: [
+        { houseId: 'h6' as const, publicName: '工作', relation: 'primary' as const },
+        { houseId: 'h2' as const, publicName: '钱与价值感', relation: 'secondary' as const },
+      ],
       updatedAt: '2026-08-10T12:00:00.000Z',
       facilitatorNext: '内部主持字段不能出现在页面上',
     },
@@ -243,6 +251,8 @@ test('今天页优先展示当前共同议题、最多三项未知并精确续�
   expect(screen.getByText('生活里必须保留什么')).toBeInTheDocument();
   expect(screen.queryByText('第四项不应展示')).not.toBeInTheDocument();
   expect(screen.queryByText('内部主持字段不能出现在页面上')).not.toBeInTheDocument();
+  expect(screen.getByText('工作')).toBeInTheDocument();
+  expect(screen.getByText('钱与价值感')).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', { name: /com_life_continue_thread/ }));
   expect(mockNavigate).toHaveBeenCalledWith('/c/conversation%2Fwith%20space');

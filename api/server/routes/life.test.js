@@ -1249,3 +1249,40 @@ test('N1: map html passes view=full through; house annotate requires idempotency
     .send({ houseKey: '', action: 'keep' });
   expect(invalid.status).toBe(422);
 });
+
+test('地图状态候选确认走独立幂等操作，不与人物确认或领域批注混写', async () => {
+  const app = buildApp({ id: 'user-1', name: '张东' });
+  const payload = {
+    conversationId: 'conv-linked',
+    candidateId: 'condition-candidate-1',
+    action: 'confirm',
+  };
+  const missingKey = await request(app)
+    .post('/api/life/map/condition-candidates/resolve')
+    .send(payload);
+  expect(missingKey.status).toBe(400);
+
+  mockEngine.json.mockResolvedValue({
+    ok: true,
+    houseKey: 'h6',
+    currentLevel: 'strained',
+    status: 'user_confirmed',
+    trend: 'unknown',
+  });
+  const response = await request(app)
+    .post('/api/life/map/condition-candidates/resolve')
+    .set('Idempotency-Key', 'condition-resolution-1')
+    .send(payload);
+  expect(response.status).toBe(200);
+  expect(response.body.status).toBe('user_confirmed');
+  expect(mockEngine.json).toHaveBeenCalledWith('/internal/map/condition-candidates/resolve', {
+    userId: 'user-1',
+    method: 'POST',
+    body: payload,
+    operation: {
+      id: 'operation-house-condition-resolution',
+      name: 'house-condition-resolution',
+      requestHash: 'a'.repeat(64),
+    },
+  });
+});

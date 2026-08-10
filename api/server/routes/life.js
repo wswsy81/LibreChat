@@ -990,11 +990,54 @@ router.post('/map/houses/annotate', async (req, res) => {
   }
 });
 
+router.post('/map/condition-candidates/resolve', async (req, res) => {
+  const body = {
+    conversationId: String(req.body?.conversationId || ''),
+    candidateId: String(req.body?.candidateId || ''),
+    action: String(req.body?.action || ''),
+    ...(req.body?.level ? { level: String(req.body.level) } : {}),
+  };
+  if (!body.conversationId || !body.candidateId || !['confirm', 'correct'].includes(body.action)) {
+    return res.status(422).json({
+      error: { code: 'HOUSE_CONDITION_RESOLUTION_INVALID', message: '状态候选处理参数不完整' },
+    });
+  }
+  const key = idempotencyKeyOf(req, res);
+  if (!key) return;
+  try {
+    const result = await runLifeOperation({
+      userId: userId(req),
+      operation: 'house-condition-resolution',
+      idempotencyKey: key,
+      requestPayload: body,
+      executor: ({ operationId, requestHash }) =>
+        engine.json('/internal/map/condition-candidates/resolve', {
+          userId: userId(req),
+          method: 'POST',
+          body,
+          operation: { id: operationId, name: 'house-condition-resolution', requestHash },
+        }),
+    });
+    return res.json(result);
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
 router.post('/dossier/annotate', async (req, res) => {
   const section = String(req.body?.section || '');
   const entryId = String(req.body?.entryId || '');
   const action = String(req.body?.action || '');
   const text = req.body?.text === undefined ? undefined : String(req.body.text);
+  const targetEntryId =
+    req.body?.targetEntryId === undefined ? undefined : String(req.body.targetEntryId);
+  const body = {
+    section,
+    entryId,
+    action,
+    ...(text !== undefined ? { text } : {}),
+    ...(targetEntryId !== undefined ? { targetEntryId } : {}),
+  };
   if (!section || !entryId || !action) {
     return res.status(422).json({ error: { code: 'ANNOTATE_INVALID', message: '批注参数不完整' } });
   }
@@ -1007,12 +1050,12 @@ router.post('/dossier/annotate', async (req, res) => {
       userId: userId(req),
       operation: 'dossier-annotate',
       idempotencyKey: key,
-      requestPayload: { section, entryId, action, text },
+      requestPayload: body,
       executor: ({ operationId, requestHash }) =>
         engine.json('/internal/dossier/annotate', {
           userId: userId(req),
           method: 'POST',
-          body: { section, entryId, action, text },
+          body,
           operation: { id: operationId, name: 'dossier-annotate', requestHash },
         }),
     });

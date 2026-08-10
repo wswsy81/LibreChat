@@ -113,6 +113,12 @@ export function annotateLifeMapHouse(
   return request.post(endpoints.lifeMapHouseAnnotate(), payload, idempotencyHeaders());
 }
 
+export function resolveLifeConditionCandidate(
+  payload: t.LifeConditionCandidateResolveRequest,
+): Promise<t.LifeConditionCandidateResolveResponse> {
+  return request.post(endpoints.lifeConditionCandidateResolve(), payload, idempotencyHeaders());
+}
+
 export function saveLifeBasics(payload: t.LifeBasicsRequest): Promise<t.LifeBasicsResponse> {
   return request.post(endpoints.lifeBasics(), payload, idempotencyHeaders());
 }

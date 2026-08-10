@@ -4,6 +4,8 @@ import type { UseMutationResult } from '@tanstack/react-query';
 import type {
   LifeMapHouseAnnotateRequest,
   LifeMapHouseAnnotateResponse,
+  LifeConditionCandidateResolveRequest,
+  LifeConditionCandidateResolveResponse,
   LifeBasicsRequest,
   LifeBasicsResponse,
   LifeBirthInfo,
@@ -98,6 +100,7 @@ export const useLifeDossierAnnotateMutation = (): UseMutationResult<
         queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
         queryClient.invalidateQueries([QueryKeys.lifeArchive]);
         queryClient.invalidateQueries([QueryKeys.lifeSelfProjection]);
+        queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
       },
     },
   );
@@ -145,6 +148,27 @@ export const useLifeMapHouseAnnotateMutation = (): UseMutationResult<
         queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
         queryClient.invalidateQueries([QueryKeys.lifeDossierHtml]);
         queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+        queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
+      },
+    },
+  );
+};
+
+export const useLifeConditionCandidateResolveMutation = (): UseMutationResult<
+  LifeConditionCandidateResolveResponse,
+  Error,
+  LifeConditionCandidateResolveRequest
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    (payload: LifeConditionCandidateResolveRequest) =>
+      dataService.resolveLifeConditionCandidate(payload),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
+        queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+        queryClient.invalidateQueries([QueryKeys.lifeSelfProjection]);
+        queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
       },
     },
   );

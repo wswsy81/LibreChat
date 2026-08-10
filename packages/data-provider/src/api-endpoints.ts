@@ -65,6 +65,7 @@ export const lifeDossierAnnotate = () => `${lifeRoot}/dossier/annotate`;
 export const lifeMapHtml = (view?: 'full') =>
   view === 'full' ? `${lifeRoot}/map/html?view=full` : `${lifeRoot}/map/html`;
 export const lifeMapHouseAnnotate = () => `${lifeRoot}/map/houses/annotate`;
+export const lifeConditionCandidateResolve = () => `${lifeRoot}/map/condition-candidates/resolve`;
 export const lifeBasics = () => `${lifeRoot}/basics`;
 export const lifeBirth = () => `${lifeRoot}/birth`;
 
