@@ -36,6 +36,20 @@ function numberOrUndefined(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function normalizeBirthGender(value: string): 'male' | 'female' | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === '男' || normalized === '男性' || normalized === 'male') return 'male';
+  if (normalized === '女' || normalized === '女性' || normalized === 'female') return 'female';
+  return undefined;
+}
+
+function genderForDisplay(value: string): string {
+  const birthGender = normalizeBirthGender(value);
+  if (birthGender === 'male') return '男';
+  if (birthGender === 'female') return '女';
+  return value;
+}
+
 function range(from: number, to: number): number[] {
   return Array.from({ length: to - from + 1 }, (_, index) => from + index);
 }
@@ -92,7 +106,6 @@ export default function BasicsForm() {
     hour: '',
     minute: '',
     calendar: 'solar',
-    gender: '',
     city: '',
   });
   const [hydrated, setHydrated] = useState(false);
@@ -101,7 +114,7 @@ export default function BasicsForm() {
     if (hydrated || !archive.data) return;
     setText({
       nickname: stored.nickname ?? '',
-      gender: stored.gender ?? '',
+      gender: genderForDisplay(stored.gender ?? stored.birth?.gender ?? ''),
       age: stored.age ?? '',
       occupation: stored.occupation ?? '',
       city: stored.city ?? '',
@@ -116,7 +129,6 @@ export default function BasicsForm() {
         hour: stored.birth.hour === undefined ? '' : String(stored.birth.hour),
         minute: stored.birth.minute === undefined ? '' : String(stored.birth.minute),
         calendar: stored.birth.calendar ?? 'solar',
-        gender: stored.birth.gender ?? '',
         city: stored.birth.city ?? '',
       });
     }
@@ -137,6 +149,7 @@ export default function BasicsForm() {
     const year = numberOrUndefined(birth.year);
     const month = numberOrUndefined(birth.month);
     const day = numberOrUndefined(birth.day);
+    const birthGender = normalizeBirthGender(text.gender);
     const birthComplete = year !== undefined && month !== undefined && day !== undefined;
     const birthChanged =
       birthComplete &&
@@ -146,7 +159,7 @@ export default function BasicsForm() {
         (stored.birth?.hour ?? undefined) !== numberOrUndefined(birth.hour) ||
         (stored.birth?.minute ?? undefined) !== numberOrUndefined(birth.minute) ||
         (stored.birth?.calendar ?? 'solar') !== birth.calendar ||
-        (stored.birth?.gender ?? '') !== birth.gender ||
+        (stored.birth?.gender ?? undefined) !== birthGender ||
         (stored.birth?.city ?? '') !== birth.city.trim());
 
     if (!Object.keys(patch).length && !birthChanged) {
@@ -160,7 +173,7 @@ export default function BasicsForm() {
       showToast({ message: localize('com_life_birth_invalid_date'), status: 'error' });
       return;
     }
-    if (birthChanged && !birth.gender) {
+    if (birthChanged && !birthGender) {
       showToast({ message: localize('com_life_birth_gender_required'), status: 'error' });
       return;
     }
@@ -182,7 +195,7 @@ export default function BasicsForm() {
       const minute = numberOrUndefined(birth.minute);
       if (hour !== undefined) payload.hour = hour;
       if (minute !== undefined) payload.minute = minute;
-      if (birth.gender) payload.gender = birth.gender as 'male' | 'female';
+      payload.gender = birthGender;
       if (birth.city.trim()) payload.city = birth.city.trim();
       saveBirth.mutate(payload, {
         onSuccess: (data) =>
@@ -198,18 +211,39 @@ export default function BasicsForm() {
   return (
     <div className="grid gap-6">
       <div className="grid gap-4 sm:grid-cols-2">
-        {TEXT_FIELDS.map((field) => (
-          <label key={field} className="grid gap-1.5">
-            <span className={labelClass}>{localize(FIELD_LABELS[field])}</span>
-            <input
-              type="text"
-              maxLength={60}
-              value={text[field]}
-              onChange={(event) => setText((prev) => ({ ...prev, [field]: event.target.value }))}
-              className={inputClass}
-            />
-          </label>
-        ))}
+        {TEXT_FIELDS.map((field) => {
+          const label = localize(FIELD_LABELS[field]);
+          if (field === 'gender') {
+            const customGender = text.gender && !normalizeBirthGender(text.gender);
+            return (
+              <label key={field} className="grid gap-1.5">
+                <span className={labelClass}>{label}</span>
+                <select
+                  value={text.gender}
+                  onChange={(event) => setText((prev) => ({ ...prev, gender: event.target.value }))}
+                  className={inputClass}
+                >
+                  <option value="">{localize('com_life_birth_pick')}</option>
+                  {customGender ? <option value={text.gender}>{text.gender}</option> : null}
+                  <option value="男">{localize('com_life_birth_male')}</option>
+                  <option value="女">{localize('com_life_birth_female')}</option>
+                </select>
+              </label>
+            );
+          }
+          return (
+            <label key={field} className="grid gap-1.5">
+              <span className={labelClass}>{label}</span>
+              <input
+                type="text"
+                maxLength={60}
+                value={text[field]}
+                onChange={(event) => setText((prev) => ({ ...prev, [field]: event.target.value }))}
+                className={inputClass}
+              />
+            </label>
+          );
+        })}
       </div>
 
       <fieldset className="grid gap-4 border-t border-dashed border-life-rule pt-5 dark:border-white/10">
@@ -304,20 +338,6 @@ export default function BasicsForm() {
                   {String(minute).padStart(2, '0')}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="grid gap-1.5">
-            <span className={labelClass}>{localize('com_life_birth_gender')}</span>
-            <select
-              value={birth.gender}
-              onChange={(event) => setBirth((prev) => ({ ...prev, gender: event.target.value }))}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                {localize('com_life_birth_gender_pick')}
-              </option>
-              <option value="male">{localize('com_life_birth_male')}</option>
-              <option value="female">{localize('com_life_birth_female')}</option>
             </select>
           </label>
           <label className="grid min-w-[10em] flex-1 gap-1.5">

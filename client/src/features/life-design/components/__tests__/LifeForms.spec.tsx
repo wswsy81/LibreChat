@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import FirstArchiveSetup from '../FirstArchiveSetup';
 import BasicsForm from '../BasicsForm';
 
@@ -44,6 +44,8 @@ jest.mock('~/hooks', () => ({
     ({
       com_life_birth_unset: '不填',
       com_life_birth_pick: '请选择',
+      com_life_basics_city: '当前居住城市',
+      com_life_birth_city: '出生城市',
     })[key] ?? key,
 }));
 
@@ -215,7 +217,7 @@ test('关于我允许用 null 明确清除已保存文本', () => {
   fireEvent.change(screen.getByLabelText('com_life_basics_occupation'), {
     target: { value: '' },
   });
-  fireEvent.change(screen.getByLabelText('com_life_basics_city'), { target: { value: '' } });
+  fireEvent.change(screen.getByLabelText('当前居住城市'), { target: { value: '' } });
   fireEvent.click(screen.getByRole('button', { name: 'com_life_basics_save' }));
 
   expect(mockBasicsMutate).toHaveBeenCalledWith(
@@ -235,7 +237,7 @@ test('关于我可修改注册时填写的性别、年龄和城市', () => {
   fireEvent.change(screen.getByLabelText('com_auth_age_optional'), {
     target: { value: '38' },
   });
-  fireEvent.change(screen.getByLabelText('com_life_basics_city'), {
+  fireEvent.change(screen.getByLabelText('当前居住城市'), {
     target: { value: '杭州' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'com_life_basics_save' }));
@@ -246,21 +248,44 @@ test('关于我可修改注册时填写的性别、年龄和城市', () => {
 test('出生日期与时间统一使用普通选择提示', () => {
   render(<BasicsForm />);
 
+  const birthFields = screen.getByRole('group', { name: 'com_life_birth_legend' });
   expect(screen.queryByText('不填')).not.toBeInTheDocument();
-  expect(screen.getAllByText('请选择')).toHaveLength(5);
+  expect(within(birthFields).getAllByText('请选择')).toHaveLength(5);
   expect(screen.queryByText('时辰不确定')).not.toBeInTheDocument();
   expect(screen.queryByText('分钟不确定')).not.toBeInTheDocument();
 });
 
+test('出生信息复用基本资料性别且不重复展示', () => {
+  mockArchiveData = {
+    profile: { basics: { gender: '男' } },
+  };
+  render(<BasicsForm />);
+
+  expect(screen.getByLabelText('com_auth_gender_optional')).toHaveValue('男');
+  expect(screen.queryByLabelText('com_life_birth_gender')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('当前居住城市')).toBeInTheDocument();
+  expect(screen.getByLabelText('出生城市')).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('com_life_birth_year'), { target: { value: '1981' } });
+  fireEvent.change(screen.getByLabelText('com_life_birth_month'), { target: { value: '12' } });
+  fireEvent.change(screen.getByLabelText('com_life_birth_day'), { target: { value: '23' } });
+  fireEvent.click(screen.getByRole('button', { name: 'com_life_basics_save' }));
+
+  expect(mockBirthMutate).toHaveBeenCalledWith(
+    expect.objectContaining({ gender: 'male' }),
+    expect.any(Object),
+  );
+});
+
 test('关于我在前端拒绝不存在的公历日期', () => {
+  mockArchiveData = {
+    profile: { basics: { gender: '男' } },
+  };
   render(<BasicsForm />);
 
   fireEvent.change(screen.getByLabelText('com_life_birth_year'), { target: { value: '2021' } });
   fireEvent.change(screen.getByLabelText('com_life_birth_month'), { target: { value: '2' } });
   fireEvent.change(screen.getByLabelText('com_life_birth_day'), { target: { value: '31' } });
-  fireEvent.change(screen.getByLabelText('com_life_birth_gender'), {
-    target: { value: 'male' },
-  });
   fireEvent.click(screen.getByRole('button', { name: 'com_life_basics_save' }));
 
   expect(mockBirthMutate).not.toHaveBeenCalled();
