@@ -163,6 +163,9 @@ test('renders a natural-language timeline date without crashing the returning ho
   expect(screen.getByText('com_life_testing_now')).toBeInTheDocument();
   expect(screen.getByText('com_life_home_self_title')).toBeInTheDocument();
   expect(screen.getByText('我更愿意先把具体选项做出来，再从真实结果中选择。')).toBeInTheDocument();
+  expect(screen.queryByText('隐士')).not.toBeInTheDocument();
+  expect(screen.queryByText('侦探')).not.toBeInTheDocument();
+  expect(screen.queryByText('见证人')).not.toBeInTheDocument();
   expect(
     screen.queryByText('一个隐士，有着侦探的内核，戴着见证人的工作面具。'),
   ).not.toBeInTheDocument();

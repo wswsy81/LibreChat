@@ -255,7 +255,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                     ? localize('com_life_home_archetype_title')
                     : localize('com_life_home_self_title')}
                 </p>
-                {exactBirthFields.length > 0 && (
+                {!realitySummary && exactBirthFields.length > 0 && (
                   <div className="mt-4 grid grid-cols-3 border-y border-life-rule py-3 text-center">
                     {exactBirthFields.map((field, index) => (
                       <span
