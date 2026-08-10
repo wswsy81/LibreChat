@@ -68,6 +68,9 @@ if (!hasHardImageRisk && (active.length > 1 || active.some((plan) => plan.channe
   targetSeconds = { min: 600, max: 1200 };
   executors = ["deploy/build-full-release.sh"];
 }
+if (brain.facts.hasProductSkills && !executors.includes("deploy/deploy-product-skills.sh")) {
+  executors.push("deploy/deploy-product-skills.sh");
+}
 process.stdout.write(JSON.stringify({
   selectedBy: "classifier",
   channel,

@@ -499,11 +499,14 @@ API_PLAN=$(BRAIN_DIR_OVERRIDE="$BRAIN_PLAN_REPO" APP_DIR_OVERRIDE="$APP_PLAN_REP
 
 mkdir -p "$BRAIN_PLAN_REPO/projects/未来线/future-engine-shim"
 printf 'module.exports = {};\n' > "$BRAIN_PLAN_REPO/projects/未来线/future-engine-shim/hotfix.js"
+mkdir -p "$BRAIN_PLAN_REPO/projects/未来线/product-skills/advisor-toolboxes/v1"
+printf '{}\n' > "$BRAIN_PLAN_REPO/projects/未来线/product-skills/advisor-toolboxes/v1/catalog.json"
 git -C "$BRAIN_PLAN_REPO" add . && git -C "$BRAIN_PLAN_REPO" commit -m engine-hotfix >/dev/null
 CROSS_PLAN=$(BRAIN_DIR_OVERRIDE="$BRAIN_PLAN_REPO" APP_DIR_OVERRIDE="$APP_PLAN_REPO" \
   bash "$SCRIPT_DIR/plan-release.sh" "$BRAIN_PLAN_BASE" "$APP_PLAN_BASE")
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$CROSS_PLAN") == ssh-source ]]
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[0])' "$CROSS_PLAN") == 'deploy/ssh-source-release.sh' ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[1])' "$CROSS_PLAN") == 'deploy/deploy-product-skills.sh' ]]
 grep -F 'sudo -n install -d -o \"\$owner\" -g \"\$group\" -m 700 \"\$app/.release-src\"' \
   "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F 'test \"\$(stat -c '\''%a'\'' \"\$app/.release-src\")\" = 700' \
@@ -533,6 +536,15 @@ classify_source_release_delta
 [[ ${API_RELEASE_FILES[0]} == api/app/clients/life-api.js ]]
 [[ ${#ENGINE_RELEASE_FILES[@]} -eq 1 ]]
 [[ ${ENGINE_RELEASE_FILES[0]} == projects/未来线/future-engine-shim/advisor-gateway.js ]]
+
+APP_RELEASE_CHANGED=(packages/api/src/life/route.ts packages/api/src/life/route.spec.ts)
+BRAIN_RELEASE_CHANGED=()
+classify_source_release_delta
+[[ "$PACKAGE_API_RELEASE_CHANGED" == true ]]
+[[ ${#API_RELEASE_FILES[@]} -eq 0 ]]
+grep -F 'target: /app/packages/api/dist' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+! grep -F "grep -E '^(packages/api/|packages/data-schemas/|packages/data-provider/)'" "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+! grep -F 'sudo bash deploy/backup.sh' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
 
 PROVENANCE_TEST_DIR="$TEST_ROOT/provenance"
 mkdir -p "$PROVENANCE_TEST_DIR/clean" "$PROVENANCE_TEST_DIR/dirty"

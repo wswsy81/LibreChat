@@ -48,6 +48,9 @@ if [[ "$COUNT" -gt 0 ]]; then
 
   NON_CONFIG=$(printf '%s\n' "$PRODUCT_FILES" | grep -Ev '(^|/)(config/(global-prompt\.v1\.md|runtime-policy\.v1\.json|security-contract\.v1\.json|product-catalog\.v1\.json|product-experiments\.v1\.json|rules\.v1\.json)|product-skills/.+\.(json|md)|future-engine-shim/banks/.+\.(json|md)|banks/.+\.(json|md))$' || true)
   [[ -z "$NON_CONFIG" ]] && CONFIG_ONLY=true
+  printf '%s\n' "$PRODUCT_FILES" | grep -Eq '(^|/)config/(global-prompt\.v1\.md|runtime-policy\.v1\.json|security-contract\.v1\.json|product-catalog\.v1\.json|product-experiments\.v1\.json|rules\.v1\.json)$' && HAS_RULES=true || true
+  printf '%s\n' "$PRODUCT_FILES" | grep -Eq '(^|/)(future-engine-shim/)?banks/.+\.(json|md)$' && HAS_BANKS=true || true
+  printf '%s\n' "$PRODUCT_FILES" | grep -Eq '(^|/)product-skills/.+\.(json|md)$' && HAS_PRODUCT_SKILLS=true || true
 
   if [[ $(basename -- "$REPO") == future-engine-shim ]]; then
     [[ "$CONTROL_PLANE_ONLY" == true ]] || ENGINE_ONLY=true
@@ -70,9 +73,6 @@ elif [[ "$LOCK_CHANGED" == true || "$DEPENDENCY_CHANGED" == true || "$BASE_IMAGE
   MIN_SECONDS=600
   MAX_SECONDS=1200
 elif [[ "$CONFIG_ONLY" == true ]]; then
-  printf '%s\n' "$FILES" | grep -Eq '(^|/)config/(global-prompt\.v1\.md|runtime-policy\.v1\.json|security-contract\.v1\.json|product-catalog\.v1\.json|product-experiments\.v1\.json|rules\.v1\.json)$' && HAS_RULES=true || true
-  printf '%s\n' "$FILES" | grep -Eq '(^|/)(future-engine-shim/)?banks/.+\.(json|md)$' && HAS_BANKS=true || true
-  printf '%s\n' "$FILES" | grep -Eq '(^|/)product-skills/.+\.(json|md)$' && HAS_PRODUCT_SKILLS=true || true
   CONFIG_KIND=runtime-config
   [[ "$HAS_BANKS" == true && "$HAS_RULES" == false ]] && CONFIG_KIND=bank-copy
   [[ "$HAS_PRODUCT_SKILLS" == true && "$HAS_RULES" == false && "$HAS_BANKS" == false ]] && CONFIG_KIND=product-skill-copy

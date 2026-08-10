@@ -70,7 +70,9 @@ printf 'product_skill_content_sha256=%s\n' "$CONTENT_SHA"
 printf 'product_catalog_sha256=%s\n' "$CATALOG_SHA"
 [[ "$CHECK_ONLY" == false ]] || exit 0
 
-ssh "$TARGET" "cd '$REMOTE_APP_DIR' && sudo bash deploy/backup.sh"
+VERIFIED_BACKUP=$(ssh "$TARGET" "sudo -n find /root/backups /home/ubuntu/backups -maxdepth 2 -type f -name VERIFIED -size +0c -printf '%T@ %h\\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-")
+[[ -n "$VERIFIED_BACKUP" ]] || { echo "no non-empty VERIFIED backup is available" >&2; exit 1; }
+printf 'reusing_verified_backup=%s\n' "$VERIFIED_BACKUP"
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 REMOTE_BACKUP="$REMOTE_APP_DIR/.releases/product-skills-$STAMP.tgz"
 ssh "$TARGET" "set -e; sudo install -d -m 755 '$REMOTE_DIR'; sudo tar -C '$REMOTE_APP_DIR/runtime-config' -czf '$REMOTE_BACKUP' product-skills product-catalog.v1.json"
