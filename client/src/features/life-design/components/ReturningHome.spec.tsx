@@ -49,16 +49,24 @@ jest.mock('~/data-provider', () => ({
         updatedAt: '2026-08-09T14:18:06.675Z',
         selfFormula: null,
         birthDraft: {
-          status: 'unavailable',
-          missingFields: ['date', 'time', 'city'],
-          formula: null,
-          sun: { certainty: 'unavailable', name: null, sign: null, meaning: '暂缺' },
-          moon: { certainty: 'unavailable', name: null, sign: null, meaning: '暂缺' },
-          rising: { certainty: 'unavailable', name: null, sign: null, meaning: '暂缺' },
+          status: 'complete',
+          missingFields: [],
+          formula: '一个隐士，有着侦探的内核，戴着见证人的工作面具。',
+          sun: { certainty: 'exact', name: '隐士', sign: '摩羯', meaning: '核心驱动' },
+          moon: { certainty: 'exact', name: '侦探', sign: '天蝎', meaning: '内在需要' },
+          rising: { certainty: 'exact', name: '见证人', sign: '水瓶', meaning: '对外方式' },
         },
         currentState: null,
         coreTensions: [],
-        confirmed: [],
+        confirmed: [
+          {
+            id: 'dossier:traits:confirmed-1',
+            section: 'traits',
+            text: '我更愿意先把具体选项做出来，再从真实结果中选择。',
+            status: 'user_rewrite',
+            sourceIds: ['message-confirmed-1'],
+          },
+        ],
         pending: [
           {
             id: 'dossier:traits:pending-1',
@@ -150,7 +158,10 @@ test('renders a natural-language timeline date without crashing the returning ho
   expect(screen.getByText('com_life_trend_improving')).toBeInTheDocument();
   expect(screen.getByText('com_life_testing_now')).toBeInTheDocument();
   expect(screen.getByText('com_life_home_self_title')).toBeInTheDocument();
-  expect(screen.getByText('习惯先把具体选项做出来，再从结果中选择。')).toBeInTheDocument();
+  expect(screen.getByText('我更愿意先把具体选项做出来，再从真实结果中选择。')).toBeInTheDocument();
+  expect(
+    screen.queryByText('一个隐士，有着侦探的内核，戴着见证人的工作面具。'),
+  ).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: /com_life_home_self_link/ })).toHaveAttribute(
     'href',
     '/me',

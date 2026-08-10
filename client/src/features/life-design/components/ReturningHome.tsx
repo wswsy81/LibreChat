@@ -36,8 +36,21 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
   const timeline = (archive.data?.profile.timeline || []).slice(-3).reverse();
   const projection = selfProjection.data?.projection;
   const pending = projection?.pending?.[0] || null;
+  const confirmedSummary =
+    projection?.confirmed.find((item) => item.status === 'user_rewrite')?.text ||
+    projection?.confirmed[0]?.text ||
+    null;
   const realitySummary =
-    projection?.selfFormula?.text || projection?.currentState?.text || pending?.text || null;
+    projection?.selfFormula?.text ||
+    confirmedSummary ||
+    projection?.currentState?.text ||
+    pending?.text ||
+    null;
+  const isPendingSummary =
+    Boolean(pending) &&
+    !projection?.selfFormula?.text &&
+    !confirmedSummary &&
+    !projection?.currentState?.text;
   const birthSummary = projection?.birthDraft.formula || null;
   const selfSummary = realitySummary || birthSummary;
   const birthFields = projection
@@ -241,7 +254,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                 <p className="mt-4 font-life-kai text-life-body leading-8 text-life-ink">
                   {selfSummary}
                 </p>
-                {pending && (
+                {isPendingSummary && (
                   <p className="mt-3 font-life-mono text-life-meta tracking-[0.1em] text-life-brass">
                     {localize('com_life_me_status_pending')}
                   </p>

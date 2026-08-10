@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@librechat/client';
 import type { LifeDomainConversation, LifeWheelView } from 'librechat-data-provider';
-import type { ConditionLevel, HouseId, Recognition, Trend } from './contract';
+import type { ConditionLevel, HouseId, HouseState, Recognition, Trend } from './contract';
 import type { TranslationKeys } from '~/hooks';
-import PublicMistMap, { PUBLIC_MAP_LABEL_KEYS } from '../PublicMistMap';
+import LifeWheel from './LifeWheel';
+import { HOUSE_LABEL_KEYS } from './contract';
 import { formatLifeDate } from '../../utils/date';
 import useHouseEntry from '../../hooks/useEntry';
 import { useLocalize } from '~/hooks';
@@ -68,7 +69,18 @@ export default function Explorer({
   const { enterHouse, error, isLoading } = useHouseEntry();
   const [selectedHouse, setSelectedHouse] = useState<HouseId | null>(wheel?.lanternHouse ?? null);
   const selected = wheel?.houses.find((house) => house.id === selectedHouse);
-  const selectedName = selectedHouse ? localize(PUBLIC_MAP_LABEL_KEYS[selectedHouse]) : undefined;
+  const selectedName = selectedHouse ? localize(HOUSE_LABEL_KEYS[selectedHouse]) : undefined;
+  const houseStates = wheel?.houses.reduce<Partial<Record<HouseId, HouseState>>>(
+    (states, house) => {
+      states[house.id] = {
+        recognition: house.recognition,
+        conditionLevel: house.condition.level,
+        trend: house.condition.trend,
+      };
+      return states;
+    },
+    {},
+  );
   const selectedConversation = domainConversations.find(
     (conversation) => conversation.entryHouse === selectedHouse,
   );
@@ -87,7 +99,16 @@ export default function Explorer({
 
   return (
     <div className="grid gap-7 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)] lg:items-center">
-      <PublicMistMap selectedIsland={selectedHouse} onSelectIsland={selectHouse} />
+      <div className="border border-life-ink/45 bg-[#F7F4EB] p-2 shadow-[0_18px_70px_rgba(23,32,26,0.08)] dark:border-white/20 sm:p-5">
+        <LifeWheel
+          mode="interactive"
+          houseStates={houseStates}
+          lanternHouse={wheel?.lanternHouse ?? null}
+          selectedHouse={selectedHouse}
+          onSelectHouse={selectHouse}
+          className="mx-auto block w-full max-w-[560px]"
+        />
+      </div>
 
       <div className="min-h-[250px] border border-life-rule bg-[#F7F4EB] p-5 sm:p-6">
         {selectedHouse && selectedName ? (

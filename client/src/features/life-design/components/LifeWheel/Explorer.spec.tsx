@@ -44,12 +44,16 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-describe('Explorer mist map', () => {
-  test('老用户首页使用与公开首页同源的迷雾图，不再渲染圆轮图例', () => {
+describe('Explorer personal life wheel', () => {
+  test('登录后的个人地图使用真实 lifeWheel，而不是公开首页迷雾图', () => {
     render(<Explorer wheel={wheel} archiveName="修文" />);
-    expect(screen.getByText('com_life_public_map_kicker')).toBeInTheDocument();
-    expect(screen.queryByText('com_life_legend_lantern')).not.toBeInTheDocument();
-    expect(screen.queryByText('com_life_legend_marker')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'com_life_wheel_title' })).toBeInTheDocument();
+    expect(screen.queryByText('com_life_public_map_kicker')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: /com_life_map_house_h6 · com_life_recognition_owned · com_life_wheel_current_state · com_life_wheel_previous_trend/,
+      }),
+    ).toBeInTheDocument();
   });
 
   test('趋势行带方向符号且符号对读屏隐藏', () => {
@@ -76,11 +80,7 @@ describe('Explorer mist map', () => {
   test('选择非当前领域时仍走领域入口', () => {
     render(<Explorer wheel={wheel} archiveName="修文" />);
 
-    const career = screen
-      .getAllByText('com_life_map_house_h10')
-      .map((node) => node.closest('button'))
-      .find((node): node is HTMLButtonElement => node instanceof HTMLButtonElement);
-    fireEvent.click(career as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: /^com_life_map_house_h10 ·/ }));
     fireEvent.click(screen.getByRole('button', { name: /com_life_start_house/ }));
 
     expect(mockEnter).toHaveBeenCalledWith({ archiveName: '修文', entryHouse: 'h10' });
@@ -95,29 +95,24 @@ describe('Explorer mist map', () => {
       />,
     );
 
-    const money = screen
-      .getAllByText('com_life_map_house_h2')
-      .map((node) => node.closest('button'))
-      .find((node): node is HTMLButtonElement => node instanceof HTMLButtonElement);
-    fireEvent.click(money as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: /^com_life_map_house_h2 ·/ }));
     fireEvent.click(screen.getByRole('button', { name: /com_life_return_to_house/ }));
 
     expect(mockEnter).toHaveBeenCalledWith({ archiveName: '修文', entryHouse: 'h2' });
   });
 
-  test('390px 分支保留四个可点入口，其余地块和健康留在雾里', () => {
+  test('登录后的十二个领域全部可进入，未知领域也能从这里开始', () => {
     render(<Explorer wheel={wheel} archiveName="修文" />);
 
-    const buttonFor = (label: string) =>
-      screen
-        .getAllByText(label)
-        .map((node) => node.closest('button'))
-        .find((node): node is HTMLButtonElement => node instanceof HTMLButtonElement);
-
-    for (const key of ['h2', 'h6', 'h7', 'h10']) {
-      expect(buttonFor(`com_life_map_house_${key}`)).not.toBeDisabled();
+    for (const key of ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10', 'h11', 'h12']) {
+      expect(
+        screen.getByRole('button', { name: new RegExp(`^com_life_map_house_${key} ·`) }),
+      ).toHaveAttribute('tabindex', '0');
     }
-    expect(buttonFor('com_life_map_house_h1')).toBeDisabled();
-    expect(buttonFor('com_life_map_health')).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /^com_life_map_house_h1 ·/ }));
+    fireEvent.click(screen.getByRole('button', { name: /com_life_start_house/ }));
+
+    expect(mockEnter).toHaveBeenCalledWith({ archiveName: '修文', entryHouse: 'h1' });
   });
 });
