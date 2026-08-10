@@ -75,7 +75,14 @@ VERIFIED_BACKUP=$(ssh "$TARGET" "sudo -n find /root/backups /home/ubuntu/backups
 printf 'reusing_verified_backup=%s\n' "$VERIFIED_BACKUP"
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 REMOTE_BACKUP="$REMOTE_APP_DIR/.releases/product-skills-$STAMP.tgz"
-ssh "$TARGET" "set -e; sudo install -d -m 755 '$REMOTE_DIR'; sudo tar -C '$REMOTE_APP_DIR/runtime-config' -czf '$REMOTE_BACKUP' product-skills product-catalog.v1.json"
+ssh "$TARGET" "set -e;
+  owner=\$(stat -c '%U' '$REMOTE_APP_DIR');
+  group=\$(stat -c '%G' '$REMOTE_APP_DIR');
+  sudo install -d -m 755 '$REMOTE_DIR';
+  sudo install -d -o \"\$owner\" -g \"\$group\" -m 700 '$REMOTE_APP_DIR/.releases';
+  sudo tar -C '$REMOTE_APP_DIR/runtime-config' -czf '$REMOTE_BACKUP' product-skills product-catalog.v1.json;
+  sudo chown \"\$owner:\$group\" '$REMOTE_BACKUP';
+  sudo chmod 600 '$REMOTE_BACKUP'"
 
 restore_remote() {
   ssh "$TARGET" "set -e; sudo find '$REMOTE_DIR' -mindepth 1 -delete; sudo tar -C '$REMOTE_APP_DIR/runtime-config' -xzf '$REMOTE_BACKUP'" >/dev/null 2>&1 || true

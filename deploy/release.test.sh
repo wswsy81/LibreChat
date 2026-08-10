@@ -548,6 +548,9 @@ classify_source_release_delta
 grep -F 'target: /app/packages/api/dist' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 ! grep -F "grep -E '^(packages/api/|packages/data-schemas/|packages/data-provider/)'" "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 ! grep -F 'sudo bash deploy/backup.sh' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
+grep -F 'sudo install -d -o \"\$owner\" -g \"\$group\" -m 700' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
+grep -F 'sudo chown \"\$owner:\$group\"' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
+grep -F 'sudo chmod 600' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
 
 PROVENANCE_TEST_DIR="$TEST_ROOT/provenance"
 mkdir -p "$PROVENANCE_TEST_DIR/clean" "$PROVENANCE_TEST_DIR/dirty"
