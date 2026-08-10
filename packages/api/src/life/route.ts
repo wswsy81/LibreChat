@@ -197,13 +197,6 @@ export function resolveAdvisorMode(messages: readonly unknown[] = []): AdvisorMo
   ) {
     return 'tool_action';
   }
-  if (
-    /(?:开始|继续|进入|回到).{0,8}(?:访谈|采访|人生设计|工作室|工作线|感情线|健康线|玩乐线)/u.test(
-      userText,
-    )
-  ) {
-    return 'guided_interview';
-  }
   return 'free_chat';
 }
 

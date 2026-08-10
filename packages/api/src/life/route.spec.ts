@@ -103,7 +103,10 @@ const prompt = (slot: string, content: string) => ({
 });
 
 const prompts = [
-  prompt('advisor.prompt.core', '轻量核心：自然聊天，事实诚实，安全边界。'),
+  prompt(
+    'advisor.prompt.core',
+    '轻量核心：自然聊天，事实诚实，安全边界。\n\n【可选方法工具箱】\n人生设计是可选方法，不是固定流程。',
+  ),
   prompt('advisor.prompt.free-chat', '普通聊天：直接回应，不启动流程。'),
   prompt('advisor.prompt.guided-interview', '阶段访谈：一次只问一项。'),
   prompt('advisor.prompt.tool-action', '工具执行：完成明确任务。'),
@@ -195,7 +198,7 @@ describe('Advisor Product Runner route', () => {
     expect(proof?.endpoint).toBe('polaris');
     expect(proof?.mode).toBe('free_chat');
     expect(proof?.prompts).toEqual({
-      core: '轻量核心：自然聊天，事实诚实，安全边界。',
+      core: '轻量核心：自然聊天，事实诚实，安全边界。\n\n【可选方法工具箱】\n人生设计是可选方法，不是固定流程。',
       modeCard: '普通聊天：直接回应，不启动流程。',
     });
     expect(proof?.headers['X-Futureline-Product-Snapshot']).toMatch(/^[a-f0-9]{64}$/);
@@ -239,6 +242,10 @@ describe('Advisor Product Runner route', () => {
     expect(
       resolveAdvisorMode([{ role: 'user', content: '[trigger:house_entered] entryHouse=h10' }]),
     ).toBe('guided_interview');
+    expect(resolveAdvisorMode([{ role: 'user', content: '我想了解下自己，你来问我吧' }])).toBe(
+      'free_chat',
+    );
+    expect(resolveAdvisorMode([{ role: 'user', content: '开始人生设计' }])).toBe('free_chat');
     expect(resolveAdvisorMode([{ role: 'user', content: '帮我生成这次的完整报告' }])).toBe(
       'report',
     );
