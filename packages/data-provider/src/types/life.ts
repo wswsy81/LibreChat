@@ -104,6 +104,14 @@ export interface LifeBootstrapSummary {
   lifeWheel?: LifeWheelView;
 }
 
+export interface LifeCurrentWorkingThread {
+  conversationId: string;
+  title: string;
+  status: 'provisional' | 'open_goal' | 'paused';
+  keyUnknowns: string[];
+  updatedAt: string | null;
+}
+
 export interface LifeBootstrapResponse {
   authenticated: boolean;
   user: { id: string; name: string; email?: string | null } | null;
@@ -115,6 +123,7 @@ export interface LifeBootstrapResponse {
   houseSessions?: LifeHouseSession[];
   domainConversations?: LifeDomainConversation[];
   unscopedConversations?: LifeUnscopedConversation[];
+  currentWorkingThread?: LifeCurrentWorkingThread | null;
   latestReportId?: string | null;
   reportCount?: number;
   lastConversationId?: string | null;

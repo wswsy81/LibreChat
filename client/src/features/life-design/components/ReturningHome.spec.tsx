@@ -201,3 +201,50 @@ test('桌面主操作与随手记属于同一左栏内容流，不再被右栏�
   expect(mainColumn).toContainElement(screen.getByText('com_life_quick_capture'));
   expect(mainColumn).not.toContainElement(screen.getByText('com_life_testing_now'));
 });
+
+test('今天页优先展示当前共同议题、最多三项未知并精确续接原会话', () => {
+  const withThread = {
+    ...bootstrap,
+    currentWorkingThread: {
+      conversationId: 'conversation/with space',
+      title: '重新设计工作和生活',
+      status: 'open_goal' as const,
+      keyUnknowns: [
+        '我真正喜欢的工作体验',
+        '最低现金流约束',
+        '生活里必须保留什么',
+        '第四项不应展示',
+      ],
+      updatedAt: '2026-08-10T12:00:00.000Z',
+      facilitatorNext: '内部主持字段不能出现在页面上',
+    },
+  };
+  render(
+    <MemoryRouter>
+      <ReturningHome bootstrap={withThread} />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText(/com_life_current_thread/)).toBeInTheDocument();
+  expect(screen.getByText('重新设计工作和生活')).toBeInTheDocument();
+  expect(screen.getByText('我真正喜欢的工作体验')).toBeInTheDocument();
+  expect(screen.getByText('最低现金流约束')).toBeInTheDocument();
+  expect(screen.getByText('生活里必须保留什么')).toBeInTheDocument();
+  expect(screen.queryByText('第四项不应展示')).not.toBeInTheDocument();
+  expect(screen.queryByText('内部主持字段不能出现在页面上')).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: /com_life_continue_thread/ }));
+  expect(mockNavigate).toHaveBeenCalledWith('/c/conversation%2Fwith%20space');
+});
+
+test('没有活动共同议题时保留旧真问题与 resume 续接行为', () => {
+  render(
+    <MemoryRouter>
+      <ReturningHome bootstrap={bootstrap} />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('当前真问题')).toBeInTheDocument();
+  fireEvent.click(screen.getAllByRole('button', { name: /com_life_continue_here/ })[0]);
+  expect(mockNavigate).toHaveBeenCalledWith('/resume');
+});

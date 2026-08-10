@@ -27,6 +27,8 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
   const selfProjection = useLifeSelfProjectionQuery({ retry: 0, refetchOnWindowFocus: false });
   const capture = useLifeInboxMutation();
   const name = bootstrap.summary?.alias || bootstrap.user?.name || localize('com_life_friend');
+  const currentWorkingThread = bootstrap.currentWorkingThread || null;
+  const currentThreadUnknowns = (currentWorkingThread?.keyUnknowns || []).slice(0, 3);
 
   const signals = (archive.data?.profile.signals || [])
     .filter((signal) => signal.status !== 'resolved')
@@ -71,21 +73,50 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                 id="problem-title"
                 className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
               >
-                —— {localize('com_life_last_time')}
+                ——{' '}
+                {currentWorkingThread
+                  ? localize('com_life_current_thread')
+                  : localize('com_life_last_time')}
               </p>
               <p className="mt-4 max-w-[34em] font-life-serif text-life-lead font-semibold text-life-ink underline decoration-life-cinnabar/50 decoration-2 underline-offset-8 dark:text-gray-100">
-                {bootstrap.summary?.lastSurface ||
+                {currentWorkingThread?.title ||
+                  bootstrap.summary?.lastSurface ||
                   bootstrap.lastConversationTitle ||
                   localize('com_life_archive_waiting')}
               </p>
+              {currentThreadUnknowns.length > 0 && (
+                <div className="mt-6 max-w-[34em] border-l-2 border-life-rule pl-4">
+                  <p className="font-life-mono text-life-meta tracking-[0.12em] text-life-muted">
+                    {localize('com_life_thread_unknowns')}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {currentThreadUnknowns.map((item, index) => (
+                      <li
+                        key={`${item}-${index}`}
+                        className="font-life-kai text-life-sm leading-7 text-life-muted"
+                      >
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {/* ② 唯一主行动 */}
               <div className="mt-9 flex flex-wrap items-center gap-4">
                 <Button
                   type="button"
                   className="min-h-12 rounded-[4px] bg-life-moss px-7 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep"
-                  onClick={() => navigate('/resume')}
+                  onClick={() =>
+                    navigate(
+                      currentWorkingThread
+                        ? `/c/${encodeURIComponent(currentWorkingThread.conversationId)}`
+                        : '/resume',
+                    )
+                  }
                 >
-                  {localize('com_life_continue_here')}
+                  {currentWorkingThread
+                    ? localize('com_life_continue_thread')
+                    : localize('com_life_continue_here')}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
                 <Link
