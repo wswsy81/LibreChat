@@ -35,6 +35,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 15. macOS 创建源码/静态 tar 包时在支持时使用 `--no-xattrs` 并保留 `COPYFILE_DISABLE=1`，禁止让 provenance xattr 警告淹没生产日志。
 16. 连续 `ssh-source` 的服务变化必须相对生产 `.source-release.env` 的活动 source revision 计算；镜像 revision 只作为累计覆盖包 base。纯前端 delta 不得重复 recreate API/Engine。
 17. `--no-xattrs` 必须用真实空归档命令探测，禁止 `tar --help | grep -q` 在 `pipefail` 下误判；上传前必须扫描最终 tar 流并拒绝 provenance header。
+18. 每次 DONE、DONE_WITH_CONCERNS、BLOCKED 或 rollback 后，运行大脑仓 `library/skills/yiwei-skill-evolver/scripts/record-outcome.py`；`--mode` 必须等于实际通道（包括 `ssh-source`），不得伪记成 `engine-hotfix`。
 
 只改发布/备份/skill 管道时使用 `projects/未来线/librechat/deploy/verify-local.sh --release`；业务代码开发用 `--quick`，最终完整交付用 `--full`。
 
