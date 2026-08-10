@@ -71,6 +71,9 @@ if (!hasHardImageRisk && (active.length > 1 || active.some((plan) => plan.channe
 if (brain.facts.hasProductSkills && !executors.includes("deploy/deploy-product-skills.sh")) {
   executors.push("deploy/deploy-product-skills.sh");
 }
+if (brain.facts.hasBanks && !executors.includes("future-engine-shim/scripts/deploy-banks.sh")) {
+  executors.push("future-engine-shim/scripts/deploy-banks.sh");
+}
 process.stdout.write(JSON.stringify({
   selectedBy: "classifier",
   channel,

@@ -501,12 +501,15 @@ mkdir -p "$BRAIN_PLAN_REPO/projects/未来线/future-engine-shim"
 printf 'module.exports = {};\n' > "$BRAIN_PLAN_REPO/projects/未来线/future-engine-shim/hotfix.js"
 mkdir -p "$BRAIN_PLAN_REPO/projects/未来线/product-skills/advisor-toolboxes/v1"
 printf '{}\n' > "$BRAIN_PLAN_REPO/projects/未来线/product-skills/advisor-toolboxes/v1/catalog.json"
+mkdir -p "$BRAIN_PLAN_REPO/projects/未来线/future-engine-shim/banks"
+printf '{}\n' > "$BRAIN_PLAN_REPO/projects/未来线/future-engine-shim/banks/constitution.v3.json"
 git -C "$BRAIN_PLAN_REPO" add . && git -C "$BRAIN_PLAN_REPO" commit -m engine-hotfix >/dev/null
 CROSS_PLAN=$(BRAIN_DIR_OVERRIDE="$BRAIN_PLAN_REPO" APP_DIR_OVERRIDE="$APP_PLAN_REPO" \
   bash "$SCRIPT_DIR/plan-release.sh" "$BRAIN_PLAN_BASE" "$APP_PLAN_BASE")
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$CROSS_PLAN") == ssh-source ]]
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[0])' "$CROSS_PLAN") == 'deploy/ssh-source-release.sh' ]]
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[1])' "$CROSS_PLAN") == 'deploy/deploy-product-skills.sh' ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[2])' "$CROSS_PLAN") == 'future-engine-shim/scripts/deploy-banks.sh' ]]
 grep -F 'sudo -n install -d -o \"\$owner\" -g \"\$group\" -m 700 \"\$app/.release-src\"' \
   "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F 'test \"\$(stat -c '\''%a'\'' \"\$app/.release-src\")\" = 700' \
