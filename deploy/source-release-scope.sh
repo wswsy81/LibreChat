@@ -8,6 +8,10 @@ classify_source_release_delta() {
   printf '%s\n' "${APP_RELEASE_CHANGED[@]}" \
     | grep -Eq '^packages/api/src/.+\.ts$' \
     && PACKAGE_API_RELEASE_CHANGED=true || true
+  DATA_PROVIDER_RELEASE_CHANGED=false
+  printf '%s\n' "${APP_RELEASE_CHANGED[@]}" \
+    | grep -Eq '^packages/data-provider/src/.+\.(ts|tsx)$' \
+    && DATA_PROVIDER_RELEASE_CHANGED=true || true
   mapfile -t ENGINE_RELEASE_FILES < <(printf '%s\n' "${BRAIN_RELEASE_CHANGED[@]}" \
     | grep -E '^projects/未来线/future-engine-shim/.+\.js$' \
     | grep -Ev '(^|/)(__tests__/|scripts/|[^/]+\.test\.js$)' || true)

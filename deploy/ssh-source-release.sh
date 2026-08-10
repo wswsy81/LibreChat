@@ -85,8 +85,7 @@ printf '%s\n' "${APP_CHANGED[@]}" | grep -Eq '(^|/)(package(-lock)?\.json|Docker
 printf '%s\n' "${BRAIN_CHANGED[@]}" | grep -Eq '(^|/)(package(-lock)?\.json|Dockerfile[^/]*)$' \
   && { echo "future-engine dependency or image changes require an image release" >&2; exit 1; } || true
 UNSUPPORTED_APP=$(printf '%s\n' "${APP_CHANGED[@]}" \
-  | grep -E '^(packages/data-schemas/|packages/data-provider/)' \
-  | grep -Ev '^packages/data-provider/src/types/' || true)
+  | grep -E '^packages/data-schemas/' || true)
 [[ -z "$UNSUPPORTED_APP" ]] || {
   echo "shared/backend package runtime changed and cannot use source release" >&2
   exit 1
@@ -96,12 +95,15 @@ mapfile -t API_FILES < <(printf '%s\n' "${APP_CHANGED[@]}" | grep -E '^api/.+\.j
 PACKAGE_API_CHANGED=false
 printf '%s\n' "${APP_CHANGED[@]}" | grep -Eq '^packages/api/src/.+\.ts$' \
   && PACKAGE_API_CHANGED=true || true
+DATA_PROVIDER_CHANGED=false
+printf '%s\n' "${APP_CHANGED[@]}" | grep -Eq '^packages/data-provider/src/.+\.(ts|tsx)$' \
+  && DATA_PROVIDER_CHANGED=true || true
 mapfile -t ENGINE_FILES < <(printf '%s\n' "${BRAIN_CHANGED[@]}" \
   | grep -E '^projects/未来线/future-engine-shim/.+\.js$' \
   | grep -Ev '(^|/)(__tests__/|scripts/|[^/]+\.test\.js$)' || true)
 classify_source_release_delta
 
-[[ ${#API_RELEASE_FILES[@]} -gt 0 || "$PACKAGE_API_RELEASE_CHANGED" == true || ${#ENGINE_RELEASE_FILES[@]} -gt 0 || "$CLIENT_CHANGED" == true ]] || {
+[[ ${#API_RELEASE_FILES[@]} -gt 0 || "$PACKAGE_API_RELEASE_CHANGED" == true || "$DATA_PROVIDER_RELEASE_CHANGED" == true || ${#ENGINE_RELEASE_FILES[@]} -gt 0 || "$CLIENT_CHANGED" == true ]] || {
   echo "no deployable source or client changes relative to active release" >&2
   exit 1
 }
@@ -110,7 +112,7 @@ TMP_DIR=$(mktemp -d)
 cleanup() { rm -rf -- "$TMP_DIR"; }
 trap cleanup EXIT
 BUNDLE_DIR="$TMP_DIR/bundle"
-mkdir -p "$BUNDLE_DIR/librechat" "$BUNDLE_DIR/brain" "$BUNDLE_DIR/client" "$BUNDLE_DIR/package-api-dist"
+mkdir -p "$BUNDLE_DIR/librechat" "$BUNDLE_DIR/brain" "$BUNDLE_DIR/client" "$BUNDLE_DIR/package-api-dist" "$BUNDLE_DIR/data-provider-dist"
 
 if [[ ${#API_FILES[@]} -gt 0 ]]; then
   git -C "$APP_DIR" archive "$APP_REVISION" -- "${API_FILES[@]}" | tar -xf - -C "$BUNDLE_DIR/librechat"
@@ -121,6 +123,13 @@ if [[ "$PACKAGE_API_CHANGED" == true ]]; then
     exit 1
   }
   "${TAR_CREATE[@]}" -C "$APP_DIR/packages/api/dist" -cf - . | tar -xf - -C "$BUNDLE_DIR/package-api-dist"
+fi
+if [[ "$DATA_PROVIDER_CHANGED" == true ]]; then
+  [[ -s "$APP_DIR/packages/data-provider/dist/index.js" ]] || {
+    echo "packages/data-provider changed but packages/data-provider/dist/index.js is missing; run the verified data-provider build first" >&2
+    exit 1
+  }
+  "${TAR_CREATE[@]}" -C "$APP_DIR/packages/data-provider/dist" -cf - . | tar -xf - -C "$BUNDLE_DIR/data-provider-dist"
 fi
 if [[ ${#ENGINE_FILES[@]} -gt 0 ]]; then
   git -C "$BRAIN_DIR" archive "$BRAIN_REVISION" -- "${ENGINE_FILES[@]}" | tar -xf - -C "$BUNDLE_DIR/brain"
@@ -133,7 +142,7 @@ fi
 OVERRIDE_FILE="$BUNDLE_DIR/source.override.yml"
 {
   printf 'services:\n'
-  if [[ ${#API_FILES[@]} -gt 0 || "$PACKAGE_API_CHANGED" == true ]]; then
+  if [[ ${#API_FILES[@]} -gt 0 || "$PACKAGE_API_CHANGED" == true || "$DATA_PROVIDER_CHANGED" == true ]]; then
     printf '  api:\n    volumes:\n'
     for file in "${API_FILES[@]}"; do
       printf '      - type: bind\n'
@@ -145,6 +154,12 @@ OVERRIDE_FILE="$BUNDLE_DIR/source.override.yml"
       printf '      - type: bind\n'
       printf '        source: %s/.release-src/current/package-api-dist\n' "$PRODUCTION_APP_DIR"
       printf '        target: /app/packages/api/dist\n'
+      printf '        read_only: true\n'
+    fi
+    if [[ "$DATA_PROVIDER_CHANGED" == true ]]; then
+      printf '      - type: bind\n'
+      printf '        source: %s/.release-src/current/data-provider-dist\n' "$PRODUCTION_APP_DIR"
+      printf '        target: /app/packages/data-provider/dist\n'
       printf '        read_only: true\n'
     fi
   fi
@@ -171,8 +186,10 @@ OVERRIDE_FILE="$BUNDLE_DIR/source.override.yml"
   printf 'future_engine_change_base_revision=%s\n' "$BRAIN_CHANGE_BASE"
   api_release_count=${#API_RELEASE_FILES[@]}
   [[ "$PACKAGE_API_RELEASE_CHANGED" == false ]] || ((api_release_count += 1))
+  [[ "$DATA_PROVIDER_RELEASE_CHANGED" == false ]] || ((api_release_count += 1))
   api_mount_count=${#API_FILES[@]}
   [[ "$PACKAGE_API_CHANGED" == false ]] || ((api_mount_count += 1))
+  [[ "$DATA_PROVIDER_CHANGED" == false ]] || ((api_mount_count += 1))
   printf 'api_file_count=%s\n' "$api_release_count"
   printf 'engine_file_count=%s\n' "${#ENGINE_RELEASE_FILES[@]}"
   printf 'api_mount_file_count=%s\n' "$api_mount_count"

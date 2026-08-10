@@ -544,8 +544,18 @@ APP_RELEASE_CHANGED=(packages/api/src/life/route.ts packages/api/src/life/route.
 BRAIN_RELEASE_CHANGED=()
 classify_source_release_delta
 [[ "$PACKAGE_API_RELEASE_CHANGED" == true ]]
+[[ "$DATA_PROVIDER_RELEASE_CHANGED" == false ]]
 [[ ${#API_RELEASE_FILES[@]} -eq 0 ]]
 grep -F 'target: /app/packages/api/dist' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+
+APP_RELEASE_CHANGED=(packages/data-provider/src/api-endpoints.ts packages/data-provider/src/data-service.ts packages/data-provider/src/types/life.ts)
+BRAIN_RELEASE_CHANGED=()
+classify_source_release_delta
+[[ "$DATA_PROVIDER_RELEASE_CHANGED" == true ]]
+[[ "$CLIENT_CHANGED" == true ]]
+[[ ${#API_RELEASE_FILES[@]} -eq 0 ]]
+grep -F 'target: /app/packages/data-provider/dist' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+grep -F 'packages/data-provider changed but packages/data-provider/dist/index.js is missing' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 ! grep -F "grep -E '^(packages/api/|packages/data-schemas/|packages/data-provider/)'" "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 ! grep -F 'sudo bash deploy/backup.sh' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
 grep -F 'sudo install -d -o \"\$owner\" -g \"\$group\" -m 700' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null

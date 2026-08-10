@@ -20,7 +20,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 
 1. 先完整读 `../未来线部署操作手册.md`、大脑仓 `state/当前状态.md`、LibreChat `CLAUDE.md`、当前 spec 和本 skill 的 `references/definition-of-done.md`。手册决定通道与禁止项，不得跳过。
 2. 先查生产 `.release.env`、`.releases/*.env`、manifest、transport、stage status 与本地已推送 revision。只要已有正确候选，已 `deployable` 就直接 `apply-release.sh`，禁止重建。
-3. 只在没有可用候选时构建：前端/API/Engine 分别用 `build-client-release.sh`、`build-hotfix-release.sh api`、`build-hotfix-release.sh future-engine`。只有依赖/基础镜像、迁移、身份隔离、共享包或跨服务变更用 `build-full-release.sh`；发布脚本、测试夹具和文档不生成产品候选。
+3. 只在没有可用候选时构建：前端/API/Engine 分别用 `build-client-release.sh`、`build-hotfix-release.sh api`、`build-hotfix-release.sh future-engine`。只有依赖/基础镜像、迁移、身份隔离，或无法由已验证编译产物安全覆盖的共享运行时变更用 `build-full-release.sh`；发布脚本、测试夹具和文档不生成产品候选。
 4. 无数据变更的 API/Engine/前端/config 复用最新 VERIFIED 备份和精确 rollback，不重复导出 Mongo/Postgres。
 5. 切换只用 `deploy/apply-release.sh <candidate.env>`。新候选必须是 `deployable`；纯前端只原子切换 `client-releases/current`，不重建 API 镜像。不直接改浮动 tag，不直接 `compose build/up`。
 6. 一个候选 apply 失败后依赖自动回滚。只有在失败被证明为宿主发布脚本/权限问题、修复已有定向测试且无需重建时，才允许重试一次。第二次失败立即停止。
@@ -36,6 +36,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 16. 连续 `ssh-source` 的服务变化必须相对生产 `.source-release.env` 的活动 source revision 计算；镜像 revision 只作为累计覆盖包 base。纯前端 delta 不得重复 recreate API/Engine。
 17. `--no-xattrs` 必须用真实空归档命令探测，禁止 `tar --help | grep -q` 在 `pipefail` 下误判；上传前必须扫描最终 tar 流并拒绝 provenance header。
 18. 每次 DONE、DONE_WITH_CONCERNS、BLOCKED 或 rollback 后，运行大脑仓 `library/skills/yiwei-skill-evolver/scripts/record-outcome.py`；`--mode` 必须等于实际通道（包括 `ssh-source`），不得伪记成 `engine-hotfix`。
+19. `packages/data-provider/src` 的普通业务改动，在依赖、迁移、身份与隔离边界未变时，由 `ssh-source` 打包已验证的 `packages/data-provider/dist` 并只读挂载到 API，同时发布同 revision 的 Client 静态产物；dist 缺失必须 fail-closed，不得自动改走 full。
 
 只改发布/备份/skill 管道时使用 `projects/未来线/librechat/deploy/verify-local.sh --release`；业务代码开发用 `--quick`，最终完整交付用 `--full`。
 
