@@ -592,6 +592,8 @@ grep -F 'banks-asset-' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
 grep -F 'sudo -n install -o root -g root -m 644' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
 grep -F 'container_runtime_sha=' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
 grep -F 'rollback.tgz' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
+grep -F 'tar --no-xattrs -cf /dev/null -T /dev/null' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
+grep -F "grep -a -Fq 'LIBARCHIVE.xattr.com.apple.provenance'" "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
 
 PROVENANCE_TEST_DIR="$TEST_ROOT/provenance"
 mkdir -p "$PROVENANCE_TEST_DIR/clean" "$PROVENANCE_TEST_DIR/dirty"
