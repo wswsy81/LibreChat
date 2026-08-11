@@ -169,6 +169,10 @@ grep -qx 'release_service=client' "$RELEASE_ROOT/CLIENT-BUILD-TEST.manifest"
 grep -qx 'selected_channel=client-static' "$RELEASE_ROOT/CLIENT-BUILD-TEST.manifest"
 grep -Eq '^client_artifact_sha256=[0-9a-f]{64}$' "$RELEASE_ROOT/CLIENT-BUILD-TEST.manifest"
 [[ -s "$RELEASE_ROOT/CLIENT-BUILD-TEST.client.tar.zst" ]]
+grep -F 'tar --no-xattrs -cf /dev/null -T /dev/null' "$SCRIPT_DIR/build-client-release.sh" >/dev/null
+grep -F 'verify-tar-provenance.sh' "$SCRIPT_DIR/build-client-release.sh" >/dev/null
+grep -F 'tar --no-xattrs -cf /dev/null -T /dev/null' "$SCRIPT_DIR/build-release.sh" >/dev/null
+grep -F 'verify-tar-provenance.sh' "$SCRIPT_DIR/build-release.sh" >/dev/null
 RUNTIME_WRITER_UID=$(id -u)
 RUNTIME_WRITER_GID=$(id -g)
 

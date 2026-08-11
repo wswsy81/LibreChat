@@ -8,6 +8,8 @@ RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
 ACTIVE_RELEASE_ENV=${ACTIVE_RELEASE_ENV:-"$APP_DIR/.release.env"}
 RELEASE_ID=${1:-"CLIENT-$(date -u +%Y%m%dT%H%M%SZ)"}
 AUTO_STAGE=${AUTO_STAGE:-true}
+TAR_CREATE=(tar)
+tar --no-xattrs -cf /dev/null -T /dev/null 2>/dev/null && TAR_CREATE+=(--no-xattrs) || true
 
 [[ "$RELEASE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "unsafe release id" >&2; exit 1; }
 [[ "$AUTO_STAGE" == true || "$AUTO_STAGE" == false ]] || { echo "AUTO_STAGE must be true or false" >&2; exit 1; }
@@ -52,7 +54,11 @@ done
 
 command -v zstd >/dev/null 2>&1 || { echo "zstd is required" >&2; exit 1; }
 [[ -s "$APP_DIR/client/dist/index.html" ]] || { echo "client build did not produce index.html" >&2; exit 1; }
-tar -C "$APP_DIR/client/dist" -cf - . | zstd -3 -T0 -o "$ARCHIVE_FILE" >/dev/null
+if command -v xattr >/dev/null 2>&1; then
+  xattr -cr "$APP_DIR/client/dist"
+fi
+"${TAR_CREATE[@]}" -C "$APP_DIR/client/dist" -cf - . | zstd -3 -T0 -o "$ARCHIVE_FILE" >/dev/null
+"$SCRIPT_DIR/verify-tar-provenance.sh" "$ARCHIVE_FILE"
 install -m 600 "$EVIDENCE_SOURCE" "$EVIDENCE_FILE"
 
 EVIDENCE_SHA=$(sha256_file "$EVIDENCE_FILE")

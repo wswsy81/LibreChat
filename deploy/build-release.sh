@@ -30,6 +30,8 @@ CORPUS_SCHEMA_REL=library/corpora/schemas/bank-item.schema.json
 CORPUS_SCHEMA_IN_CONTEXT="$PROJECT_DIR/$CORPUS_SCHEMA_REL"
 GENERATED_CORPUS_SCHEMA=false
 BUILD_STARTED_EPOCH=$(date +%s)
+TAR_CREATE=(tar)
+tar --no-xattrs -cf /dev/null -T /dev/null 2>/dev/null && TAR_CREATE+=(--no-xattrs) || true
 
 [[ "$RELEASE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || {
   echo "release id may contain only letters, numbers, dot, underscore, and dash" >&2
@@ -432,7 +434,11 @@ if [[ "$CLIENT_ARTIFACT" == true && ( "$RELEASE_SERVICE" == api || "$RELEASE_SER
   }
   trap 'cleanup_client_artifact; cleanup_build_context' EXIT
   "${DOCKER[@]}" cp "$CLIENT_CONTAINER:/app/client/dist" "$CLIENT_TMP/dist"
-  tar -C "$CLIENT_TMP/dist" -cf - . | zstd -3 -T0 -o "$CLIENT_ARCHIVE_FILE" >/dev/null
+  if command -v xattr >/dev/null 2>&1; then
+    xattr -cr "$CLIENT_TMP/dist"
+  fi
+  "${TAR_CREATE[@]}" -C "$CLIENT_TMP/dist" -cf - . | zstd -3 -T0 -o "$CLIENT_ARCHIVE_FILE" >/dev/null
+  "$SCRIPT_DIR/verify-tar-provenance.sh" "$CLIENT_ARCHIVE_FILE"
   [[ -s "$CLIENT_ARCHIVE_FILE" ]] || { echo "client artifact archive is empty" >&2; exit 1; }
   CLIENT_ARCHIVE_NAME=$(basename -- "$CLIENT_ARCHIVE_FILE")
   CLIENT_ARCHIVE_SHA256=$(sha256_file "$CLIENT_ARCHIVE_FILE")
