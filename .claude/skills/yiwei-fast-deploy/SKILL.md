@@ -45,6 +45,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 25. `packages/api/src` 的普通 TypeScript 改动由 `ssh-source` 打包已通过验证的 `packages/api/dist` 并只读挂载到 `/app/packages/api/dist`；产物缺失必须拒绝发布，不回退到镜像构建。
 26. 代码与 `product-skills`、bank 同时变化时，发布计划必须完整执行 source release、product-skill 热更和 bank 热更中实际需要的部分；禁止只上线代码或只上线部分资产。热更复用最新 VERIFIED 并只保留精确资产 rollback，不新建整库备份；Product Skill rollback 必须归应用发布用户所有且权限为 `0600`。
 27. `packages/data-provider/src` 的普通业务改动，在依赖、迁移、身份与隔离边界未变时，由 `ssh-source` 打包已验证的 `packages/data-provider/dist` 并只读挂载到 API，同时发布同 revision 的 Client 静态产物；dist 缺失必须 fail-closed，不得自动改走 full。
+28. 删除前端源码、普通 API JS 或 Engine JS 时不得仅因 deletion 自动升级镜像发布：Client 以同 revision 静态产物覆盖；API／Engine 由 `ssh-source` 生成只读、加载即失败的 tombstone 隐藏稳定镜像旧文件，并把删除计入变化服务与精确 rollback。删除依赖、镜像、compose、迁移、身份隔离或不支持的共享运行时仍 fail-closed。
 
 只改发布/备份/skill 管道时使用 `projects/未来线/librechat/deploy/verify-local.sh --release`；业务代码开发用 `--quick`，最终完整交付用 `--full`。
 

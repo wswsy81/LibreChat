@@ -529,14 +529,18 @@ grep -F 'verify-tar-provenance.sh' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/nul
 
 source "$SCRIPT_DIR/source-release-scope.sh"
 APP_RELEASE_CHANGED=(client/src/home.tsx packages/client/src/me.tsx docs/release.md)
+APP_RELEASE_DELETED=()
 BRAIN_RELEASE_CHANGED=(projects/未来线/future-engine-shim/docs/release.md)
+BRAIN_RELEASE_DELETED=()
 classify_source_release_delta
 [[ "$CLIENT_CHANGED" == true ]]
 [[ ${#API_RELEASE_FILES[@]} -eq 0 ]]
 [[ ${#ENGINE_RELEASE_FILES[@]} -eq 0 ]]
 
 APP_RELEASE_CHANGED=(api/app/clients/life-api.js api/app/clients/life-api.test.js)
+APP_RELEASE_DELETED=()
 BRAIN_RELEASE_CHANGED=(projects/未来线/future-engine-shim/advisor-gateway.js projects/未来线/future-engine-shim/advisor-gateway.test.js)
+BRAIN_RELEASE_DELETED=()
 classify_source_release_delta
 [[ "$CLIENT_CHANGED" == false ]]
 [[ ${#API_RELEASE_FILES[@]} -eq 1 ]]
@@ -545,7 +549,9 @@ classify_source_release_delta
 [[ ${ENGINE_RELEASE_FILES[0]} == projects/未来线/future-engine-shim/advisor-gateway.js ]]
 
 APP_RELEASE_CHANGED=(packages/api/src/life/route.ts packages/api/src/life/route.spec.ts)
+APP_RELEASE_DELETED=()
 BRAIN_RELEASE_CHANGED=()
+BRAIN_RELEASE_DELETED=()
 classify_source_release_delta
 [[ "$PACKAGE_API_RELEASE_CHANGED" == true ]]
 [[ "$DATA_PROVIDER_RELEASE_CHANGED" == false ]]
@@ -553,11 +559,26 @@ classify_source_release_delta
 grep -F 'target: /app/packages/api/dist' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 
 APP_RELEASE_CHANGED=(packages/data-provider/src/api-endpoints.ts packages/data-provider/src/data-service.ts packages/data-provider/src/types/life.ts)
+APP_RELEASE_DELETED=()
 BRAIN_RELEASE_CHANGED=()
+BRAIN_RELEASE_DELETED=()
 classify_source_release_delta
 [[ "$DATA_PROVIDER_RELEASE_CHANGED" == true ]]
 [[ "$CLIENT_CHANGED" == true ]]
 [[ ${#API_RELEASE_FILES[@]} -eq 0 ]]
+APP_RELEASE_CHANGED=()
+APP_RELEASE_DELETED=(client/src/features/life-design/routes/InboxRoute.tsx api/server/retired-route.js packages/data-provider/src/retired.ts)
+BRAIN_RELEASE_CHANGED=()
+BRAIN_RELEASE_DELETED=(projects/未来线/future-engine-shim/inbox.js projects/未来线/future-engine-shim/inbox.test.js)
+classify_source_release_delta
+[[ "$CLIENT_CHANGED" == true ]]
+[[ "$DATA_PROVIDER_RELEASE_CHANGED" == true ]]
+[[ ${#API_RELEASE_DELETED[@]} -eq 1 ]]
+[[ ${API_RELEASE_DELETED[0]} == api/server/retired-route.js ]]
+[[ ${#ENGINE_RELEASE_DELETED[@]} -eq 1 ]]
+[[ ${ENGINE_RELEASE_DELETED[0]} == projects/未来线/future-engine-shim/inbox.js ]]
+grep -F "throw new Error('retired runtime module loaded');" "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+! grep -F 'source release cannot safely hide deleted runtime files' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F 'target: /app/packages/data-provider/dist' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F 'packages/data-provider changed but packages/data-provider/dist/index.js is missing' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 ! grep -F "grep -E '^(packages/api/|packages/data-schemas/|packages/data-provider/)'" "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null

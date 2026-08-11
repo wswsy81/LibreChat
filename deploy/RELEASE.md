@@ -100,3 +100,5 @@ bank 文案与代码发布解耦:生产 compose 把 `../future-engine-shim/banks
 生产发布不再同步整仓源码。若仅为修复宿主发布控制脚本做一次显式同步，仍必须保护 `.env`、`runtime-config/`、`data/`、`banks-live/`、`uploads/`、`images/` 与 `.releases/`。
 
 连续 `ssh-source` 发布以生产 `.source-release.env` 的活动 source revision 判断本次服务 delta，只对本次真正变化的 API/Engine 执行 recreate；镜像 revision 仍用于生成累计只读覆盖包。macOS 打包必须真实探测 `--no-xattrs`，并在上传前扫描最终 tar 流，发现 provenance header 立即拒绝发布。
+
+删除前端源码由同 revision 的 Client 静态产物覆盖；删除普通 API／Engine JS 时，`ssh-source` 会在内容寻址覆盖包中生成只读、加载即失败的 tombstone，隐藏稳定镜像里的旧文件并保留精确 rollback。依赖、镜像、compose、迁移、身份隔离或不支持共享运行时的删除仍拒绝该通道。

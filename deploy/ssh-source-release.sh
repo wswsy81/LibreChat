@@ -70,21 +70,16 @@ mapfile -t APP_CHANGED < <(git -C "$APP_DIR" -c core.quotePath=false diff --diff
 mapfile -t BRAIN_CHANGED < <(git -C "$BRAIN_DIR" -c core.quotePath=false diff --diff-filter=ACMRT --name-only "$BRAIN_BASE" "$BRAIN_REVISION")
 mapfile -t APP_RELEASE_CHANGED < <(git -C "$APP_DIR" -c core.quotePath=false diff --diff-filter=ACMRT --name-only "$APP_CHANGE_BASE" "$APP_REVISION")
 mapfile -t BRAIN_RELEASE_CHANGED < <(git -C "$BRAIN_DIR" -c core.quotePath=false diff --diff-filter=ACMRT --name-only "$BRAIN_CHANGE_BASE" "$BRAIN_REVISION")
+mapfile -t APP_DELETED < <(git -C "$APP_DIR" -c core.quotePath=false diff --diff-filter=D --name-only "$APP_BASE" "$APP_REVISION")
+mapfile -t BRAIN_DELETED < <(git -C "$BRAIN_DIR" -c core.quotePath=false diff --diff-filter=D --name-only "$BRAIN_BASE" "$BRAIN_REVISION")
+mapfile -t APP_RELEASE_DELETED < <(git -C "$APP_DIR" -c core.quotePath=false diff --diff-filter=D --name-only "$APP_CHANGE_BASE" "$APP_REVISION")
+mapfile -t BRAIN_RELEASE_DELETED < <(git -C "$BRAIN_DIR" -c core.quotePath=false diff --diff-filter=D --name-only "$BRAIN_CHANGE_BASE" "$BRAIN_REVISION")
 
-DELETED_RUNTIME=$(git -C "$APP_DIR" -c core.quotePath=false diff --diff-filter=D --name-only "$APP_BASE" "$APP_REVISION" \
-  | grep -E '^(api/.+\.js|client/|packages/client/|packages/data-provider/)' || true)
-DELETED_ENGINE=$(git -C "$BRAIN_DIR" -c core.quotePath=false diff --diff-filter=D --name-only "$BRAIN_BASE" "$BRAIN_REVISION" \
-  | grep -E '^projects/未来线/future-engine-shim/.+\.js$' || true)
-[[ -z "$DELETED_RUNTIME$DELETED_ENGINE" ]] || {
-  echo "source release cannot safely hide deleted runtime files; use an image release" >&2
-  exit 1
-}
-
-printf '%s\n' "${APP_CHANGED[@]}" | grep -Eq '(^|/)(package(-lock)?\.json|Dockerfile[^/]*|docker-compose[^/]*\.ya?ml)$' \
+printf '%s\n' "${APP_CHANGED[@]}" "${APP_DELETED[@]}" | grep -Eq '(^|/)(package(-lock)?\.json|Dockerfile[^/]*|docker-compose[^/]*\.ya?ml)$' \
   && { echo "dependency, image, or compose changes require an image release" >&2; exit 1; } || true
-printf '%s\n' "${BRAIN_CHANGED[@]}" | grep -Eq '(^|/)(package(-lock)?\.json|Dockerfile[^/]*)$' \
+printf '%s\n' "${BRAIN_CHANGED[@]}" "${BRAIN_DELETED[@]}" | grep -Eq '(^|/)(package(-lock)?\.json|Dockerfile[^/]*)$' \
   && { echo "future-engine dependency or image changes require an image release" >&2; exit 1; } || true
-UNSUPPORTED_APP=$(printf '%s\n' "${APP_CHANGED[@]}" \
+UNSUPPORTED_APP=$(printf '%s\n' "${APP_CHANGED[@]}" "${APP_DELETED[@]}" \
   | grep -E '^packages/data-schemas/' || true)
 [[ -z "$UNSUPPORTED_APP" ]] || {
   echo "shared/backend package runtime changed and cannot use source release" >&2
@@ -92,18 +87,22 @@ UNSUPPORTED_APP=$(printf '%s\n' "${APP_CHANGED[@]}" \
 }
 
 mapfile -t API_FILES < <(printf '%s\n' "${APP_CHANGED[@]}" | grep -E '^api/.+\.js$' | grep -Ev '(^|/)(__tests__/|[^/]+\.test\.js$)' || true)
+mapfile -t API_DELETED < <(printf '%s\n' "${APP_DELETED[@]}" | grep -E '^api/.+\.js$' | grep -Ev '(^|/)(__tests__/|[^/]+\.test\.js$)' || true)
 PACKAGE_API_CHANGED=false
-printf '%s\n' "${APP_CHANGED[@]}" | grep -Eq '^packages/api/src/.+\.ts$' \
+printf '%s\n' "${APP_CHANGED[@]}" "${APP_DELETED[@]}" | grep -Eq '^packages/api/src/.+\.ts$' \
   && PACKAGE_API_CHANGED=true || true
 DATA_PROVIDER_CHANGED=false
-printf '%s\n' "${APP_CHANGED[@]}" | grep -Eq '^packages/data-provider/src/.+\.(ts|tsx)$' \
+printf '%s\n' "${APP_CHANGED[@]}" "${APP_DELETED[@]}" | grep -Eq '^packages/data-provider/src/.+\.(ts|tsx)$' \
   && DATA_PROVIDER_CHANGED=true || true
 mapfile -t ENGINE_FILES < <(printf '%s\n' "${BRAIN_CHANGED[@]}" \
   | grep -E '^projects/未来线/future-engine-shim/.+\.js$' \
   | grep -Ev '(^|/)(__tests__/|scripts/|[^/]+\.test\.js$)' || true)
+mapfile -t ENGINE_DELETED < <(printf '%s\n' "${BRAIN_DELETED[@]}" \
+  | grep -E '^projects/未来线/future-engine-shim/.+\.js$' \
+  | grep -Ev '(^|/)(__tests__/|scripts/|[^/]+\.test\.js$)' || true)
 classify_source_release_delta
 
-[[ ${#API_RELEASE_FILES[@]} -gt 0 || "$PACKAGE_API_RELEASE_CHANGED" == true || "$DATA_PROVIDER_RELEASE_CHANGED" == true || ${#ENGINE_RELEASE_FILES[@]} -gt 0 || "$CLIENT_CHANGED" == true ]] || {
+[[ ${#API_RELEASE_FILES[@]} -gt 0 || ${#API_RELEASE_DELETED[@]} -gt 0 || "$PACKAGE_API_RELEASE_CHANGED" == true || "$DATA_PROVIDER_RELEASE_CHANGED" == true || ${#ENGINE_RELEASE_FILES[@]} -gt 0 || ${#ENGINE_RELEASE_DELETED[@]} -gt 0 || "$CLIENT_CHANGED" == true ]] || {
   echo "no deployable source or client changes relative to active release" >&2
   exit 1
 }
@@ -117,6 +116,10 @@ mkdir -p "$BUNDLE_DIR/librechat" "$BUNDLE_DIR/brain" "$BUNDLE_DIR/client" "$BUND
 if [[ ${#API_FILES[@]} -gt 0 ]]; then
   git -C "$APP_DIR" archive "$APP_REVISION" -- "${API_FILES[@]}" | tar -xf - -C "$BUNDLE_DIR/librechat"
 fi
+for file in "${API_DELETED[@]}"; do
+  mkdir -p "$BUNDLE_DIR/librechat/$(dirname -- "$file")"
+  printf '%s\n' "'use strict';" "throw new Error('retired runtime module loaded');" > "$BUNDLE_DIR/librechat/$file"
+done
 if [[ "$PACKAGE_API_CHANGED" == true ]]; then
   [[ -s "$APP_DIR/packages/api/dist/index.cjs" ]] || {
     echo "packages/api changed but packages/api/dist/index.cjs is missing; run the verified API build first" >&2
@@ -134,6 +137,10 @@ fi
 if [[ ${#ENGINE_FILES[@]} -gt 0 ]]; then
   git -C "$BRAIN_DIR" archive "$BRAIN_REVISION" -- "${ENGINE_FILES[@]}" | tar -xf - -C "$BUNDLE_DIR/brain"
 fi
+for file in "${ENGINE_DELETED[@]}"; do
+  mkdir -p "$BUNDLE_DIR/brain/$(dirname -- "$file")"
+  printf '%s\n' "'use strict';" "throw new Error('retired runtime module loaded');" > "$BUNDLE_DIR/brain/$file"
+done
 if [[ "$CLIENT_CHANGED" == true ]]; then
   [[ -s "$APP_DIR/client/dist/index.html" ]] || { echo "client/dist/index.html is missing; build the client first" >&2; exit 1; }
   "${TAR_CREATE[@]}" -C "$APP_DIR/client/dist" -cf - . | tar -xf - -C "$BUNDLE_DIR/client"
@@ -142,9 +149,9 @@ fi
 OVERRIDE_FILE="$BUNDLE_DIR/source.override.yml"
 {
   printf 'services:\n'
-  if [[ ${#API_FILES[@]} -gt 0 || "$PACKAGE_API_CHANGED" == true || "$DATA_PROVIDER_CHANGED" == true ]]; then
+  if [[ ${#API_FILES[@]} -gt 0 || ${#API_DELETED[@]} -gt 0 || "$PACKAGE_API_CHANGED" == true || "$DATA_PROVIDER_CHANGED" == true ]]; then
     printf '  api:\n    volumes:\n'
-    for file in "${API_FILES[@]}"; do
+    for file in "${API_FILES[@]}" "${API_DELETED[@]}"; do
       printf '      - type: bind\n'
       printf '        source: %s/.release-src/current/librechat/%s\n' "$PRODUCTION_APP_DIR" "$file"
       printf '        target: /app/%s\n' "$file"
@@ -163,9 +170,9 @@ OVERRIDE_FILE="$BUNDLE_DIR/source.override.yml"
       printf '        read_only: true\n'
     fi
   fi
-  if [[ ${#ENGINE_FILES[@]} -gt 0 ]]; then
+  if [[ ${#ENGINE_FILES[@]} -gt 0 || ${#ENGINE_DELETED[@]} -gt 0 ]]; then
     printf '  future-engine:\n    volumes:\n'
-    for file in "${ENGINE_FILES[@]}"; do
+    for file in "${ENGINE_FILES[@]}" "${ENGINE_DELETED[@]}"; do
       target=${file#projects/未来线/future-engine-shim/}
       printf '      - type: bind\n'
       printf '        source: %s/.release-src/current/brain/%s\n' "$PRODUCTION_APP_DIR" "$file"
@@ -184,16 +191,20 @@ OVERRIDE_FILE="$BUNDLE_DIR/source.override.yml"
   printf 'future_engine_image_base_revision=%s\n' "$BRAIN_BASE"
   printf 'librechat_change_base_revision=%s\n' "$APP_CHANGE_BASE"
   printf 'future_engine_change_base_revision=%s\n' "$BRAIN_CHANGE_BASE"
-  api_release_count=${#API_RELEASE_FILES[@]}
+  api_release_count=$((${#API_RELEASE_FILES[@]} + ${#API_RELEASE_DELETED[@]}))
   [[ "$PACKAGE_API_RELEASE_CHANGED" == false ]] || ((api_release_count += 1))
   [[ "$DATA_PROVIDER_RELEASE_CHANGED" == false ]] || ((api_release_count += 1))
-  api_mount_count=${#API_FILES[@]}
+  api_mount_count=$((${#API_FILES[@]} + ${#API_DELETED[@]}))
   [[ "$PACKAGE_API_CHANGED" == false ]] || ((api_mount_count += 1))
   [[ "$DATA_PROVIDER_CHANGED" == false ]] || ((api_mount_count += 1))
+  engine_release_count=$((${#ENGINE_RELEASE_FILES[@]} + ${#ENGINE_RELEASE_DELETED[@]}))
+  engine_mount_count=$((${#ENGINE_FILES[@]} + ${#ENGINE_DELETED[@]}))
   printf 'api_file_count=%s\n' "$api_release_count"
-  printf 'engine_file_count=%s\n' "${#ENGINE_RELEASE_FILES[@]}"
+  printf 'engine_file_count=%s\n' "$engine_release_count"
   printf 'api_mount_file_count=%s\n' "$api_mount_count"
-  printf 'engine_mount_file_count=%s\n' "${#ENGINE_FILES[@]}"
+  printf 'engine_mount_file_count=%s\n' "$engine_mount_count"
+  printf 'api_deleted_file_count=%s\n' "${#API_DELETED[@]}"
+  printf 'engine_deleted_file_count=%s\n' "${#ENGINE_DELETED[@]}"
   printf 'client_changed=%s\n' "$CLIENT_CHANGED"
 } > "$BUNDLE_DIR/manifest"
 
@@ -215,7 +226,7 @@ scp -q "$SCRIPT_DIR/compose.sh" "$SCRIPT_DIR/apply-release.sh" "$SCRIPT_DIR/stag
 
 ssh "$TARGET" bash -s -- \
   "$PRODUCTION_APP_DIR" "$RELEASE_ID" "$ARCHIVE_SHA" "$REMOTE_ARCHIVE" "$CLIENT_SHA" \
-  "$api_release_count" "${#ENGINE_RELEASE_FILES[@]}" "$APP_REVISION" "$BRAIN_REVISION" <<'REMOTE'
+  "$api_release_count" "$engine_release_count" "$APP_REVISION" "$BRAIN_REVISION" <<'REMOTE'
 set -euo pipefail
 app=$1
 release_id=$2
