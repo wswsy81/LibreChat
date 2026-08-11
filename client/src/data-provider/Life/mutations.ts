@@ -12,7 +12,6 @@ import type {
   LifeBirthResponse,
   LifeDossierAnnotateRequest,
   LifeDossierAnnotateResponse,
-  LifeInboxCreateResponse,
   LifeOnboardingRequest,
   LifeOnboardingResponse,
   LifeResumeResponse,
@@ -43,19 +42,6 @@ export const useLifeOnboardingMutation = (): UseMutationResult<
 
 export const useLifeResumeMutation = (): UseMutationResult<LifeResumeResponse, Error, void> =>
   useMutation(() => dataService.resumeLifeConversation());
-
-export const useLifeInboxMutation = (): UseMutationResult<
-  LifeInboxCreateResponse,
-  Error,
-  string
-> => {
-  const queryClient = useQueryClient();
-  return useMutation((text: string) => dataService.createLifeInboxEntry(text), {
-    onSuccess: () => {
-      queryClient.invalidateQueries([QueryKeys.lifeInbox]);
-    },
-  });
-};
 
 export const useLifeShareMutation = (): UseMutationResult<
   LifeShareResponse,

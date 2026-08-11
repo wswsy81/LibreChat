@@ -1,13 +1,8 @@
-import { useState } from 'react';
 import { Button } from '@librechat/client';
 import { ArrowRight, LogOut } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { LifeBootstrapResponse } from 'librechat-data-provider';
-import {
-  useLifeArchiveQuery,
-  useLifeInboxMutation,
-  useLifeSelfProjectionQuery,
-} from '~/data-provider';
+import { useLifeArchiveQuery, useLifeSelfProjectionQuery } from '~/data-provider';
 import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
 import { useAuthContext, useLocalize } from '~/hooks';
 import { Explorer } from './LifeWheel';
@@ -22,10 +17,8 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
   const localize = useLocalize();
   const navigate = useNavigate();
   const { logout } = useAuthContext();
-  const [note, setNote] = useState('');
   const archive = useLifeArchiveQuery({ retry: 0, refetchOnWindowFocus: false });
   const selfProjection = useLifeSelfProjectionQuery({ retry: 0, refetchOnWindowFocus: false });
-  const capture = useLifeInboxMutation();
   const name = bootstrap.summary?.alias || bootstrap.user?.name || localize('com_life_friend');
   const currentWorkingThread = bootstrap.currentWorkingThread || null;
   const currentThreadUnknowns = (currentWorkingThread?.keyUnknowns || []).slice(0, 3);
@@ -58,14 +51,6 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
     ? [projection.birthDraft.sun, projection.birthDraft.moon, projection.birthDraft.rising]
     : [];
   const exactBirthFields = birthFields.filter((field) => field.certainty === 'exact');
-
-  const saveNote = () => {
-    const text = note.trim();
-    if (!text || capture.isLoading) {
-      return;
-    }
-    capture.mutate(text, { onSuccess: () => setNote('') });
-  };
 
   return (
     <main className="h-full overflow-y-auto bg-life-paper text-life-ink dark:bg-surface-secondary dark:text-gray-100">
@@ -160,48 +145,6 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                   onClick={() => navigate('/me')}
                 >
                   {localize('com_life_nav_me')}
-                </button>
-              </div>
-            </section>
-
-            {/* ⑤ 随手记速记 */}
-            <section
-              className="border border-life-rule bg-[#F7F4EB] p-6 dark:border-white/10 dark:bg-surface-primary"
-              aria-labelledby="capture-title"
-            >
-              <p
-                id="capture-title"
-                className="font-life-mono text-life-meta tracking-[0.18em] text-life-muted dark:text-gray-500"
-              >
-                {localize('com_life_quick_capture')}
-              </p>
-              <textarea
-                value={note}
-                maxLength={2000}
-                rows={3}
-                placeholder={localize('com_life_inbox_placeholder')}
-                onChange={(event) => setNote(event.target.value)}
-                onKeyDown={(event) => {
-                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                    event.preventDefault();
-                    saveNote();
-                  }
-                }}
-                className="mt-4 w-full resize-none border-b border-life-rule bg-transparent pb-2 font-life-kai text-life-body leading-8 text-[#3E4A40] outline-none placeholder:text-life-muted/60 focus:border-life-ink dark:text-gray-200 dark:placeholder:text-gray-600"
-              />
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <span className="font-life-mono text-life-meta text-life-muted dark:text-gray-500">
-                  {localize('com_life_quick_capture_hint')}
-                </span>
-                <button
-                  type="button"
-                  disabled={!note.trim() || capture.isLoading}
-                  onClick={saveNote}
-                  className="min-h-10 border border-life-moss px-4 font-life-sans text-life-sm text-life-moss transition hover:bg-life-moss hover:text-life-paper disabled:opacity-40"
-                >
-                  {capture.isSuccess && !note
-                    ? localize('com_life_quick_capture_done')
-                    : localize('com_life_inbox_save')}
                 </button>
               </div>
             </section>

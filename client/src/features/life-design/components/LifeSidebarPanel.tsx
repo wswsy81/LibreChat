@@ -1,6 +1,6 @@
 import { useRecoilState } from 'recoil';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Map, MessageCircleMore, NotebookPen, Plus, UserRound } from 'lucide-react';
+import { Home, MessageCircleMore, Plus, UserRound } from 'lucide-react';
 import { useLifeBootstrapQuery } from '~/data-provider';
 import { PUBLIC_MAP_LABEL_KEYS } from './PublicMistMap';
 import { useAuthContext, useLocalize } from '~/hooks';
@@ -10,7 +10,6 @@ import store from '~/store';
 const primaryLinks = [
   { href: '/home', label: 'com_life_nav_today', icon: Home },
   { href: '/c/new', label: 'com_life_nav_direct', icon: MessageCircleMore },
-  { href: '/map', label: 'com_life_nav_map', icon: Map },
   { href: '/me', label: 'com_life_nav_me', icon: UserRound },
 ] as const;
 
@@ -159,20 +158,6 @@ export default function LifeSidebarPanel() {
 
       <div className="mx-2 my-5 border-t border-life-rule dark:border-border-light" />
       <div className="min-h-0 flex-1 overflow-y-auto px-2">
-        <Link
-          to="/inbox"
-          onClick={closeMobile}
-          className={cn(
-            'mb-3 flex min-h-11 items-center gap-3 border-l-2 px-3 font-life-sans text-life-sm transition-colors',
-            location.pathname === '/inbox'
-              ? 'border-life-cinnabar bg-life-cinnabar/5 font-medium text-text-primary'
-              : 'border-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary',
-          )}
-          aria-current={location.pathname === '/inbox' ? 'page' : undefined}
-        >
-          <NotebookPen className="h-4 w-4" aria-hidden="true" />
-          {localize('com_life_nav_inbox')}
-        </Link>
         <Link
           to="/home?new=1"
           onClick={closeMobile}

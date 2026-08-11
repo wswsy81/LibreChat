@@ -421,31 +421,6 @@ export interface LifeShareResponse {
   shareUrl: string;
 }
 
-export interface LifeInboxEntry {
-  id: string;
-  text: string;
-  capturedAt: string | null;
-  digested: boolean;
-  digestedAt: string | null;
-}
-
-export interface LifeInboxHomework {
-  text: string;
-  stage: string | null;
-  assignedAt: string | null;
-}
-
-export interface LifeInboxListResponse {
-  schemaVersion: number;
-  items: LifeInboxEntry[];
-  homework?: LifeInboxHomework | null;
-}
-
-export interface LifeInboxCreateResponse {
-  ok: boolean;
-  entry: LifeInboxEntry;
-}
-
 export interface LifePublicShareResponse {
   schemaVersion: number;
   report: Pick<LifeReportSummary, 'id' | 'title' | 'createdAt'> & { html: string };

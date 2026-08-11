@@ -42,14 +42,6 @@ export function getLifeSelfProjection(): Promise<t.LifeSelfProjectionResponse> {
   return request.get(endpoints.lifeSelfProjection());
 }
 
-export function getLifeInbox(): Promise<t.LifeInboxListResponse> {
-  return request.get(endpoints.lifeInbox());
-}
-
-export function createLifeInboxEntry(text: string): Promise<t.LifeInboxCreateResponse> {
-  return request.post(endpoints.lifeInbox(), { text });
-}
-
 export function getLifeReports(): Promise<t.LifeReportsResponse> {
   return request.get(endpoints.lifeReports());
 }

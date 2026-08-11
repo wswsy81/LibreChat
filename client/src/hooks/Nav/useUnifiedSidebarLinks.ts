@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { Home, LayoutDashboard, Map, MessageCircleMore, UserRound } from 'lucide-react';
+import { Home, LayoutDashboard, MessageCircleMore, UserRound } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSetRecoilState } from 'recoil';
 import type { NavLink } from '~/common';
@@ -45,14 +45,6 @@ export default function useUnifiedSidebarLinks(): NavLink[] {
         Component: LifeSidebarPanel,
         isActive: location.pathname === '/resume' || location.pathname.startsWith('/c/'),
         onClick: () => go('/c/new'),
-      },
-      {
-        title: 'com_life_nav_map' as const,
-        icon: Map,
-        id: 'life-map',
-        Component: LifeSidebarPanel,
-        isActive: location.pathname === '/map',
-        onClick: () => go('/map'),
       },
       {
         title: 'com_life_nav_me' as const,

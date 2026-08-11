@@ -95,6 +95,23 @@ test('侧栏把“开启新对话”收口为“说件新事”的领域入口',
   expect(screen.getByText('com_life_recent_conversations')).toBeInTheDocument();
 });
 
+test('普通用户侧栏主入口只保留今天、直接说、我，不再显示地图或随手记', () => {
+  render(
+    <MemoryRouter initialEntries={['/home']}>
+      <LifeSidebarPanel />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: 'com_life_nav_today' })).toHaveAttribute('href', '/home');
+  expect(screen.getByRole('link', { name: 'com_life_nav_direct' })).toHaveAttribute(
+    'href',
+    '/c/new',
+  );
+  expect(screen.getByRole('link', { name: 'com_life_nav_me' })).toHaveAttribute('href', '/me');
+  expect(screen.queryByRole('link', { name: 'com_life_nav_map' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'com_life_nav_inbox' })).not.toBeInTheDocument();
+});
+
 test('侧栏只列聊过的领域，并优先显示各领域自己的停点', () => {
   render(
     <MemoryRouter initialEntries={['/c/work-conversation']}>

@@ -1130,40 +1130,15 @@ test('basics forwards editable registration facts across the API boundary', asyn
   );
 });
 
-test('inbox trims captures, proxies the trusted user, and rejects empty text', async () => {
+test('retired inbox API is not registered', async () => {
   const app = buildApp({ id: 'user-1', name: '张东' });
 
-  const empty = await request(app).post('/api/life/inbox').send({ text: '   ' });
-  expect(empty.status).toBe(422);
-  expect(empty.body.error.code).toBe('INBOX_EMPTY');
-  expect(mockEngine.json).not.toHaveBeenCalled();
-
-  mockEngine.json.mockResolvedValueOnce({
-    ok: true,
-    entry: {
-      id: 'entry-1',
-      text: '今天终于推进了一步',
-      capturedAt: '2026-07-13T08:00:00.000Z',
-      digested: false,
-      digestedAt: null,
-    },
-  });
-  const created = await request(app)
-    .post('/api/life/inbox')
-    .send({ text: '  今天终于推进了一步  ' });
-  expect(created.status).toBe(201);
-  expect(created.body.entry.id).toBe('entry-1');
-  expect(mockEngine.json).toHaveBeenLastCalledWith('/internal/inbox', {
-    userId: 'user-1',
-    method: 'POST',
-    body: { text: '今天终于推进了一步' },
-  });
-
-  mockEngine.json.mockResolvedValueOnce({ schemaVersion: 1, items: [created.body.entry] });
+  const created = await request(app).post('/api/life/inbox').send({ text: '今天终于推进了一步' });
   const listed = await request(app).get('/api/life/inbox');
-  expect(listed.status).toBe(200);
-  expect(listed.body.items).toHaveLength(1);
-  expect(mockEngine.json).toHaveBeenLastCalledWith('/internal/inbox', { userId: 'user-1' });
+
+  expect(created.status).toBe(404);
+  expect(listed.status).toBe(404);
+  expect(mockEngine.json).not.toHaveBeenCalled();
 });
 
 test('private report HTML forwards the trusted owner and applies a restrictive CSP', async () => {

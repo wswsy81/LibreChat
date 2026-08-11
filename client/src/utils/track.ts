@@ -51,9 +51,6 @@ export function funnelStage(pathname: string): string {
   if (pathname.startsWith('/archive')) {
     return 'archive';
   }
-  if (pathname === '/inbox') {
-    return 'inbox';
-  }
   if (pathname === '/resume') {
     return 'resume';
   }

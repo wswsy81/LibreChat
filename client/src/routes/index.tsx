@@ -214,19 +214,9 @@ export const router = createBrowserRouter(
               element: <Navigate to="/me" replace />,
             },
             {
-              path: 'map',
-              lazy: () =>
-                loadShellComponent(() => import('~/features/life-design/routes/MapRoute')),
-            },
-            {
               path: 'me',
               lazy: () =>
                 loadShellComponent(() => import('~/features/life-design/routes/ArchiveRoute')),
-            },
-            {
-              path: 'inbox',
-              lazy: () =>
-                loadShellComponent(() => import('~/features/life-design/routes/InboxRoute')),
             },
             {
               path: 'admin',

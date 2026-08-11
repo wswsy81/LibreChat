@@ -28,7 +28,6 @@ const CURATED: { group: string; items: { key: string; label: string }[] }[] = [
     items: [
       { key: 'com_life_nav_home', label: '首页' },
       { key: 'com_life_nav_resume', label: '继续聊' },
-      { key: 'com_life_nav_inbox', label: '随手记' },
       { key: 'com_life_nav_archive', label: '人生存档' },
       { key: 'com_life_nav_admin', label: '运营台(仅你可见)' },
     ],

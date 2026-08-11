@@ -34,11 +34,6 @@ jest.mock('~/data-provider', () => ({
     isLoading: false,
     isError: false,
   }),
-  useLifeInboxMutation: () => ({
-    mutate: jest.fn(),
-    isLoading: false,
-    isSuccess: false,
-  }),
   useLifeSelfProjectionQuery: () => ({
     data: {
       schemaVersion: 1,
@@ -207,7 +202,7 @@ test('老用户可从首页进入“说件新事”的领域选择', () => {
   );
 });
 
-test('桌面主操作与随手记属于同一左栏内容流，不再被右栏卡片撑出空洞', () => {
+test('今天页保留生活地图并彻底移除随手记捕获入口', () => {
   render(
     <MemoryRouter>
       <ReturningHome bootstrap={bootstrap} />
@@ -216,8 +211,12 @@ test('桌面主操作与随手记属于同一左栏内容流，不再被右栏�
 
   const mainColumn = screen.getByTestId('home-main-column');
   expect(mainColumn).toContainElement(screen.getByText(/com_life_last_time/));
-  expect(mainColumn).toContainElement(screen.getByText('com_life_quick_capture'));
+  expect(screen.queryByText('com_life_quick_capture')).not.toBeInTheDocument();
+  expect(screen.queryByPlaceholderText('com_life_inbox_placeholder')).not.toBeInTheDocument();
   expect(mainColumn).not.toContainElement(screen.getByText('com_life_testing_now'));
+  expect(
+    screen.getByRole('heading', { level: 3, name: 'com_life_map_house_h6' }),
+  ).toBeInTheDocument();
 });
 
 test('今天页优先展示当前共同议题、最多三项未知并精确续接原会话', () => {
