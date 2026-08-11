@@ -8,8 +8,9 @@ const useSpeechToText = (
 ): {
   isLoading?: boolean;
   isListening?: boolean;
-  stopRecording: () => void | (() => Promise<void>);
-  startRecording: () => void | (() => Promise<void>);
+  cancelRecording: () => void;
+  stopRecording: () => void;
+  startRecording: () => boolean | Promise<boolean>;
   /** 消息提交后调用:清空浏览器 STT 引擎的累积 transcript,防止旧语音文本回填。
    *  外部 STT 是单次录音单次转写,没有累积状态,这里是 no-op。 */
   resetAfterSubmit: () => void;
@@ -20,6 +21,7 @@ const useSpeechToText = (
   const {
     isListening: speechIsListeningBrowser,
     isLoading: speechIsLoadingBrowser,
+    cancelRecording: cancelSpeechRecordingBrowser,
     startRecording: startSpeechRecordingBrowser,
     stopRecording: stopSpeechRecordingBrowser,
     resetAfterSubmit,
@@ -28,6 +30,7 @@ const useSpeechToText = (
   const {
     isListening: speechIsListeningExternal,
     isLoading: speechIsLoadingExternal,
+    externalCancelRecording: cancelSpeechRecordingExternal,
     externalStartRecording: startSpeechRecordingExternal,
     externalStopRecording: stopSpeechRecordingExternal,
   } = useSpeechToTextExternal(setText, onTranscriptionComplete);
@@ -41,10 +44,14 @@ const useSpeechToText = (
   const stopRecording = externalSpeechToText
     ? stopSpeechRecordingExternal
     : stopSpeechRecordingBrowser;
+  const cancelRecording = externalSpeechToText
+    ? cancelSpeechRecordingExternal
+    : cancelSpeechRecordingBrowser;
 
   return {
     isLoading,
     isListening,
+    cancelRecording,
     stopRecording,
     startRecording,
     resetAfterSubmit,

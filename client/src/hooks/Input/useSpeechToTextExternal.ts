@@ -16,6 +16,7 @@ const useSpeechToTextExternal = (
   const animationFrameIdRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const discardRecordingRef = useRef(false);
 
   const audioChunksRef = useRef<Blob[]>([]);
   const [permission, setPermission] = useState(false);
@@ -110,6 +111,13 @@ const useSpeechToTextExternal = (
   };
 
   const handleStop = () => {
+    if (discardRecordingRef.current) {
+      discardRecordingRef.current = false;
+      audioChunksRef.current = [];
+      cleanup();
+      return;
+    }
+
     if (audioChunksRef.current.length > 0) {
       const audioBlob = new Blob(audioChunksRef.current, { type: audioMimeType });
       const fileExtension = getFileExtension(audioMimeType);
@@ -163,9 +171,11 @@ const useSpeechToTextExternal = (
   };
 
   const startRecording = async () => {
+    discardRecordingRef.current = false;
+
     if (isRequestBeingMade) {
       showToast({ message: 'A request is already being made. Please wait.', status: 'warning' });
-      return;
+      return false;
     }
 
     if (!audioStream.current) {
@@ -190,12 +200,15 @@ const useSpeechToTextExternal = (
           monitorSilence(audioStream.current, stopRecording);
         }
         setIsListening(true);
+        return true;
       } catch (error) {
         showToast({ message: `Error starting recording: ${error}`, status: 'error' });
+        return false;
       }
-    } else {
-      showToast({ message: 'Microphone permission not granted', status: 'error' });
     }
+
+    showToast({ message: 'Microphone permission not granted', status: 'error' });
+    return false;
   };
 
   const stopRecording = () => {
@@ -223,21 +236,27 @@ const useSpeechToTextExternal = (
     }
   };
 
-  const externalStartRecording = () => {
+  const cancelRecording = () => {
+    discardRecordingRef.current = true;
+    audioChunksRef.current = [];
+    stopRecording();
+  };
+
+  const externalStartRecording = async () => {
     if (isListening) {
       showToast({ message: 'Already listening. Please stop recording first.', status: 'warning' });
-      return;
+      return false;
     }
 
-    startRecording();
+    return startRecording();
   };
 
   const externalStopRecording = () => {
-    if (!isListening) {
-      return;
-    }
-
     stopRecording();
+  };
+
+  const externalCancelRecording = () => {
+    cancelRecording();
   };
 
   const handleKeyDown = async (e: KeyboardEvent) => {
@@ -272,6 +291,7 @@ const useSpeechToTextExternal = (
 
   return {
     isListening,
+    externalCancelRecording,
     externalStopRecording,
     externalStartRecording,
     isLoading: isProcessing,

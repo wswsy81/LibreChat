@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useRef } from 'react';
-import { MicOff } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Keyboard, Mic, MicOff } from 'lucide-react';
 import { useToastContext, TooltipAnchor, ListeningIcon, Spinner } from '@librechat/client';
 import { useLocalize, useSpeechToText, useGetAudioSettings } from '~/hooks';
 import { globalAudioId, type TAskFunction } from '~/common';
@@ -7,6 +7,13 @@ import { useChatFormContext } from '~/Providers';
 import { cn } from '~/utils';
 
 const isExternalSTT = (speechToTextEndpoint: string) => speechToTextEndpoint === 'external';
+const CANCEL_DISTANCE_PX = 56;
+
+const formatDuration = (seconds: number) => {
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+};
+
 export default memo(function AudioRecorder({
   disabled,
   ask,
@@ -22,9 +29,22 @@ export default memo(function AudioRecorder({
   const localize = useLocalize();
   const { showToast } = useToastContext();
   const { speechToTextEndpoint } = useGetAudioSettings();
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [isHolding, setIsHolding] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isAwaitingTranscription, setIsAwaitingTranscription] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const existingTextRef = useRef<string>('');
   const isSubmittingRef = useRef(isSubmitting);
+  const activePointerIdRef = useRef<number | null>(null);
+  const startYRef = useRef(0);
+  const isActiveHoldRef = useRef(false);
+  const isCancellingRef = useRef(false);
+  const isRecordingReadyRef = useRef(false);
+  const pendingFinishRef = useRef<'cancel' | 'transcribe' | null>(null);
+  const awaitingTranscriptionRef = useRef(false);
+  const sawLoadingRef = useRef(false);
   isSubmittingRef.current = isSubmitting;
   /** useSpeechToText 的 resetAfterSubmit 依赖 onTranscriptionComplete 本身(循环依赖),
    *  用"最新 ref"打破环:提交时永远调用当次渲染赋的最新实现,不进依赖数组。 */
@@ -81,12 +101,23 @@ export default memo(function AudioRecorder({
       setValue('text', newText, {
         shouldValidate: true,
       });
+      if (isExternalSTT(speechToTextEndpoint) && awaitingTranscriptionRef.current) {
+        awaitingTranscriptionRef.current = false;
+        setIsAwaitingTranscription(false);
+        setIsVoiceMode(false);
+      }
     },
     [setValue, speechToTextEndpoint],
   );
 
-  const { isListening, isLoading, startRecording, stopRecording, resetAfterSubmit } =
-    useSpeechToText(setText, onTranscriptionComplete);
+  const {
+    isListening,
+    isLoading,
+    cancelRecording,
+    startRecording,
+    stopRecording,
+    resetAfterSubmit,
+  } = useSpeechToText(setText, onTranscriptionComplete);
   resetAfterSubmitRef.current = resetAfterSubmit;
 
   /** autoSendText 默认关闭(-1),这时 onTranscriptionComplete 永远不会被
@@ -109,20 +140,203 @@ export default memo(function AudioRecorder({
     wasSubmittingRef.current = isSubmitting;
   }, [isSubmitting, isListening, stopRecording]);
 
-  const handleStartRecording = async () => {
+  useEffect(() => {
+    if (!isHolding) {
+      return;
+    }
+
+    const startedAt = Date.now();
+    setElapsedSeconds(0);
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 250);
+
+    return () => window.clearInterval(timer);
+  }, [isHolding]);
+
+  useEffect(() => {
+    if (!isAwaitingTranscription) {
+      sawLoadingRef.current = false;
+      return;
+    }
+    if (isLoading) {
+      sawLoadingRef.current = true;
+      return;
+    }
+    if (!sawLoadingRef.current) {
+      return;
+    }
+
+    awaitingTranscriptionRef.current = false;
+    setIsAwaitingTranscription(false);
+    setIsVoiceMode(false);
+  }, [isAwaitingTranscription, isLoading]);
+
+  const finalizeRecording = useCallback(
+    (action: 'cancel' | 'transcribe') => {
+      pendingFinishRef.current = null;
+      isRecordingReadyRef.current = false;
+
+      if (action === 'cancel') {
+        cancelRecording();
+        setValue('text', existingTextRef.current, { shouldValidate: true });
+        setIsAwaitingTranscription(false);
+        awaitingTranscriptionRef.current = false;
+        return;
+      }
+
+      if (isExternalSTT(speechToTextEndpoint)) {
+        awaitingTranscriptionRef.current = true;
+        setIsAwaitingTranscription(true);
+        stopRecording();
+        return;
+      }
+
+      stopRecording();
+      setIsVoiceMode(false);
+    },
+    [cancelRecording, setValue, speechToTextEndpoint, stopRecording],
+  );
+
+  const finishHold = useCallback(
+    (action: 'cancel' | 'transcribe') => {
+      if (!isActiveHoldRef.current) {
+        return;
+      }
+
+      isActiveHoldRef.current = false;
+      isCancellingRef.current = false;
+      setIsHolding(false);
+      setIsCancelling(false);
+      activePointerIdRef.current = null;
+
+      if (!isRecordingReadyRef.current) {
+        pendingFinishRef.current = action;
+        return;
+      }
+
+      finalizeRecording(action);
+    },
+    [finalizeRecording],
+  );
+
+  const beginHold = useCallback(async () => {
+    if (disabled || isLoading || isAwaitingTranscription || isActiveHoldRef.current) {
+      return;
+    }
+
     existingTextRef.current = getValues('text') || '';
-    startRecording();
+    isActiveHoldRef.current = true;
+    isCancellingRef.current = false;
+    isRecordingReadyRef.current = false;
+    pendingFinishRef.current = null;
+    setIsCancelling(false);
+    setIsHolding(true);
+
+    const didStart = await Promise.resolve(startRecording());
+    if (!didStart) {
+      isActiveHoldRef.current = false;
+      isRecordingReadyRef.current = false;
+      pendingFinishRef.current = null;
+      setIsHolding(false);
+      setIsCancelling(false);
+      return;
+    }
+    isRecordingReadyRef.current = true;
+
+    const pendingFinish = pendingFinishRef.current;
+    if (pendingFinish) {
+      finalizeRecording(pendingFinish);
+    }
+  }, [disabled, finalizeRecording, getValues, isAwaitingTranscription, isLoading, startRecording]);
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button > 0 || disabled || isLoading || isAwaitingTranscription) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    activePointerIdRef.current = event.pointerId;
+    startYRef.current = event.clientY;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    void beginHold();
   };
 
-  const handleStopRecording = async () => {
-    stopRecording();
-    /** For browser STT, clear the reference since text was already being updated */
-    if (!isExternalSTT(speechToTextEndpoint)) {
-      existingTextRef.current = '';
+  const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (activePointerIdRef.current !== event.pointerId || !isActiveHoldRef.current) {
+      return;
     }
+
+    const shouldCancel = startYRef.current - event.clientY >= CANCEL_DISTANCE_PX;
+    if (shouldCancel === isCancellingRef.current) {
+      return;
+    }
+
+    isCancellingRef.current = shouldCancel;
+    setIsCancelling(shouldCancel);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (activePointerIdRef.current !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    finishHold(isCancellingRef.current ? 'cancel' : 'transcribe');
+  };
+
+  const handlePointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (activePointerIdRef.current !== event.pointerId) {
+      return;
+    }
+
+    event.stopPropagation();
+    finishHold('cancel');
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if ((event.key !== ' ' && event.key !== 'Enter') || event.repeat) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    void beginHold();
+  };
+
+  const handleKeyUp = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== ' ' && event.key !== 'Enter') {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    finishHold('transcribe');
+  };
+
+  const closeVoiceMode = () => {
+    if (isActiveHoldRef.current) {
+      finishHold('cancel');
+    }
+    setIsVoiceMode(false);
+  };
+
+  const toggleVoiceMode = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (isVoiceMode) {
+      closeVoiceMode();
+      return;
+    }
+    setIsVoiceMode(true);
   };
 
   const renderIcon = () => {
+    if (isVoiceMode) {
+      return <Keyboard className="stroke-life-ink" />;
+    }
     if (isListening === true) {
       return <MicOff className="stroke-red-500" />;
     }
@@ -132,25 +346,100 @@ export default memo(function AudioRecorder({
     return <ListeningIcon className="stroke-text-secondary" />;
   };
 
+  let holdLabel = localize('com_life_voice_hold');
+  let holdMeta = localize('com_life_voice_hold_help');
+  if (isHolding) {
+    holdLabel = localize('com_life_voice_release_transcribe');
+    holdMeta = `${localize('com_life_voice_slide_cancel')} · ${formatDuration(elapsedSeconds)}`;
+  }
+  if (isCancelling) {
+    holdLabel = localize('com_life_voice_release_cancel');
+    holdMeta = localize('com_life_voice_cancel_help');
+  }
+  if (isAwaitingTranscription) {
+    holdLabel = localize('com_life_voice_transcribing');
+    holdMeta = localize('com_life_voice_transcribing_help');
+  }
+
   return (
-    <TooltipAnchor
-      description={localize('com_ui_use_micrphone')}
-      render={
-        <button
-          id="audio-recorder"
-          type="button"
-          aria-label={localize('com_ui_use_micrphone')}
-          onClick={isListening === true ? handleStopRecording : handleStartRecording}
-          disabled={disabled}
-          className={cn(
-            'flex size-9 items-center justify-center rounded-full p-1 transition-colors hover:bg-surface-hover',
-          )}
-          title={localize('com_ui_use_micrphone')}
-          aria-pressed={isListening}
+    <>
+      {isVoiceMode && (
+        <div
+          role="group"
+          aria-label={localize('com_life_voice_mode')}
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] left-1/2 z-50 flex min-h-16 w-[calc(100vw-1rem)] max-w-3xl -translate-x-1/2 items-stretch gap-2 rounded-[4px] border border-life-rule bg-life-paper p-2 text-life-ink"
+          onClick={(event) => event.stopPropagation()}
         >
-          {renderIcon()}
-        </button>
-      }
-    />
+          <button
+            type="button"
+            aria-label={localize('com_life_voice_keyboard')}
+            onClick={closeVoiceMode}
+            disabled={isAwaitingTranscription}
+            className="flex min-h-12 min-w-12 items-center justify-center rounded-[4px] border border-life-rule text-life-muted transition-colors hover:border-life-ink hover:text-life-ink disabled:cursor-wait disabled:opacity-50"
+          >
+            <Keyboard className="size-5" />
+          </button>
+          <button
+            type="button"
+            aria-label={holdLabel}
+            aria-pressed={isHolding}
+            disabled={disabled || isAwaitingTranscription}
+            onContextMenu={(event) => event.preventDefault()}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+            onKeyDown={handleKeyDown}
+            onKeyUp={handleKeyUp}
+            className={cn(
+              'flex min-h-12 flex-1 touch-none select-none items-center justify-center gap-3 rounded-[4px] border px-4 font-life-sans transition-colors',
+              isAwaitingTranscription &&
+                'cursor-wait border-life-rule bg-life-paper-deep text-life-muted',
+              isCancelling && 'border-life-cinnabar bg-life-cinnabar text-life-paper',
+              isHolding && !isCancelling && 'border-life-moss bg-life-moss text-life-paper',
+              !isHolding &&
+                !isAwaitingTranscription &&
+                'border-life-ink/20 bg-life-paper text-life-ink hover:border-life-moss',
+            )}
+          >
+            {isAwaitingTranscription ? (
+              <Spinner className="size-5 stroke-life-muted" />
+            ) : (
+              <Mic className="size-5" />
+            )}
+            <span aria-live="polite" className="flex flex-col items-start leading-none">
+              <span className="text-life-sm font-medium">{holdLabel}</span>
+              <span className="mt-1 font-life-mono text-life-meta opacity-80">{holdMeta}</span>
+            </span>
+          </button>
+        </div>
+      )}
+      <TooltipAnchor
+        description={
+          isVoiceMode ? localize('com_life_voice_keyboard') : localize('com_ui_use_micrphone')
+        }
+        render={
+          <button
+            id="audio-recorder"
+            type="button"
+            aria-label={
+              isVoiceMode ? localize('com_life_voice_keyboard') : localize('com_ui_use_micrphone')
+            }
+            onClick={toggleVoiceMode}
+            disabled={disabled || isLoading}
+            className={cn(
+              'flex size-9 items-center justify-center rounded-full p-1 transition-colors hover:bg-surface-hover',
+              isVoiceMode && 'bg-life-paper-deep',
+            )}
+            title={
+              isVoiceMode ? localize('com_life_voice_keyboard') : localize('com_ui_use_micrphone')
+            }
+            aria-pressed={isVoiceMode}
+          >
+            {renderIcon()}
+          </button>
+        }
+      />
+    </>
   );
 });

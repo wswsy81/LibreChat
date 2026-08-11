@@ -107,6 +107,18 @@ describe('useSpeechToTextBrowser continuous dictation', () => {
     expect(mockStartListening).not.toHaveBeenCalled();
   });
 
+  it('cancelRecording stops listening and discards the accumulated transcript', () => {
+    mockListening = true;
+    const { result } = renderHook(() => useSpeechToTextBrowser(jest.fn(), jest.fn()));
+
+    act(() => {
+      result.current.cancelRecording();
+    });
+
+    expect(mockStopListening).toHaveBeenCalledTimes(1);
+    expect(mockResetTranscript).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores late browser transcripts after the message was submitted', () => {
     const setText = jest.fn();
     const { result, rerender } = renderHook(() => useSpeechToTextBrowser(setText, jest.fn()));

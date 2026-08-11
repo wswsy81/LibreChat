@@ -106,7 +106,7 @@ const useSpeechToTextBrowser = (
           : localize('com_ui_speech_not_supported'),
         status: 'error',
       });
-      return;
+      return false;
     }
 
     if (!isMicrophoneAvailable) {
@@ -114,7 +114,7 @@ const useSpeechToTextBrowser = (
         message: localize('com_ui_microphone_unavailable'),
         status: 'error',
       });
-      return;
+      return false;
     }
 
     if (!hasSpeechRecognitionController(SpeechRecognition)) {
@@ -124,11 +124,11 @@ const useSpeechToTextBrowser = (
           : localize('com_ui_speech_not_supported'),
         status: 'error',
       });
-      return;
+      return false;
     }
 
     if (isListening) {
-      return;
+      return false;
     }
 
     acceptingTranscripts.current = true;
@@ -136,6 +136,7 @@ const useSpeechToTextBrowser = (
       language: languageSTT,
       continuous: true,
     });
+    return true;
   }, [
     browserSupportsSpeechRecognition,
     isListening,
@@ -152,6 +153,20 @@ const useSpeechToTextBrowser = (
     }
     SpeechRecognition.stopListening();
   }, [isListening]);
+
+  const cancelRecording = useCallback(() => {
+    acceptingTranscripts.current = false;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (isListening && hasSpeechRecognitionController(SpeechRecognition)) {
+      SpeechRecognition.stopListening();
+    }
+    resetTranscript();
+    lastTranscript.current = null;
+    lastInterim.current = null;
+  }, [isListening, resetTranscript]);
 
   const toggleListening = useCallback(() => {
     if (isListening) {
@@ -190,6 +205,7 @@ const useSpeechToTextBrowser = (
   return {
     isListening,
     isLoading: false,
+    cancelRecording,
     startRecording,
     stopRecording,
     resetAfterSubmit,
