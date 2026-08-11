@@ -230,7 +230,8 @@ CANDIDATE_MANIFEST_SHA=$(sha256_file "$MANIFEST")
 if remote "set -e; root='$PRODUCTION_APP_DIR/.releases'; status=\"\$root/$RELEASE_ID.stage-status\"; transport=\"\$root/$RELEASE_ID.transport\"; test -s \"\$status\" -a -s \"\$transport\"; grep -qx 'schema=yiwei.release-stage-status.v1' \"\$status\"; grep -qx 'state=deployable' \"\$status\"; grep -qx 'candidate_env_sha256=$CANDIDATE_ENV_SHA' \"\$status\"; grep -qx 'candidate_manifest_sha256=$CANDIDATE_MANIFEST_SHA' \"\$status\"; grep -qx 'status=passed' \"\$transport\"; grep -qx 'candidate_env_sha256=$CANDIDATE_ENV_SHA' \"\$transport\"; grep -qx 'candidate_manifest_sha256=$CANDIDATE_MANIFEST_SHA' \"\$transport\"" >/dev/null 2>&1; then
   write_stage_status deployable already-staged
   printf 'already_deployable=true\n'
-  printf 'next=sudo bash deploy/apply-release.sh .releases/%s.env\n' "$RELEASE_ID"
+  printf 'next=ssh %s "cd %s && sudo bash deploy/apply-release.sh .releases/%s.env"\n' \
+    "$PRODUCTION_SSH" "$PRODUCTION_APP_DIR" "$RELEASE_ID"
   exit 0
 fi
 
@@ -387,4 +388,5 @@ trap - EXIT
 rm -rf -- "$TMP_DIR"
 
 printf 'staged_transport=%s\n' "$PRODUCTION_APP_DIR/.releases/$RELEASE_ID.transport"
-printf 'next=sudo bash deploy/apply-release.sh .releases/%s.env\n' "$RELEASE_ID"
+printf 'next=ssh %s "cd %s && sudo bash deploy/apply-release.sh .releases/%s.env"\n' \
+  "$PRODUCTION_SSH" "$PRODUCTION_APP_DIR" "$RELEASE_ID"

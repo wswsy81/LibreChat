@@ -303,7 +303,7 @@ client_artifact_sha256=$CLIENT_ONLY_SHA
 client_artifact_bytes=$CLIENT_ONLY_BYTES
 EOF
 
-APP_DIR_OVERRIDE="$APP_DIR" \
+CLIENT_STAGE_OUTPUT=$(APP_DIR_OVERRIDE="$APP_DIR" \
 RELEASE_ROOT="$RELEASE_ROOT" \
 PRODUCTION_SSH=fake \
 PRODUCTION_APP_DIR="$REMOTE_APP" \
@@ -314,12 +314,13 @@ SCP_BIN="$FAKE_BIN/scp" \
 ZSTD_BIN="$FAKE_BIN/zstd" \
 MIN_FREE_AFTER_STAGE_BYTES=1 \
 EXPANSION_PERCENT=1 \
-  bash "$SCRIPT_DIR/stage-release.sh" "$RELEASE_ROOT/$CLIENT_RELEASE_ID.env" >/dev/null
+  bash "$SCRIPT_DIR/stage-release.sh" "$RELEASE_ROOT/$CLIENT_RELEASE_ID.env")
 
 grep -qx 'transport_mode=artifact-only' "$REMOTE_APP/.releases/$CLIENT_RELEASE_ID.transport"
 grep -qx 'state=deployable' "$REMOTE_APP/.releases/$CLIENT_RELEASE_ID.stage-status"
 [[ -s "$REMOTE_APP/client-releases/$CLIENT_ONLY_SHA/index.html" ]]
 [[ $(wc -l < "$FAKE_STATE/backup.log") -eq 2 ]]
+grep -Fqx "next=ssh fake \"cd $REMOTE_APP && sudo bash deploy/apply-release.sh .releases/$CLIENT_RELEASE_ID.env\"" <<<"$CLIENT_STAGE_OUTPUT"
 
 chmod 640 "$REMOTE_APP/.release.env"
 if APP_DIR_OVERRIDE="$APP_DIR" \

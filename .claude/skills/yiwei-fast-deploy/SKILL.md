@@ -27,7 +27,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 7. 每个新候选必须携带 `yiwei.release-test-evidence.v1`，证据中的服务范围和 revision 必须与候选 manifest 完全一致；已有全绿候选在 apply 时只做 provenance、health 和 canary，不重复大套件。
 8. 镜像 staging 只用 `deploy/stage-release.sh <candidate.env>`：新候选必须以 OCI Registry digest 按缺失层 pull，旧候选才兼容 zstd save/load；transport 必须绑定 Registry ref、Linux 实际 image ID、`linux/amd64`、`user=node` 与 revision label。
 9. 新代码候选用可见的前台 staging 按 `candidate_ready_local -> staging -> deployable/failed` 推进；不使用会在 Codex 任务退出后丢失的 `nohup` 后台进程。
-10. 切换只用 `deploy/apply-release.sh <candidate.env>`。脚本核对 manifest、evidence、stage status、transport 与镜像 revision label，原子同步 `rules.v1.json` 和前端指针并生成 rollback；禁止同步整仓生产源码、直接改浮动 tag 或直接 `compose build/up`。
+10. 切换只在生产宿主 `/home/ubuntu/app/librechat` 执行 `deploy/apply-release.sh <candidate.env>`，必须逐字使用 `stage-release.sh` 输出的完整 `next=ssh ...` 命令；禁止在本地工作区运行 apply。脚本会在任何文件修改前拒绝非生产路径，并核对 manifest、evidence、stage status、transport 与镜像 revision label，原子同步 `rules.v1.json` 和前端指针并生成 rollback；禁止同步整仓生产源码、直接改浮动 tag 或直接 `compose build/up`。
 11. 一个候选 apply 失败后依赖自动回滚。只有在失败被证明为宿主发布脚本/权限问题、修复已有定向测试且无需重建时，才允许重试一次。第二次失败立即停止。
 12. 不在 2 核生产机上重跑已有证据的全量测试。复用与候选 revision 对应的本地全量结果，生产只跑 release 定向门禁与 canary。
 13. 任何测试文案都要用 trap 恢复，并比对恢复后 SHA。
@@ -57,7 +57,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 2. **候选优先**：比较候选双 digest、配置 SHA、transport 与运行版本。候选已全绿且尚未 stage，进入第 4 步；已经 stage，直接进入第 5 步。
 3. **自动分流并必要时构建**：分类器输出 `none`、`config-only`、`client-static`、`api-hotfix`、`engine-hotfix`、`ssh-source` 或 `full`。
 4. **可恢复 staging**：前台调用 `stage-release.sh`，Registry 只 pull 缺失层，生成 `deployable` 后才切换。
-5. **切换**：用同一候选 env 调用 `apply-release.sh`。脚本必须只 recreate digest 变化的服务，双 health 失败自动回滚。
+5. **切换**：逐字执行 staging 输出的完整远程命令，例如 `ssh tencentcloud2 "cd /home/ubuntu/app/librechat && sudo bash deploy/apply-release.sh .releases/<release>.env"`。不得在本地调用 apply；脚本必须只 recreate digest 变化的服务，双 health 失败自动回滚。
 6. **生产验收**：按 `references/definition-of-done.md` 的 fail-closed 原则检查：
    - `.release.env` 与容器 digest 一致，权限为 `0600` 且固定发布用户可读；
    - `user=node`、`restart=0`、`no-new-privileges:true`；

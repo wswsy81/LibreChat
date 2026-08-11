@@ -8,6 +8,8 @@ ENGINE_DIR=${ENGINE_DIR_OVERRIDE:-"$(cd -- "$APP_DIR/../future-engine-shim" && p
 ENGINE_SOURCE_DIR=${ENGINE_SOURCE_DIR_OVERRIDE:-"$ENGINE_DIR"}
 PROJECT_DIR=$(cd -- "$ENGINE_SOURCE_DIR/.." && pwd)
 RELEASE_ROOT=${RELEASE_ROOT:-"$APP_DIR/.releases"}
+PRODUCTION_APP_DIR=${PRODUCTION_APP_DIR:-/home/ubuntu/app/librechat}
+ALLOW_NONPRODUCTION_APPLY=${ALLOW_NONPRODUCTION_APPLY:-false}
 RUNTIME_CONFIG_DIR=${RUNTIME_CONFIG_DIR:-"$APP_DIR/runtime-config"}
 CLIENT_RELEASES_DIR=${CLIENT_RELEASES_DIR:-"$APP_DIR/client-releases"}
 SOURCE_OVERRIDE_FILE=${SOURCE_OVERRIDE_FILE:-"$APP_DIR/.release-source.override.yml"}
@@ -20,6 +22,15 @@ CANDIDATE=${1:-}
   echo "usage: bash deploy/apply-release.sh .releases/<release>.env" >&2
   exit 1
 }
+[[ "$ALLOW_NONPRODUCTION_APPLY" == true || "$ALLOW_NONPRODUCTION_APPLY" == false ]] || {
+  echo "ALLOW_NONPRODUCTION_APPLY must be true or false" >&2
+  exit 1
+}
+if [[ "$APP_DIR" != "$PRODUCTION_APP_DIR" && "$ALLOW_NONPRODUCTION_APPLY" != true ]]; then
+  echo "apply-release.sh must run on the production host in $PRODUCTION_APP_DIR" >&2
+  echo "run the exact remote command printed by stage-release.sh" >&2
+  exit 1
+fi
 [[ -f "$APP_DIR/.env" ]] || {
   echo "production .env is missing" >&2
   exit 1

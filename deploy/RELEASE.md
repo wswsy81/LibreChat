@@ -24,10 +24,10 @@
 8. 用候选 env 做一次秒级切换：
 
    ```bash
-   bash deploy/apply-release.sh .releases/B5-20260719.env
+   ssh tencentcloud2 'cd /home/ubuntu/app/librechat && sudo bash deploy/apply-release.sh .releases/B5-20260719.env'
    ```
 
-`apply-release.sh` 会先验证 v2 manifest、测试证据、`deployable` 状态、transport 证明与镜像内 revision label，保存当前两个容器的 image ID，原子同步 manifest 绑定的 `rules.v1.json` 和前端静态指针，然后只重建 image ID 真正变化的服务。健康失败会同时恢复旧 image ID、旧规则和旧前端；成功后才更新 `.release.env`。
+`apply-release.sh` 只能在生产宿主 `/home/ubuntu/app/librechat` 执行，必须逐字使用 staging 输出的完整 `next=ssh ...` 命令；本地调用会在修改任何文件前被拒绝。脚本会先验证 v2 manifest、测试证据、`deployable` 状态、transport 证明与镜像内 revision label，保存当前两个容器的 image ID，原子同步 manifest 绑定的 `rules.v1.json` 和前端静态指针，然后只重建 image ID 真正变化的服务。健康失败会同时恢复旧 image ID、旧规则和旧前端；成功后才更新 `.release.env`。
 
 ## 前端静态通道
 
@@ -35,7 +35,7 @@
 
 ```bash
 bash deploy/build-client-release.sh CLIENT-20260808T120000Z
-bash deploy/apply-release.sh .releases/CLIENT-20260808T120000Z.env
+ssh tencentcloud2 'cd /home/ubuntu/app/librechat && sudo bash deploy/apply-release.sh .releases/CLIENT-20260808T120000Z.env'
 ```
 
 前端产物以 tar.zst SHA 为不可变目录，`apply` 只原子切换 `client-releases/current` 指针。API 每次返回 SPA `index.html` 时从当前指针读取，静态文件立即生效；健康失败自动恢复上一个指针。首次切换会生成可再次 apply 的“移除指针”rollback；该通道不改业务数据，因此不重复导出 Mongo/Postgres。
@@ -50,7 +50,7 @@ bash deploy/apply-release.sh .releases/CLIENT-20260808T120000Z.env
 
 ```bash
 bash deploy/build-config-release.sh CONFIG-20260804T120000Z
-bash deploy/apply-release.sh .releases/CONFIG-20260804T120000Z.env
+ssh tencentcloud2 'cd /home/ubuntu/app/librechat && sudo bash deploy/apply-release.sh .releases/CONFIG-20260804T120000Z.env'
 ```
 
 两张 image digest 保持不变，`apply-release.sh` 只做配置 SHA 校验、备份、原子替换、双 health 和回滚产物。目标 1–3 分钟。纯 bank 文案继续走 `future-engine-shim/scripts/deploy-banks.sh` 热轨。
@@ -71,7 +71,7 @@ bash deploy/build-hotfix-release.sh future-engine ENGINE-HOTFIX-20260724T120000Z
 
 ```bash
 bash deploy/stage-release.sh .releases/ENGINE-HOTFIX-20260724T120000Z.env
-bash deploy/apply-release.sh .releases/ENGINE-HOTFIX-20260724T120000Z.env
+ssh tencentcloud2 'cd /home/ubuntu/app/librechat && sudo bash deploy/apply-release.sh .releases/ENGINE-HOTFIX-20260724T120000Z.env'
 ```
 
 这条路径会先生成 revision 绑定的测试证据，再只构建变化服务；不会跳过目标服务测试、不可变镜像、双健康、rollback manifest 或失败自动回滚。若前端与 Engine 同时变化，使用 `build-full-release.sh`。
@@ -90,7 +90,7 @@ bash deploy/compose.sh logs --since 10m api future-engine
 手动回滚仍走同一条发布路径：
 
 ```bash
-bash deploy/apply-release.sh .releases/B5-20260719.rollback.env
+ssh tencentcloud2 'cd /home/ubuntu/app/librechat && sudo bash deploy/apply-release.sh .releases/B5-20260719.rollback.env'
 ```
 
 `.release.env`、`.releases/*.env` 权限固定为 0600，不提交 Git。manifest 只记录 release ID、两个 Git revision、构建时间、image ID 和本地 tag，不含密钥。

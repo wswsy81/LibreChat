@@ -151,6 +151,16 @@ export FAKE_TRANSPORT_ENGINE="sha256:$(printf 'f%.0s' {1..64})"
 export APP_DIR_OVERRIDE="$APP_DIR"
 export ENGINE_DIR_OVERRIDE="$ENGINE_DIR"
 export RELEASE_ROOT
+LOCAL_APPLY_ERROR="$TEST_ROOT/local-apply.error"
+if ALLOW_NONPRODUCTION_APPLY=false \
+  bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/LOCAL-APPLY.env" \
+  >/dev/null 2>"$LOCAL_APPLY_ERROR"; then
+  echo 'apply-release accepted a local workspace invocation' >&2
+  exit 1
+fi
+grep -F 'must run on the production host' "$LOCAL_APPLY_ERROR" >/dev/null
+[[ ! -e "$APP_DIR/runtime-config" ]]
+export ALLOW_NONPRODUCTION_APPLY=true
 export LIBRECHAT_REVISION
 export ENGINE_REVISION
 LIBRECHAT_REVISION=$(git -C "$APP_DIR" rev-parse HEAD)
