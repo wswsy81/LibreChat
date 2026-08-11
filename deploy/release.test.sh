@@ -472,6 +472,18 @@ CLIENT_AUTH_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CL
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.identityOrIsolationChanged)' "$CLIENT_AUTH_CLASS") == true ]]
 
 CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+mkdir -p "$CLASSIFY_REPO/config" "$CLASSIFY_REPO/e2e/config"
+printf 'module.exports = {};\n' > "$CLASSIFY_REPO/config/invite-user.js"
+printf '#!/usr/bin/env bash\n' > "$CLASSIFY_REPO/gen-invite.sh"
+printf 'version: 1\n' > "$CLASSIFY_REPO/e2e/config/invite.yaml"
+printf 'export {};\n' > "$CLASSIFY_REPO/client/src/hooks/AuthInvite.tsx"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m client-invite-flow >/dev/null
+CLIENT_INVITE_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$CLIENT_INVITE_CLASS") == client-static ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.clientOnly)' "$CLIENT_INVITE_CLASS") == true ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.identityOrIsolationChanged)' "$CLIENT_INVITE_CLASS") == true ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
 mkdir -p "$CLASSIFY_REPO/packages/api/src/life"
 printf 'export {};\n' > "$CLASSIFY_REPO/packages/api/src/life/change.ts"
 git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m api >/dev/null
