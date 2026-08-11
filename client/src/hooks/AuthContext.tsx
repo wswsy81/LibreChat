@@ -202,7 +202,7 @@ const AuthContextProvider = ({
             baseUrl && (rawPath === baseUrl || rawPath.startsWith(baseUrl + '/'))
               ? rawPath.slice(baseUrl.length) || '/'
               : rawPath;
-          const currentUrl = `${strippedPath}${window.location.search}`;
+          const currentUrl = `${strippedPath}${window.location.search}${window.location.hash}`;
           const fallbackRedirect = isSafeRedirect(currentUrl) ? currentUrl : '/';
           const redirect =
             storedRedirect && isSafeRedirect(storedRedirect) ? storedRedirect : fallbackRedirect;

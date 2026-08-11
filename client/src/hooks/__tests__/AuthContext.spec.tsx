@@ -325,6 +325,29 @@ describe('AuthContextProvider — silentRefresh post-login redirect', () => {
     jest.useRealTimers();
   });
 
+  it('preserves the current hash when silent refresh restores a deep link', () => {
+    jest.useFakeTimers();
+    window.history.replaceState({}, '', '/me#me-sources');
+
+    renderProviderLive();
+
+    expect(mockRefreshMutate).toHaveBeenCalledTimes(1);
+    const [, refreshOptions] = mockRefreshMutate.mock.calls[0] as [
+      unknown,
+      { onSuccess: (data: unknown) => void },
+    ];
+
+    act(() => {
+      refreshOptions.onSuccess({ user: { id: '1', role: 'USER' }, token: 'new-token' });
+    });
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith('/me#me-sources', { replace: true });
+    jest.useRealTimers();
+  });
+
   it('does not re-trigger silentRefresh after successful redirect', () => {
     jest.useFakeTimers();
     sessionStorage.setItem(SESSION_KEY, '/c/abc?endpoint=bedrock');
