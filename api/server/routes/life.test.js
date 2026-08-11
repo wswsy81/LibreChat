@@ -367,8 +367,8 @@ test('authenticated bootstrap merges archive state with the latest valid convers
 
 test('self projection forwards the authenticated user to the read-only Engine view', async () => {
   mockEngine.json.mockResolvedValue({
-    schemaVersion: 1,
-    projection: { schemaVersion: 1, revision: 'projection_1234567890abcdef1234' },
+    schemaVersion: 2,
+    projection: { schemaVersion: 2, revision: 'projection_1234567890abcdef1234' },
     availability: { birthDraft: 'not_provided' },
   });
 

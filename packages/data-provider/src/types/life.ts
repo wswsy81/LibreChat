@@ -242,6 +242,48 @@ export interface LifeSelfProjectionItem {
   sourceIds: string[];
 }
 
+export type LifeSelfChapterId = 'actor' | 'agent' | 'author' | 'dynamics' | 'becoming';
+export type LifeSelfChapterItemStatus =
+  | LifeSelfProjectionItemStatus
+  | 'active'
+  | 'needs_adjustment'
+  | 'closed';
+
+export interface LifeSelfChapterItem {
+  id: string;
+  experimentId?: string;
+  kind: 'claim' | 'hypothesis' | 'experiment';
+  text: string;
+  status: LifeSelfChapterItemStatus;
+  sourceType: 'dossier' | 'compass' | 'experiment' | 'prototype' | 'signal';
+  sourceIds: string[];
+  dossierRef?: {
+    section: LifeDossierSection;
+    entryId: string;
+  };
+  conversationId?: string | null;
+  houseIds?: LifeHouseId[];
+  firstStep?: string | null;
+  expected?: string | null;
+  deadline?: string | null;
+  reviewAt?: string | null;
+  learning?: string | null;
+  nextAction?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface LifeSelfStateChainItem {
+  id: string;
+  at: string | null;
+  title: string;
+  detail: string | null;
+  status: string;
+  sourceType: 'experiment' | 'prototype' | 'signal' | 'life_map' | 'timeline';
+  sourceIds: string[];
+  houseIds: LifeHouseId[];
+  surfaces: Array<'experiments' | 'timeline' | 'life_map'>;
+}
+
 export interface LifeExactBirthField {
   certainty: 'exact';
   name: string;
@@ -268,7 +310,7 @@ export type LifeBirthDraftField =
   | LifeUnavailableBirthField;
 
 export interface LifeSelfProjection {
-  schemaVersion: 1;
+  schemaVersion: 2;
   revision: string;
   updatedAt: string | null;
   selfFormula: {
@@ -292,16 +334,20 @@ export interface LifeSelfProjection {
   coreTensions: LifeSelfProjectionItem[];
   confirmed: LifeSelfProjectionItem[];
   pending: LifeSelfProjectionItem[];
+  chapters: Record<LifeSelfChapterId, LifeSelfChapterItem[]>;
+  stateChain: LifeSelfStateChainItem[];
+  lifeWheel: LifeWheelView | null;
   subtreeRevisions: {
     self: string;
     birth: string;
     currentState: string;
     pending: string;
+    stateChain: string;
   };
 }
 
 export interface LifeSelfProjectionResponse {
-  schemaVersion: 1;
+  schemaVersion: 2;
   projection: LifeSelfProjection;
   availability: {
     birthDraft: LifeSelfProjectionAvailability;

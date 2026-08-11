@@ -45,12 +45,7 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
     !projection?.selfFormula?.text &&
     !confirmedSummary &&
     !projection?.currentState?.text;
-  const birthSummary = projection?.birthDraft.formula || null;
-  const selfSummary = realitySummary || birthSummary;
-  const birthFields = projection
-    ? [projection.birthDraft.sun, projection.birthDraft.moon, projection.birthDraft.rising]
-    : [];
-  const exactBirthFields = birthFields.filter((field) => field.certainty === 'exact');
+  const selfSummary = realitySummary;
 
   return (
     <main className="h-full overflow-y-auto bg-life-paper text-life-ink dark:bg-surface-secondary dark:text-gray-100">
@@ -194,22 +189,8 @@ export default function ReturningHome({ bootstrap }: { bootstrap: LifeBootstrapR
                   id="home-self-title"
                   className="font-life-mono text-life-meta tracking-[0.18em] text-life-cinnabar"
                 >
-                  {birthSummary && !realitySummary
-                    ? localize('com_life_home_archetype_title')
-                    : localize('com_life_home_self_title')}
+                  {localize('com_life_home_self_title')}
                 </p>
-                {!realitySummary && exactBirthFields.length > 0 && (
-                  <div className="mt-4 grid grid-cols-3 border-y border-life-rule py-3 text-center">
-                    {exactBirthFields.map((field, index) => (
-                      <span
-                        key={`${field.certainty}-${field.name}-${index}`}
-                        className="font-life-serif text-life-sm font-semibold text-life-ink"
-                      >
-                        {field.certainty === 'exact' ? field.name : ''}
-                      </span>
-                    ))}
-                  </div>
-                )}
                 <p className="mt-4 font-life-kai text-life-body leading-8 text-life-ink">
                   {selfSummary}
                 </p>

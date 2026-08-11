@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Check, Pencil, X } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button, useToastContext } from '@librechat/client';
 import type {
-  LifeBirthDraftField,
   LifeDossierAction,
-  LifeDossierSection,
-  LifeSelfProjectionItem,
+  LifeSelfChapterId,
+  LifeSelfChapterItem,
 } from 'librechat-data-provider';
 import BasicsForm from '../components/BasicsForm';
 import { LifeError, LifeLoading } from '../components/PageState';
@@ -18,48 +17,73 @@ import {
 import type { TranslationKeys } from '~/hooks';
 import { useLocalize } from '~/hooks';
 
-const ANNOTATABLE_SECTIONS = new Set<LifeDossierSection>([
-  'chapters',
-  'scenes',
-  'traits',
-  'tensions',
-  'language',
-]);
+const CHAPTERS: Array<{
+  id: LifeSelfChapterId;
+  anchor: string;
+  eyebrow: TranslationKeys;
+  title: TranslationKeys;
+}> = [
+  {
+    id: 'actor',
+    anchor: 'me-actor',
+    eyebrow: 'com_life_me_actor_eyebrow',
+    title: 'com_life_me_actor_title',
+  },
+  {
+    id: 'agent',
+    anchor: 'me-agent',
+    eyebrow: 'com_life_me_agent_eyebrow',
+    title: 'com_life_me_agent_title',
+  },
+  {
+    id: 'author',
+    anchor: 'me-author',
+    eyebrow: 'com_life_me_author_eyebrow',
+    title: 'com_life_me_author_title',
+  },
+  {
+    id: 'dynamics',
+    anchor: 'me-dynamics',
+    eyebrow: 'com_life_me_dynamics_eyebrow',
+    title: 'com_life_me_dynamics_title',
+  },
+  {
+    id: 'becoming',
+    anchor: 'me-becoming',
+    eyebrow: 'com_life_me_becoming_eyebrow',
+    title: 'com_life_me_becoming_title',
+  },
+];
 
-const SECTION_KEYS: Record<LifeSelfProjectionItem['section'], TranslationKeys> = {
-  chapters: 'com_life_me_section_chapters',
-  scenes: 'com_life_me_section_scenes',
-  traits: 'com_life_me_section_traits',
-  tensions: 'com_life_me_section_tensions',
-  language: 'com_life_me_section_language',
-  blindspots: 'com_life_me_section_blindspots',
-};
-
-const STATUS_KEYS: Record<LifeSelfProjectionItem['status'], TranslationKeys> = {
+const STATUS_KEYS: Record<LifeSelfChapterItem['status'], TranslationKeys> = {
   confirmed: 'com_life_me_status_confirmed',
   user_rewrite: 'com_life_me_status_rewrite',
   pending: 'com_life_me_status_pending',
+  active: 'com_life_me_status_active',
+  needs_adjustment: 'com_life_me_status_needs_adjustment',
+  closed: 'com_life_me_status_closed',
 };
 
-const BIRTH_LABEL_KEYS = {
-  sun: 'com_life_me_birth_sun',
-  moon: 'com_life_me_birth_moon',
-  rising: 'com_life_me_birth_rising',
-} as const satisfies Record<string, TranslationKeys>;
-
-function dossierEntryId(item: LifeSelfProjectionItem): string | null {
-  if (!ANNOTATABLE_SECTIONS.has(item.section as LifeDossierSection)) return null;
-  const prefix = `dossier:${item.section}:`;
-  return item.id.startsWith(prefix) ? item.id.slice(prefix.length) : null;
+function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
+  return (
+    <header className="mb-7">
+      <p className="font-life-mono text-life-meta tracking-[0.18em] text-life-moss dark:text-emerald-400">
+        {eyebrow}
+      </p>
+      <h2 className="mt-3 text-pretty font-life-serif text-life-title font-semibold leading-tight text-life-ink dark:text-gray-100 sm:text-life-display">
+        {title}
+      </h2>
+    </header>
+  );
 }
 
-function ProjectionItem({
+function ChapterItem({
   item,
   mergeTarget,
   readonly = false,
 }: {
-  item: LifeSelfProjectionItem;
-  mergeTarget?: LifeSelfProjectionItem | null;
+  item: LifeSelfChapterItem;
+  mergeTarget?: LifeSelfChapterItem | null;
   readonly?: boolean;
 }) {
   const localize = useLocalize();
@@ -67,19 +91,19 @@ function ProjectionItem({
   const annotate = useLifeDossierAnnotateMutation();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(item.text);
-  const entryId = dossierEntryId(item);
+  const dossierRef = item.dossierRef;
 
   const submit = (action: LifeDossierAction) => {
-    if (!entryId || annotate.isLoading) return;
-    const targetEntryId = mergeTarget ? dossierEntryId(mergeTarget) : null;
-    if (action === 'merge' && !targetEntryId) return;
+    if (!dossierRef || annotate.isLoading) return;
+    const targetRef = mergeTarget?.dossierRef;
+    if (action === 'merge' && !targetRef) return;
     annotate.mutate(
       {
-        section: item.section as LifeDossierSection,
-        entryId,
+        section: dossierRef.section,
+        entryId: dossierRef.entryId,
         action,
         ...(action === 'rewrite' ? { text: text.trim() } : {}),
-        ...(action === 'merge' ? { targetEntryId: targetEntryId as string } : {}),
+        ...(action === 'merge' ? { targetEntryId: targetRef?.entryId as string } : {}),
       },
       {
         onSuccess: () => {
@@ -93,11 +117,24 @@ function ProjectionItem({
   };
 
   return (
-    <article className="border-t border-life-rule py-5 first:border-t-0 first:pt-0">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-life-mono text-life-meta tracking-[0.12em]">
-        <span className="text-life-moss">{localize(STATUS_KEYS[item.status])}</span>
-        <span className="text-life-muted">{localize(SECTION_KEYS[item.section])}</span>
+    <article className="border-t border-life-rule py-6 first:border-t-0 first:pt-0 dark:border-white/10">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-life-mono text-life-meta tracking-[0.1em]">
+        <span
+          className={
+            item.status === 'pending' || item.status === 'needs_adjustment'
+              ? 'text-life-brass'
+              : 'text-life-moss dark:text-emerald-400'
+          }
+        >
+          {localize(STATUS_KEYS[item.status])}
+        </span>
+        {item.houseIds?.length ? (
+          <span className="text-life-muted dark:text-gray-500">
+            {localize('com_life_me_linked_domains', { 0: String(item.houseIds.length) })}
+          </span>
+        ) : null}
       </div>
+
       {editing ? (
         <div className="mt-3">
           <label className="grid gap-2">
@@ -135,87 +172,101 @@ function ProjectionItem({
           </div>
         </div>
       ) : (
-        <p className="mt-3 max-w-[34em] font-life-kai text-life-body leading-8 text-life-ink">
+        <p className="mt-3 max-w-[36em] text-pretty font-life-kai text-life-body leading-8 text-life-ink dark:text-gray-200">
           {item.text}
         </p>
       )}
 
-      {!readonly && !editing && entryId && (
-        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-          {item.status === 'pending' && (
-            <button
-              type="button"
-              disabled={annotate.isLoading}
-              onClick={() => submit('keep')}
-              className="inline-flex min-h-11 items-center font-life-sans text-life-sm text-life-moss hover:text-life-ink disabled:opacity-50"
-            >
-              <Check className="mr-1.5 h-4 w-4" aria-hidden="true" />
-              {localize('com_life_me_like_me')}
-            </button>
-          )}
-          <button
-            type="button"
-            disabled={annotate.isLoading}
-            onClick={() => setEditing(true)}
-            className="inline-flex min-h-11 items-center font-life-sans text-life-sm text-life-brass hover:text-life-ink disabled:opacity-50"
-          >
-            <Pencil className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {localize('com_life_me_rewrite')}
-          </button>
-          <button
-            type="button"
-            disabled={annotate.isLoading}
-            onClick={() => submit('strike')}
-            className="inline-flex min-h-11 items-center font-life-sans text-life-sm text-life-cinnabar hover:text-life-ink disabled:opacity-50"
-          >
-            <X className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {localize('com_life_me_not_me')}
-          </button>
-          {mergeTarget?.section === item.section && (
-            <button
-              type="button"
-              disabled={annotate.isLoading}
-              onClick={() => submit('merge')}
-              className="inline-flex min-h-11 items-center font-life-sans text-life-sm text-life-muted hover:text-life-ink disabled:opacity-50"
-            >
-              {localize('com_life_me_merge_previous')}
-            </button>
-          )}
-        </div>
-      )}
-    </article>
-  );
-}
+      {item.firstStep || item.learning || item.nextAction ? (
+        <dl className="mt-5 grid max-w-[36em] gap-3 border-l-2 border-life-rule pl-4 dark:border-white/20">
+          {item.firstStep ? (
+            <div>
+              <dt className="font-life-mono text-life-meta tracking-[0.1em] text-life-muted">
+                {localize('com_life_me_experiment_action')}
+              </dt>
+              <dd className="mt-1 font-life-sans text-life-sm leading-7 text-life-ink dark:text-gray-300">
+                {item.firstStep}
+              </dd>
+            </div>
+          ) : null}
+          {item.learning ? (
+            <div>
+              <dt className="font-life-mono text-life-meta tracking-[0.1em] text-life-muted">
+                {localize('com_life_me_experiment_learning')}
+              </dt>
+              <dd className="mt-1 font-life-sans text-life-sm leading-7 text-life-ink dark:text-gray-300">
+                {item.learning}
+              </dd>
+            </div>
+          ) : null}
+          {item.nextAction ? (
+            <div>
+              <dt className="font-life-mono text-life-meta tracking-[0.1em] text-life-muted">
+                {localize('com_life_me_experiment_next')}
+              </dt>
+              <dd className="mt-1 font-life-sans text-life-sm leading-7 text-life-ink dark:text-gray-300">
+                {item.nextAction}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      ) : null}
 
-function BirthField({ label, field }: { label: TranslationKeys; field: LifeBirthDraftField }) {
-  const localize = useLocalize();
-  let value = localize('com_life_me_birth_unavailable');
-  let certainty = localize('com_life_me_birth_certainty_unavailable');
-  if (field.certainty === 'exact') {
-    value = field.sign ? `${field.sign}／${field.name}` : field.name;
-    certainty = localize('com_life_me_birth_certainty_exact');
-  } else if (field.certainty === 'candidate') {
-    value = field.candidates.join(' · ');
-    certainty = localize('com_life_me_birth_certainty_candidate');
-  }
-  return (
-    <div className="grid gap-3 border-t border-life-rule py-4 sm:grid-cols-[120px_minmax(0,1fr)_auto] sm:items-baseline">
-      <p className="font-life-serif text-life-lead font-semibold">{localize(label)}</p>
-      <div>
-        <p className="font-life-sans text-life-body text-life-ink">{value}</p>
-        <p className="mt-1 font-life-kai text-life-sm leading-7 text-life-muted">{field.meaning}</p>
+      <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+        {item.conversationId ? (
+          <Link
+            to={`/c/${encodeURIComponent(item.conversationId)}`}
+            className="inline-flex min-h-11 items-center font-life-sans text-life-sm text-life-moss hover:text-life-ink dark:text-emerald-400"
+          >
+            {localize('com_life_me_open_experiment')}
+            <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+          </Link>
+        ) : null}
+        {!readonly && !editing && dossierRef ? (
+          <>
+            {item.status === 'pending' ? (
+              <button
+                type="button"
+                disabled={annotate.isLoading}
+                onClick={() => submit('keep')}
+                className="inline-flex min-h-11 items-center font-life-sans text-life-sm text-life-moss hover:text-life-ink disabled:opacity-50"
+              >
+                <Check className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                {localize('com_life_me_like_me')}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={annotate.isLoading}
+              onClick={() => setEditing(true)}
+              className="inline-flex min-h-11 items-center font-life-sans text-life-sm text-life-brass hover:text-life-ink disabled:opacity-50"
+            >
+              <Pencil className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              {localize('com_life_me_rewrite')}
+            </button>
+            <button
+              type="button"
+              disabled={annotate.isLoading}
+              onClick={() => submit('strike')}
+              className="inline-flex min-h-11 items-center font-life-sans text-life-sm text-life-cinnabar hover:text-life-ink disabled:opacity-50"
+            >
+              <X className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              {localize('com_life_me_not_me')}
+            </button>
+            {mergeTarget?.dossierRef?.section === dossierRef.section ? (
+              <button
+                type="button"
+                disabled={annotate.isLoading}
+                onClick={() => submit('merge')}
+                className="inline-flex min-h-11 items-center font-life-sans text-life-sm text-life-muted hover:text-life-ink disabled:opacity-50"
+              >
+                {localize('com_life_me_merge_previous')}
+              </button>
+            ) : null}
+          </>
+        ) : null}
       </div>
-      <p className="font-life-mono text-life-meta tracking-[0.1em] text-life-brass">{certainty}</p>
-    </div>
-  );
-}
-
-function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
-  return (
-    <header className="mb-6">
-      <p className="font-life-mono text-life-meta tracking-[0.18em] text-life-moss">{eyebrow}</p>
-      <h2 className="mt-3 font-life-serif text-life-title font-semibold leading-tight">{title}</h2>
-    </header>
+    </article>
   );
 }
 
@@ -232,9 +283,7 @@ export default function MeRoute({ embedded = false }: { embedded?: boolean }) {
     });
   }, [embedded, query.data]);
 
-  if (query.isLoading) {
-    return <LifeLoading />;
-  }
+  if (query.isLoading) return <LifeLoading />;
   if (query.isError || !query.data) {
     return (
       <LifeError
@@ -246,258 +295,116 @@ export default function MeRoute({ embedded = false }: { embedded?: boolean }) {
     );
   }
 
-  const { projection, availability } = query.data;
-  const confirmed = projection.confirmed.filter((item) => item.section !== 'tensions');
-  const hasReality = Boolean(
-    projection.selfFormula ||
-      projection.currentState ||
-      projection.coreTensions.length ||
-      confirmed.length ||
-      projection.pending.length,
-  );
-  const hasBirth =
-    projection.birthDraft.status !== 'unavailable' ||
-    availability.birthDraft === 'temporarily_unavailable';
+  const { projection } = query.data;
   const latestUnscoped = bootstrap.data?.unscopedConversations?.[0] ?? null;
-
-  let birthContent;
-  if (availability.birthDraft === 'temporarily_unavailable') {
-    birthContent = (
-      <p
-        role="status"
-        className="max-w-[34em] font-life-kai text-life-body leading-8 text-life-muted"
-      >
-        {localize('com_life_me_birth_temporarily_unavailable')}
-      </p>
-    );
-  } else if (hasBirth) {
-    birthContent = (
-      <>
-        {projection.birthDraft.formula && (
-          <blockquote className="mb-7 max-w-[30em] border-l-2 border-life-brass pl-5 font-life-serif text-life-lead font-semibold leading-[1.7]">
-            {projection.birthDraft.formula}
-          </blockquote>
-        )}
-        <div className="border-b border-life-rule">
-          <BirthField label={BIRTH_LABEL_KEYS.sun} field={projection.birthDraft.sun} />
-          <BirthField label={BIRTH_LABEL_KEYS.moon} field={projection.birthDraft.moon} />
-          <BirthField label={BIRTH_LABEL_KEYS.rising} field={projection.birthDraft.rising} />
-        </div>
-        <p className="mt-5 max-w-[34em] font-life-kai text-life-sm leading-7 text-life-muted">
-          {projection.birthDraft.status === 'complete'
-            ? localize('com_life_me_birth_complete_help')
-            : localize('com_life_me_birth_partial_help')}
-        </p>
-      </>
-    );
-  } else {
-    birthContent = (
-      <div className="max-w-[34em] border-l-2 border-life-rule pl-5">
-        <p className="font-life-kai text-life-body leading-8 text-life-muted">
-          {localize('com_life_me_birth_empty')}
-        </p>
-        <Link
-          to="/me#me-basics"
-          className="mt-3 inline-flex min-h-11 items-center border-b border-life-moss font-life-sans text-life-sm font-medium text-life-moss hover:text-life-ink"
-        >
-          {localize('com_life_me_add_birth')}
-          <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-        </Link>
-      </div>
-    );
-  }
-
-  const birthSection = (
-    <section className="border-t border-life-ink/70 py-10 sm:py-12" id="me-birth">
-      <SectionTitle
-        eyebrow={localize('com_life_me_birth_eyebrow')}
-        title={localize('com_life_me_birth_title')}
-      />
-      {birthContent}
-    </section>
+  const hasChapterContent = CHAPTERS.some((chapter) => projection.chapters[chapter.id].length);
+  const hasReality = Boolean(
+    projection.currentState || projection.selfFormula || hasChapterContent,
   );
-
-  const Heading = embedded ? 'h2' : 'h1';
 
   return (
     <div
       role={embedded ? undefined : 'main'}
-      className={embedded ? 'text-life-ink' : 'h-full overflow-y-auto bg-life-paper text-life-ink'}
+      className={
+        embedded
+          ? 'text-life-ink dark:text-gray-100'
+          : 'h-full overflow-y-auto bg-life-paper text-life-ink dark:bg-surface-secondary dark:text-gray-100'
+      }
     >
       <div className={embedded ? '' : 'mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 lg:py-14'}>
-        <header className="max-w-4xl border-b border-life-ink/70 pb-8">
-          <p className="font-life-mono text-life-meta tracking-[0.22em] text-life-cinnabar">
+        <section
+          id="me-current"
+          className="scroll-mt-8 border-y border-life-ink/70 py-8 dark:border-white/30 sm:py-10"
+        >
+          <p className="font-life-mono text-life-meta tracking-[0.2em] text-life-cinnabar dark:text-[#D98A76]">
             {localize('com_life_me_eyebrow')}
           </p>
-          <Heading className="mt-4 font-life-serif text-life-title font-black leading-tight sm:text-life-display">
+          <h2 className="mt-4 font-life-serif text-life-title font-black leading-tight text-life-ink dark:text-gray-100 sm:text-life-display">
             {localize('com_life_me_title')}
-          </Heading>
-          <p className="mt-5 max-w-[34em] font-life-sans text-life-body leading-8 text-life-muted">
-            {localize('com_life_me_description')}
-          </p>
-          <p className="mt-4 max-w-[34em] border-l-2 border-life-cinnabar pl-4 font-life-kai text-life-sm leading-7 text-life-muted">
+          </h2>
+          {projection.currentState ? (
+            <p className="mt-5 max-w-[36em] text-pretty font-life-kai text-life-lead leading-9 text-life-ink dark:text-gray-200">
+              {projection.currentState.text}
+            </p>
+          ) : (
+            <p className="mt-5 max-w-[36em] font-life-sans text-life-body leading-8 text-life-muted dark:text-gray-400">
+              {localize('com_life_me_description')}
+            </p>
+          )}
+          {projection.selfFormula ? (
+            <blockquote className="mt-6 max-w-[34em] border-l-2 border-life-cinnabar pl-5 font-life-serif text-life-lead font-semibold leading-[1.8] text-life-ink dark:text-gray-100">
+              {projection.selfFormula.text}
+            </blockquote>
+          ) : null}
+          <p className="mt-5 max-w-[36em] font-life-kai text-life-sm leading-7 text-life-muted dark:text-gray-400">
             {localize('com_life_me_not_assessment')}
           </p>
-        </header>
+        </section>
 
-        {!hasReality && !hasBirth ? (
-          <section className="py-10 sm:py-12" aria-labelledby="me-empty-title">
-            <p className="font-life-mono text-life-meta tracking-[0.18em] text-life-moss">
-              {localize('com_life_me_empty_eyebrow')}
-            </p>
-            <h2 id="me-empty-title" className="mt-3 font-life-serif text-life-title font-semibold">
-              {latestUnscoped
-                ? localize('com_life_me_saved_title')
-                : localize('com_life_me_empty_title')}
-            </h2>
-            <p className="mt-4 max-w-[34em] font-life-kai text-life-body leading-8 text-life-muted">
+        {!hasReality ? (
+          <div className="border-b border-life-rule py-7 dark:border-white/10">
+            <p className="max-w-[36em] font-life-kai text-life-body leading-8 text-life-muted dark:text-gray-400">
               {latestUnscoped
                 ? localize('com_life_me_saved_help')
                 : localize('com_life_me_empty_help')}
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                to={latestUnscoped ? `/c/${latestUnscoped.conversationId}` : '/c/new'}
-                className="inline-flex min-h-12 items-center rounded-[4px] bg-life-moss px-5 font-life-sans text-life-sm font-medium text-life-paper hover:bg-life-moss-deep"
-              >
-                {latestUnscoped
-                  ? localize('com_life_me_resume_saved_chat')
-                  : localize('com_life_me_direct_chat')}
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-              </Link>
-              <Link
-                to="/me#me-basics"
-                className="inline-flex min-h-12 items-center rounded-[4px] border border-life-rule px-5 font-life-sans text-life-sm font-medium text-life-ink hover:border-life-ink"
-              >
-                {localize('com_life_me_add_birth')}
-              </Link>
-            </div>
-          </section>
-        ) : (
-          <>
-            {!hasReality && birthSection}
-            {projection.selfFormula && (
-              <section className="py-10 sm:py-12">
-                <p className="font-life-mono text-life-meta tracking-[0.18em] text-life-moss">
-                  {projection.selfFormula.basis === 'user_rewrite'
-                    ? localize('com_life_me_formula_rewritten')
-                    : localize('com_life_me_formula_confirmed')}
-                </p>
-                <blockquote className="mt-4 max-w-[30em] font-life-serif text-life-title font-semibold leading-[1.75]">
-                  <span className="mr-2 text-life-cinnabar">“</span>
-                  {projection.selfFormula.text}
-                  <span className="ml-1 text-life-cinnabar">”</span>
-                </blockquote>
-              </section>
-            )}
-            {projection.currentState && (
-              <section className="border-t border-life-ink/70 py-10 sm:py-12">
-                <SectionTitle
-                  eyebrow={localize('com_life_me_current_eyebrow')}
-                  title={localize('com_life_me_current_title')}
-                />
-                <p className="max-w-[34em] font-life-kai text-life-lead leading-9">
-                  {projection.currentState.text}
-                </p>
-              </section>
-            )}
-            {projection.coreTensions.length > 0 && (
-              <section className="border-t border-life-ink/70 py-10 sm:py-12">
-                <SectionTitle
-                  eyebrow={localize('com_life_me_tensions_eyebrow')}
-                  title={localize('com_life_me_tensions_title')}
-                />
-                {projection.coreTensions
-                  .slice(0, embedded ? 3 : undefined)
-                  .map((item, index, items) => (
-                    <ProjectionItem
-                      key={item.id}
-                      item={item}
-                      mergeTarget={items[index - 1]}
-                      readonly={embedded}
-                    />
-                  ))}
-              </section>
-            )}
-            {confirmed.length > 0 && (
-              <section className="border-t border-life-ink/70 py-10 sm:py-12">
-                <SectionTitle
-                  eyebrow={localize('com_life_me_confirmed_eyebrow')}
-                  title={localize('com_life_me_confirmed_title')}
-                />
-                {confirmed.slice(0, embedded ? 3 : undefined).map((item, index, items) => (
-                  <ProjectionItem
-                    key={item.id}
-                    item={item}
-                    readonly={embedded}
-                    mergeTarget={items
-                      .slice(0, index)
-                      .reverse()
-                      .find((prior) => prior.section === item.section)}
-                  />
-                ))}
-              </section>
-            )}
-            {projection.pending.length > 0 && (
-              <section
-                id="me-pending"
-                className="scroll-mt-6 border-t border-life-ink/70 py-10 sm:py-12"
-              >
-                <SectionTitle
-                  eyebrow={localize('com_life_me_pending_eyebrow')}
-                  title={localize('com_life_me_pending_title')}
-                />
-                <p className="mb-6 max-w-[34em] font-life-kai text-life-sm leading-7 text-life-muted">
-                  {localize('com_life_me_pending_help')}
-                </p>
-                {projection.pending.slice(0, embedded ? 3 : undefined).map((item, index, items) => (
-                  <ProjectionItem
-                    key={item.id}
-                    item={item}
-                    readonly={embedded}
-                    mergeTarget={items
-                      .slice(0, index)
-                      .reverse()
-                      .find((prior) => prior.section === item.section)}
-                  />
-                ))}
-              </section>
-            )}
-            {hasReality && birthSection}
-          </>
-        )}
-
-        {!embedded && (
-          <>
-            <section
-              id="me-basics"
-              className="scroll-mt-6 border-t border-life-ink/70 py-10 sm:py-12"
+            <Link
+              to={latestUnscoped ? `/c/${latestUnscoped.conversationId}` : '/c/new'}
+              className="mt-5 inline-flex min-h-11 items-center border-b border-life-moss font-life-sans text-life-sm font-medium text-life-moss hover:text-life-ink dark:text-emerald-400"
             >
-              <SectionTitle
-                eyebrow={localize('com_life_me_basics_eyebrow')}
-                title={localize('com_life_me_basics_title')}
-              />
-              <BasicsForm />
-            </section>
+              {latestUnscoped
+                ? localize('com_life_me_resume_saved_chat')
+                : localize('com_life_me_direct_chat')}
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+        ) : null}
 
-            <section className="border-t border-life-ink/70 py-10 sm:py-12">
-              <SectionTitle
-                eyebrow={localize('com_life_me_archive_eyebrow')}
-                title={localize('com_life_me_archive_title')}
-              />
-              <p className="max-w-[34em] font-life-sans text-life-sm leading-7 text-life-muted">
-                {localize('com_life_me_archive_help')}
-              </p>
-              <Link
-                to="/archive"
-                className="mt-5 inline-flex min-h-11 items-center border-b border-life-moss font-life-sans text-life-sm font-medium text-life-moss hover:text-life-ink"
-              >
-                {localize('com_life_me_open_archive')}
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-              </Link>
+        {CHAPTERS.map((chapter) => {
+          const items = projection.chapters[chapter.id];
+          return (
+            <section
+              key={chapter.id}
+              id={chapter.anchor}
+              className="scroll-mt-8 border-b border-life-ink/70 py-10 dark:border-white/30 sm:py-12"
+            >
+              <SectionTitle eyebrow={localize(chapter.eyebrow)} title={localize(chapter.title)} />
+              {items.length ? (
+                items.map((item, index) => (
+                  <ChapterItem
+                    key={item.id}
+                    item={item}
+                    readonly={false}
+                    mergeTarget={items
+                      .slice(0, index)
+                      .reverse()
+                      .find((prior) =>
+                        Boolean(
+                          prior.dossierRef &&
+                            item.dossierRef &&
+                            prior.dossierRef.section === item.dossierRef.section,
+                        ),
+                      )}
+                  />
+                ))
+              ) : (
+                <p className="max-w-[36em] font-life-kai text-life-body leading-8 text-life-muted dark:text-gray-400">
+                  {localize('com_life_me_chapter_empty')}
+                </p>
+              )}
             </section>
-          </>
-        )}
+          );
+        })}
+
+        {!embedded ? (
+          <section id="me-basics" className="scroll-mt-8 py-10 sm:py-12">
+            <SectionTitle
+              eyebrow={localize('com_life_me_basics_eyebrow')}
+              title={localize('com_life_me_basics_title')}
+            />
+            <BasicsForm />
+          </section>
+        ) : null}
       </div>
     </div>
   );
