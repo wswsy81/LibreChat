@@ -71,10 +71,10 @@ jest.mock('../../components/PageState', () => ({
   LifeLoading: () => <div data-testid="loading" />,
 }));
 
-const renderMe = (path = '/me') =>
+const renderMe = (path = '/me', embedded = false) =>
   render(
     <MemoryRouter initialEntries={[path]}>
-      <MeRoute />
+      <MeRoute embedded={embedded} />
     </MemoryRouter>,
   );
 
@@ -126,6 +126,15 @@ test('完全无资料仍明确可以直接开始，不生成公式或三张空�
   expect(screen.queryByText('com_life_me_birth_sun')).not.toBeInTheDocument();
   expect(screen.queryByText('com_life_me_formula_confirmed')).not.toBeInTheDocument();
   expect(screen.getByTestId('basics-form')).toBeInTheDocument();
+});
+
+test('作为统一我页面封面嵌入时不重复基本资料和人生档案入口', () => {
+  renderMe('/me', true);
+
+  expect(screen.queryByTestId('basics-form')).not.toBeInTheDocument();
+  expect(screen.queryByText('com_life_me_archive_title')).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /com_life_me_open_archive/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { level: 2, name: 'com_life_me_title' })).toBeInTheDocument();
 });
 
 test('部分生辰只展示可靠字段和候选，不拼残缺公式；待判断可以认领', async () => {

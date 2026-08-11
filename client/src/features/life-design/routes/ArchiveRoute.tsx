@@ -1,6 +1,6 @@
-import { ArrowRight } from 'lucide-react';
-import { Button } from '@librechat/client';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useLifeArchiveQuery, useLifeBootstrapQuery } from '~/data-provider';
 import { formatLifeDate, formatLifeTimelineWhen } from '../utils/date';
 import { PUBLIC_MAP_LABEL_KEYS } from '../components/PublicMistMap';
@@ -9,6 +9,7 @@ import ArchiveDossier from '../components/ArchiveDossier';
 import ArchiveMistMap from '../components/ArchiveMistMap';
 import BasicsForm from '../components/BasicsForm';
 import { useLocalize } from '~/hooks';
+import MeRoute from './MeRoute';
 
 const dateText = (value?: string | null) => formatLifeDate(value, { dateStyle: 'medium' });
 
@@ -48,17 +49,20 @@ function ArchiveSection({
   eyebrow,
   title,
   sectionLabel,
+  sectionIndex,
   children,
 }: {
   id: string;
   eyebrow: string;
   title: string;
   sectionLabel: string;
+  sectionIndex: string;
   children: React.ReactNode;
 }) {
   return (
     <section
       id={id}
+      data-section-index={sectionIndex}
       className="scroll-mt-8 border-t border-life-ink/70 py-10 dark:border-white/30 sm:py-12"
     >
       <div className="grid gap-5 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-7">
@@ -82,8 +86,21 @@ function ArchiveSection({
 export default function ArchiveRoute() {
   const localize = useLocalize();
   const navigate = useNavigate();
+  const location = useLocation();
   const archive = useLifeArchiveQuery();
   const bootstrap = useLifeBootstrapQuery();
+  const [basicsOpen, setBasicsOpen] = useState(location.hash === '#me-basics');
+
+  useEffect(() => {
+    if (location.hash === '#me-basics') setBasicsOpen(true);
+  }, [location.hash]);
+
+  useEffect(() => {
+    if (!basicsOpen || location.hash !== '#me-basics') return;
+    window.requestAnimationFrame(() => {
+      document.getElementById('me-basics')?.scrollIntoView({ block: 'start' });
+    });
+  }, [archive.data, basicsOpen, location.hash]);
 
   if (archive.isLoading) {
     return <LifeLoading />;
@@ -107,17 +124,17 @@ export default function ArchiveRoute() {
   const constraints = contentItems(problem?.constraints);
 
   const contents = [
-    { id: 'archive-basics', label: localize('com_life_archive_basics_title'), index: '01' },
-    { id: 'archive-dossier', label: localize('com_life_dossier'), index: '02' },
-    { id: 'archive-people', label: localize('com_life_archive_people_title'), index: '03' },
-    { id: 'archive-map', label: localize('com_life_archive_map_history_title'), index: '04' },
+    { id: 'archive-dossier', label: localize('com_life_dossier'), index: '01' },
+    { id: 'archive-people', label: localize('com_life_archive_people_title'), index: '02' },
+    { id: 'archive-map', label: localize('com_life_archive_map_history_title'), index: '03' },
     {
       id: 'archive-moments',
       label: localize('com_life_archive_moments_title'),
-      index: '05',
+      index: '04',
     },
-    { id: 'archive-testing', label: localize('com_life_signals_and_milestones'), index: '06' },
-    { id: 'archive-reports', label: localize('com_life_archive_reports_title'), index: '07' },
+    { id: 'archive-testing', label: localize('com_life_signals_and_milestones'), index: '05' },
+    { id: 'archive-reports', label: localize('com_life_archive_reports_title'), index: '06' },
+    { id: 'me-basics', label: localize('com_life_archive_basics_title'), index: '07' },
     { id: 'archive-revisions', label: localize('com_life_archive_revisions_title'), index: '08' },
   ];
 
@@ -173,56 +190,22 @@ export default function ArchiveRoute() {
                 </li>
               ))}
             </ol>
-            <Button
-              type="button"
-              className="mt-5 min-h-12 w-full rounded-[4px] bg-life-moss px-5 font-life-sans text-life-sm text-life-paper hover:bg-life-moss-deep"
-              onClick={() => navigate('/resume')}
-            >
-              {localize('com_life_continue_archive')}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
           </nav>
 
           <article className="min-w-0 lg:col-start-1 lg:row-start-1">
             <section
+              id="me-current"
               className="border-y border-life-ink/70 py-7 dark:border-white/30"
-              aria-labelledby="archive-self-title"
             >
-              <p className="font-life-mono text-life-meta tracking-[0.18em] text-life-cinnabar dark:text-[#D98A76]">
-                {localize('com_life_archive_self_meta')}
-              </p>
-              <h2
-                id="archive-self-title"
-                className="mt-3 font-life-serif text-life-title font-semibold leading-tight text-life-ink dark:text-gray-100"
-              >
-                {localize('com_life_archive_self_title')}
-              </h2>
-              <p className="mt-4 max-w-[34em] font-life-sans text-life-sm leading-7 text-life-muted dark:text-gray-400">
-                {localize('com_life_archive_self_help')}
-              </p>
-              <Link
-                to="/me"
-                className="mt-5 inline-flex min-h-11 items-center border-b border-life-moss font-life-sans text-life-sm font-medium text-life-moss hover:text-life-ink dark:text-emerald-400 dark:hover:text-gray-100"
-              >
-                {localize('com_life_archive_open_self')}
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-              </Link>
+              <MeRoute embedded />
             </section>
-
-            <ArchiveSection
-              id="archive-basics"
-              eyebrow={localize('com_life_archive_basics_meta')}
-              title={localize('com_life_archive_basics_title')}
-              sectionLabel={localize('com_life_archive_section_count', { 0: '01' })}
-            >
-              <BasicsForm />
-            </ArchiveSection>
 
             <ArchiveSection
               id="archive-dossier"
               eyebrow={localize('com_life_dossier_meta')}
               title={localize('com_life_dossier')}
-              sectionLabel={localize('com_life_archive_section_count', { 0: '02' })}
+              sectionIndex="01"
+              sectionLabel={localize('com_life_archive_section_count', { 0: '01' })}
             >
               <ArchiveDossier />
             </ArchiveSection>
@@ -231,7 +214,8 @@ export default function ArchiveRoute() {
               id="archive-people"
               eyebrow={localize('com_life_archive_people_meta')}
               title={localize('com_life_archive_people_title')}
-              sectionLabel={localize('com_life_archive_section_count', { 0: '03' })}
+              sectionIndex="02"
+              sectionLabel={localize('com_life_archive_section_count', { 0: '02' })}
             >
               <p className="max-w-[34em] border-l-2 border-life-rule pl-5 font-life-kai text-life-body leading-8 text-life-muted dark:text-gray-400">
                 {localize('com_life_archive_people_empty')}
@@ -242,7 +226,8 @@ export default function ArchiveRoute() {
               id="archive-map"
               eyebrow={localize('com_life_archive_map_history_meta')}
               title={localize('com_life_archive_map_history_title')}
-              sectionLabel={localize('com_life_archive_section_count', { 0: '04' })}
+              sectionIndex="03"
+              sectionLabel={localize('com_life_archive_section_count', { 0: '03' })}
             >
               <ArchiveMistMap wheel={bootstrap.data?.summary?.lifeWheel} />
             </ArchiveSection>
@@ -251,7 +236,8 @@ export default function ArchiveRoute() {
               id="archive-moments"
               eyebrow={localize('com_life_archive_moments_meta')}
               title={localize('com_life_archive_moments_title')}
-              sectionLabel={localize('com_life_archive_section_count', { 0: '05' })}
+              sectionIndex="04"
+              sectionLabel={localize('com_life_archive_section_count', { 0: '04' })}
             >
               {problem?.movable || problem?.surface || constraints.length || timeline.length ? (
                 <div>
@@ -333,7 +319,8 @@ export default function ArchiveRoute() {
               id="archive-testing"
               eyebrow={localize('com_life_archive_evidence_meta')}
               title={localize('com_life_signals_and_milestones')}
-              sectionLabel={localize('com_life_archive_section_count', { 0: '06' })}
+              sectionIndex="05"
+              sectionLabel={localize('com_life_archive_section_count', { 0: '05' })}
             >
               {signals.length ? (
                 <div>
@@ -393,7 +380,8 @@ export default function ArchiveRoute() {
               id="archive-reports"
               eyebrow={localize('com_life_archive_reports_meta')}
               title={localize('com_life_archive_reports_title')}
-              sectionLabel={localize('com_life_archive_section_count', { 0: '07' })}
+              sectionIndex="06"
+              sectionLabel={localize('com_life_archive_section_count', { 0: '06' })}
             >
               {reports.length ? (
                 <ol>
@@ -434,9 +422,45 @@ export default function ArchiveRoute() {
             </ArchiveSection>
 
             <ArchiveSection
+              id="me-basics"
+              eyebrow={localize('com_life_archive_basics_meta')}
+              title={localize('com_life_archive_basics_title')}
+              sectionIndex="07"
+              sectionLabel={localize('com_life_archive_section_count', { 0: '07' })}
+            >
+              <p className="max-w-[34em] font-life-sans text-life-sm leading-7 text-life-muted dark:text-gray-400">
+                {localize('com_life_archive_basics_summary')}
+              </p>
+              <button
+                type="button"
+                aria-expanded={basicsOpen}
+                aria-controls="me-basics-form"
+                onClick={() => setBasicsOpen((open) => !open)}
+                className="mt-5 inline-flex min-h-11 items-center border-b border-life-moss font-life-sans text-life-sm font-medium text-life-moss hover:text-life-ink dark:text-emerald-400 dark:hover:text-gray-100"
+              >
+                {localize(
+                  basicsOpen
+                    ? 'com_life_archive_basics_collapse'
+                    : 'com_life_archive_basics_expand',
+                )}
+                {basicsOpen ? (
+                  <ChevronUp className="ml-2 h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+              {basicsOpen && (
+                <div id="me-basics-form" className="mt-7">
+                  <BasicsForm />
+                </div>
+              )}
+            </ArchiveSection>
+
+            <ArchiveSection
               id="archive-revisions"
               eyebrow={localize('com_life_archive_revisions_meta')}
               title={localize('com_life_archive_revisions_title')}
+              sectionIndex="08"
               sectionLabel={localize('com_life_archive_section_count', { 0: '08' })}
             >
               <p className="max-w-[34em] font-life-kai text-life-body leading-8 text-life-muted dark:text-gray-400">
@@ -449,13 +473,6 @@ export default function ArchiveRoute() {
                 >
                   {localize('com_life_archive_open_revision_history')}
                 </a>
-                <Link
-                  to="/me"
-                  className="inline-flex min-h-11 items-center border-b border-life-moss font-life-sans text-life-sm font-medium text-life-moss hover:text-life-ink dark:text-emerald-400 dark:hover:text-gray-100"
-                >
-                  {localize('com_life_archive_open_self')}
-                  <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-                </Link>
               </div>
             </ArchiveSection>
           </article>

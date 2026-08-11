@@ -56,9 +56,11 @@ function dossierEntryId(item: LifeSelfProjectionItem): string | null {
 function ProjectionItem({
   item,
   mergeTarget,
+  readonly = false,
 }: {
   item: LifeSelfProjectionItem;
   mergeTarget?: LifeSelfProjectionItem | null;
+  readonly?: boolean;
 }) {
   const localize = useLocalize();
   const { showToast } = useToastContext();
@@ -138,7 +140,7 @@ function ProjectionItem({
         </p>
       )}
 
-      {!editing && entryId && (
+      {!readonly && !editing && entryId && (
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
           {item.status === 'pending' && (
             <button
@@ -217,18 +219,18 @@ function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
   );
 }
 
-export default function MeRoute() {
+export default function MeRoute({ embedded = false }: { embedded?: boolean }) {
   const localize = useLocalize();
   const navigate = useNavigate();
   const query = useLifeSelfProjectionQuery();
   const bootstrap = useLifeBootstrapQuery();
 
   useEffect(() => {
-    if (!query.data || window.location.hash !== '#me-basics') return;
+    if (embedded || !query.data || window.location.hash !== '#me-basics') return;
     window.requestAnimationFrame(() => {
       document.getElementById('me-basics')?.scrollIntoView({ block: 'start' });
     });
-  }, [query.data]);
+  }, [embedded, query.data]);
 
   if (query.isLoading) {
     return <LifeLoading />;
@@ -315,16 +317,21 @@ export default function MeRoute() {
     </section>
   );
 
+  const Heading = embedded ? 'h2' : 'h1';
+
   return (
-    <main className="h-full overflow-y-auto bg-life-paper text-life-ink">
-      <div className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 lg:py-14">
+    <div
+      role={embedded ? undefined : 'main'}
+      className={embedded ? 'text-life-ink' : 'h-full overflow-y-auto bg-life-paper text-life-ink'}
+    >
+      <div className={embedded ? '' : 'mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 lg:py-14'}>
         <header className="max-w-4xl border-b border-life-ink/70 pb-8">
           <p className="font-life-mono text-life-meta tracking-[0.22em] text-life-cinnabar">
             {localize('com_life_me_eyebrow')}
           </p>
-          <h1 className="mt-4 font-life-serif text-life-title font-black leading-tight sm:text-life-display">
+          <Heading className="mt-4 font-life-serif text-life-title font-black leading-tight sm:text-life-display">
             {localize('com_life_me_title')}
-          </h1>
+          </Heading>
           <p className="mt-5 max-w-[34em] font-life-sans text-life-body leading-8 text-life-muted">
             {localize('com_life_me_description')}
           </p>
@@ -400,9 +407,16 @@ export default function MeRoute() {
                   eyebrow={localize('com_life_me_tensions_eyebrow')}
                   title={localize('com_life_me_tensions_title')}
                 />
-                {projection.coreTensions.map((item, index, items) => (
-                  <ProjectionItem key={item.id} item={item} mergeTarget={items[index - 1]} />
-                ))}
+                {projection.coreTensions
+                  .slice(0, embedded ? 3 : undefined)
+                  .map((item, index, items) => (
+                    <ProjectionItem
+                      key={item.id}
+                      item={item}
+                      mergeTarget={items[index - 1]}
+                      readonly={embedded}
+                    />
+                  ))}
               </section>
             )}
             {confirmed.length > 0 && (
@@ -411,10 +425,11 @@ export default function MeRoute() {
                   eyebrow={localize('com_life_me_confirmed_eyebrow')}
                   title={localize('com_life_me_confirmed_title')}
                 />
-                {confirmed.map((item, index, items) => (
+                {confirmed.slice(0, embedded ? 3 : undefined).map((item, index, items) => (
                   <ProjectionItem
                     key={item.id}
                     item={item}
+                    readonly={embedded}
                     mergeTarget={items
                       .slice(0, index)
                       .reverse()
@@ -435,10 +450,11 @@ export default function MeRoute() {
                 <p className="mb-6 max-w-[34em] font-life-kai text-life-sm leading-7 text-life-muted">
                   {localize('com_life_me_pending_help')}
                 </p>
-                {projection.pending.map((item, index, items) => (
+                {projection.pending.slice(0, embedded ? 3 : undefined).map((item, index, items) => (
                   <ProjectionItem
                     key={item.id}
                     item={item}
+                    readonly={embedded}
                     mergeTarget={items
                       .slice(0, index)
                       .reverse()
@@ -451,31 +467,38 @@ export default function MeRoute() {
           </>
         )}
 
-        <section id="me-basics" className="scroll-mt-6 border-t border-life-ink/70 py-10 sm:py-12">
-          <SectionTitle
-            eyebrow={localize('com_life_me_basics_eyebrow')}
-            title={localize('com_life_me_basics_title')}
-          />
-          <BasicsForm />
-        </section>
+        {!embedded && (
+          <>
+            <section
+              id="me-basics"
+              className="scroll-mt-6 border-t border-life-ink/70 py-10 sm:py-12"
+            >
+              <SectionTitle
+                eyebrow={localize('com_life_me_basics_eyebrow')}
+                title={localize('com_life_me_basics_title')}
+              />
+              <BasicsForm />
+            </section>
 
-        <section className="border-t border-life-ink/70 py-10 sm:py-12">
-          <SectionTitle
-            eyebrow={localize('com_life_me_archive_eyebrow')}
-            title={localize('com_life_me_archive_title')}
-          />
-          <p className="max-w-[34em] font-life-sans text-life-sm leading-7 text-life-muted">
-            {localize('com_life_me_archive_help')}
-          </p>
-          <Link
-            to="/archive"
-            className="mt-5 inline-flex min-h-11 items-center border-b border-life-moss font-life-sans text-life-sm font-medium text-life-moss hover:text-life-ink"
-          >
-            {localize('com_life_me_open_archive')}
-            <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-          </Link>
-        </section>
+            <section className="border-t border-life-ink/70 py-10 sm:py-12">
+              <SectionTitle
+                eyebrow={localize('com_life_me_archive_eyebrow')}
+                title={localize('com_life_me_archive_title')}
+              />
+              <p className="max-w-[34em] font-life-sans text-life-sm leading-7 text-life-muted">
+                {localize('com_life_me_archive_help')}
+              </p>
+              <Link
+                to="/archive"
+                className="mt-5 inline-flex min-h-11 items-center border-b border-life-moss font-life-sans text-life-sm font-medium text-life-moss hover:text-life-ink"
+              >
+                {localize('com_life_me_open_archive')}
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              </Link>
+            </section>
+          </>
+        )}
       </div>
-    </main>
+    </div>
   );
 }

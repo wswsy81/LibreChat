@@ -211,8 +211,7 @@ export const router = createBrowserRouter(
             },
             {
               path: 'archive',
-              lazy: () =>
-                loadShellComponent(() => import('~/features/life-design/routes/ArchiveRoute')),
+              element: <Navigate to="/me" replace />,
             },
             {
               path: 'map',
@@ -221,7 +220,8 @@ export const router = createBrowserRouter(
             },
             {
               path: 'me',
-              lazy: () => loadShellComponent(() => import('~/features/life-design/routes/MeRoute')),
+              lazy: () =>
+                loadShellComponent(() => import('~/features/life-design/routes/ArchiveRoute')),
             },
             {
               path: 'inbox',
