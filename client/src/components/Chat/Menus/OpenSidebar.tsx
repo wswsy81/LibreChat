@@ -9,7 +9,13 @@ import store from '~/store';
 export const CLOSE_SIDEBAR_ID = 'close-sidebar-button';
 export const OPEN_SIDEBAR_ID = 'open-sidebar-button';
 
-export default function OpenSidebar({ className }: { className?: string }) {
+export default function OpenSidebar({
+  className,
+  showLabel = false,
+}: {
+  className?: string;
+  showLabel?: boolean;
+}) {
   const localize = useLocalize();
   const setSidebarExpanded = useSetRecoilState(store.sidebarExpanded);
   const tooltipDescription = useShortcutHint('toggleSidebar', localize('com_nav_open_sidebar'));
@@ -30,7 +36,7 @@ export default function OpenSidebar({ className }: { className?: string }) {
       render={
         <Button
           id={OPEN_SIDEBAR_ID}
-          size="icon"
+          size={showLabel ? 'default' : 'icon'}
           variant="outline"
           data-testid="open-sidebar-button"
           aria-label={localize('com_nav_open_sidebar')}
@@ -38,12 +44,15 @@ export default function OpenSidebar({ className }: { className?: string }) {
           aria-controls="chat-history-nav"
           aria-keyshortcuts={ariaKey}
           className={cn(
-            'rounded-xl bg-presentation duration-0 hover:bg-surface-active-alt',
+            showLabel
+              ? 'min-h-11 gap-2 rounded-[4px] border-life-ink/25 bg-life-paper px-4 font-life-sans text-life-sm font-medium text-life-ink duration-0 hover:bg-life-ink/5'
+              : 'rounded-xl bg-presentation duration-0 hover:bg-surface-active-alt',
             className,
           )}
           onClick={handleClick}
         >
           <Sidebar className="icon-md" aria-hidden="true" />
+          {showLabel ? <span>{localize('com_nav_open_sidebar')}</span> : null}
         </Button>
       }
     />

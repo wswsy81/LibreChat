@@ -20,7 +20,7 @@ import {
   useFileMap,
 } from '~/hooks';
 import ConversationDomainSync from '~/features/life-design/components/ConversationDomainSync';
-import MobilePrimaryNav from '~/features/life-design/components/MobilePrimaryNav';
+import MobileSidebarHeader from '~/features/life-design/components/MobileSidebarHeader';
 import KeyboardShortcutsDialog from '~/components/Nav/KeyboardShortcutsDialog';
 import KeyboardDeleteDialog from '~/components/Nav/KeyboardDeleteDialog';
 import { useUserTermsQuery, useGetStartupConfig } from '~/data-provider';
@@ -106,8 +106,8 @@ export function ProductShell({ children }: { children: ReactNode }) {
                     }}
                     inert={isSmallScreen && sidebarExpanded ? '' : undefined}
                   >
+                    <MobileSidebarHeader />
                     <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
-                    <MobilePrimaryNav />
                   </div>
                 </div>
               </div>
