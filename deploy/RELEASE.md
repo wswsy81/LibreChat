@@ -40,6 +40,8 @@ bash deploy/apply-release.sh .releases/CLIENT-20260808T120000Z.env
 
 前端产物以 tar.zst SHA 为不可变目录，`apply` 只原子切换 `client-releases/current` 指针。API 每次返回 SPA `index.html` 时从当前指针读取，静态文件立即生效；健康失败自动恢复上一个指针。首次切换会生成可再次 apply 的“移除指针”rollback；该通道不改业务数据，因此不重复导出 Mongo/Postgres。
 
+纯客户端的登录界面、认证恢复回跳和 hash/search 保留仍属于 `client-static`；文件名包含 `auth` 不等于服务端身份边界变化。只要同时触及 API、共享认证合同、租户或隔离运行时，分类器仍必须 fail-closed 升为 `full`。
+
 已有全绿候选在 apply 阶段只做 provenance、双 health 与 canary，不重跑本地大套件。`stage-release.sh` 可重复执行；已 `deployable` 的同一候选会直接返回，网络中断后再次运行会跳过 revision label 已匹配的镜像，不从头重传，也不重复做 VERIFIED 备份。
 
 ## 配置通道

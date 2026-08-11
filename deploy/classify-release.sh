@@ -35,7 +35,7 @@ MIN_SECONDS=0
 MAX_SECONDS=0
 
 if [[ "$COUNT" -gt 0 ]]; then
-  CONTROL_PATTERN='^(deploy/|scripts/|docs/|\.claude/|\.github/|test/|tests/|README($|\.)|CLAUDE\.md$|AGENTS\.md$)|^(state|decisions|specs|evals|报告|调研|library/skills)/|^projects/未来线/(scripts|specs|evals|报告|调研)/|^projects/未来线/未来线部署操作手册\.md$'
+  CONTROL_PATTERN='^(deploy/|scripts/|docs/|\.claude/|\.github/|test/|tests/|README($|\.)|CLAUDE\.md$|AGENTS\.md$)|^(state|decisions|specs|evals|报告|调研|library/skills)/|^projects/未来线/(scripts|specs|evals|报告|调研|缺陷追踪|用户反馈)/|^projects/未来线/未来线部署操作手册\.md$'
   PRODUCT_FILES=$(printf '%s\n' "$FILES" | grep -Ev "$CONTROL_PATTERN" | grep -Ev '(^|/)(__tests__/|[^/]+\.(test|spec)\.)' || true)
   [[ -z "$PRODUCT_FILES" ]] && CONTROL_PLANE_ONLY=true
 
@@ -67,7 +67,7 @@ fi
 if [[ "$CONTROL_PLANE_ONLY" == true ]]; then
   CHANNEL=none
   SERVICE=none
-elif [[ "$LOCK_CHANGED" == true || "$DEPENDENCY_CHANGED" == true || "$BASE_IMAGE_CHANGED" == true || "$SCHEMA_CHANGED" == true || "$IDENTITY_CHANGED" == true || "$MIGRATION_CHANGED" == true ]]; then
+elif [[ "$LOCK_CHANGED" == true || "$DEPENDENCY_CHANGED" == true || "$BASE_IMAGE_CHANGED" == true || "$SCHEMA_CHANGED" == true || ( "$IDENTITY_CHANGED" == true && "$CLIENT_ONLY" != true ) || "$MIGRATION_CHANGED" == true ]]; then
   CHANNEL=full
   SERVICE=all
   MIN_SECONDS=600

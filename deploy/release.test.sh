@@ -454,12 +454,28 @@ CLIENT_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIF
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.clientOnly)' "$CLIENT_CLASS") == true ]]
 
 CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+mkdir -p "$CLASSIFY_REPO/client/src/hooks"
+touch "$CLASSIFY_REPO/client/src/hooks/AuthContext.tsx"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m client-auth >/dev/null
+CLIENT_AUTH_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$CLIENT_AUTH_CLASS") == client-static ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.identityOrIsolationChanged)' "$CLIENT_AUTH_CLASS") == true ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
 mkdir -p "$CLASSIFY_REPO/packages/api/src/life"
 printf 'export {};\n' > "$CLASSIFY_REPO/packages/api/src/life/change.ts"
 git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m api >/dev/null
 API_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$API_CLASS") == api-hotfix ]]
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.apiOnly)' "$API_CLASS") == true ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+mkdir -p "$CLASSIFY_REPO/packages/api/src/auth"
+touch "$CLASSIFY_REPO/packages/api/src/auth/session.ts"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m api-auth >/dev/null
+API_AUTH_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$API_AUTH_CLASS") == full ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.identityOrIsolationChanged)' "$API_AUTH_CLASS") == true ]]
 
 CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
 mkdir -p "$CLASSIFY_REPO/deploy"
@@ -476,6 +492,14 @@ git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m deployment-ru
 RUNBOOK_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$RUNBOOK_CLASS") == none ]]
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.controlPlaneOnly)' "$RUNBOOK_CLASS") == true ]]
+
+CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
+mkdir -p "$CLASSIFY_REPO/projects/未来线/缺陷追踪"
+printf '# BUG-2026-999\n' > "$CLASSIFY_REPO/projects/未来线/缺陷追踪/BUG-2026-999-test.md"
+git -C "$CLASSIFY_REPO" add . && git -C "$CLASSIFY_REPO" commit -m bug-record >/dev/null
+BUG_RECORD_CLASS=$(bash "$SCRIPT_DIR/classify-release.sh" "$CLASSIFY_REPO" "$CLASSIFY_BASE" HEAD)
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$BUG_RECORD_CLASS") == none ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).facts.controlPlaneOnly)' "$BUG_RECORD_CLASS") == true ]]
 
 CLASSIFY_BASE=$(git -C "$CLASSIFY_REPO" rev-parse HEAD)
 printf '{"scripts":{}}\n' > "$CLASSIFY_REPO/package.json"
@@ -587,13 +611,15 @@ grep -F 'packages/data-provider changed but packages/data-provider/dist/index.js
 grep -F 'sudo install -d -o \"\$owner\" -g \"\$group\" -m 700' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
 grep -F 'sudo chown \"\$owner:\$group\"' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
 grep -F 'sudo chmod 600' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
-grep -F 'RUNTIME_CONFIG_FILES=(' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
-grep -F 'banks-asset-' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
-grep -F 'sudo -n install -o root -g root -m 644' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
-grep -F 'container_runtime_sha=' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
-grep -F 'rollback.tgz' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
-grep -F 'tar --no-xattrs -cf /dev/null -T /dev/null' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
-grep -F "grep -a -Fq 'LIBARCHIVE.xattr.com.apple.provenance'" "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
+BANK_DEPLOY_SCRIPT=${BANK_DEPLOY_SCRIPT_OVERRIDE:-"$SCRIPT_DIR/../../future-engine-shim/scripts/deploy-banks.sh"}
+[[ -s "$BANK_DEPLOY_SCRIPT" ]]
+grep -F 'RUNTIME_CONFIG_FILES=(' "$BANK_DEPLOY_SCRIPT" >/dev/null
+grep -F 'banks-asset-' "$BANK_DEPLOY_SCRIPT" >/dev/null
+grep -F 'sudo -n install -o root -g root -m 644' "$BANK_DEPLOY_SCRIPT" >/dev/null
+grep -F 'container_runtime_sha=' "$BANK_DEPLOY_SCRIPT" >/dev/null
+grep -F 'rollback.tgz' "$BANK_DEPLOY_SCRIPT" >/dev/null
+grep -F 'tar --no-xattrs -cf /dev/null -T /dev/null' "$BANK_DEPLOY_SCRIPT" >/dev/null
+grep -F "grep -a -Fq 'LIBARCHIVE.xattr.com.apple.provenance'" "$BANK_DEPLOY_SCRIPT" >/dev/null
 
 PROVENANCE_TEST_DIR="$TEST_ROOT/provenance"
 mkdir -p "$PROVENANCE_TEST_DIR/clean" "$PROVENANCE_TEST_DIR/dirty"
