@@ -95,7 +95,7 @@ DATA_PROVIDER_CHANGED=false
 printf '%s\n' "${APP_CHANGED[@]}" "${APP_DELETED[@]}" | grep -Eq '^packages/data-provider/src/.+\.(ts|tsx)$' \
   && DATA_PROVIDER_CHANGED=true || true
 mapfile -t ENGINE_FILES < <(printf '%s\n' "${BRAIN_CHANGED[@]}" \
-  | grep -E '^projects/未来线/future-engine-shim/.+\.js$' \
+  | grep -E '^projects/未来线/future-engine-shim/(.+\.js|runtime-compiled\.json)$' \
   | grep -Ev '(^|/)(__tests__/|scripts/|[^/]+\.test\.js$)' || true)
 mapfile -t ENGINE_DELETED < <(printf '%s\n' "${BRAIN_DELETED[@]}" \
   | grep -E '^projects/未来线/future-engine-shim/.+\.js$' \

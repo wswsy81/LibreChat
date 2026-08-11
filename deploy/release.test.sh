@@ -539,14 +539,15 @@ classify_source_release_delta
 
 APP_RELEASE_CHANGED=(api/app/clients/life-api.js api/app/clients/life-api.test.js)
 APP_RELEASE_DELETED=()
-BRAIN_RELEASE_CHANGED=(projects/未来线/future-engine-shim/advisor-gateway.js projects/未来线/future-engine-shim/advisor-gateway.test.js)
+BRAIN_RELEASE_CHANGED=(projects/未来线/future-engine-shim/advisor-gateway.js projects/未来线/future-engine-shim/advisor-gateway.test.js projects/未来线/future-engine-shim/runtime-compiled.json)
 BRAIN_RELEASE_DELETED=()
 classify_source_release_delta
 [[ "$CLIENT_CHANGED" == false ]]
 [[ ${#API_RELEASE_FILES[@]} -eq 1 ]]
 [[ ${API_RELEASE_FILES[0]} == api/app/clients/life-api.js ]]
-[[ ${#ENGINE_RELEASE_FILES[@]} -eq 1 ]]
+[[ ${#ENGINE_RELEASE_FILES[@]} -eq 2 ]]
 [[ ${ENGINE_RELEASE_FILES[0]} == projects/未来线/future-engine-shim/advisor-gateway.js ]]
+[[ ${ENGINE_RELEASE_FILES[1]} == projects/未来线/future-engine-shim/runtime-compiled.json ]]
 
 APP_RELEASE_CHANGED=(packages/api/src/life/route.ts packages/api/src/life/route.spec.ts)
 APP_RELEASE_DELETED=()

@@ -16,7 +16,7 @@ classify_source_release_delta() {
     | grep -Eq '^packages/data-provider/src/.+\.(ts|tsx)$' \
     && DATA_PROVIDER_RELEASE_CHANGED=true || true
   mapfile -t ENGINE_RELEASE_FILES < <(printf '%s\n' "${BRAIN_RELEASE_CHANGED[@]}" \
-    | grep -E '^projects/未来线/future-engine-shim/.+\.js$' \
+    | grep -E '^projects/未来线/future-engine-shim/(.+\.js|runtime-compiled\.json)$' \
     | grep -Ev '(^|/)(__tests__/|scripts/|[^/]+\.test\.js$)' || true)
   mapfile -t ENGINE_RELEASE_DELETED < <(printf '%s\n' "${BRAIN_RELEASE_DELETED[@]:-}" \
     | grep -E '^projects/未来线/future-engine-shim/.+\.js$' \
