@@ -57,11 +57,19 @@ describe('FaqRoute', () => {
     expect(group.getByText(mockTranslation.com_life_faq_q20)).toBeInTheDocument();
     expect(group.getByText(mockTranslation.com_life_faq_q22)).toBeInTheDocument();
     expect(group.getByText(mockTranslation.com_life_faq_q21)).toBeInTheDocument();
+    const questions = [
+      ...(productList as HTMLElement).querySelectorAll('dt > span:last-child'),
+    ].map((node) => node.textContent?.trim());
+    expect(questions.indexOf(mockTranslation.com_life_faq_q20)).toBeGreaterThan(
+      questions.indexOf(mockTranslation.com_life_faq_q21),
+    );
   });
 
   it('答案覆盖当前入口模型、三线走法与埋点披露', () => {
     renderFaq();
-    expect(screen.getByText(mockTranslation.com_life_faq_a3)).toHaveTextContent('人生地图上点一块');
+    expect(screen.getByText(mockTranslation.com_life_faq_a3)).toHaveTextContent(
+      '可以直接说一句近况，也可以从生活地图选一块',
+    );
     expect(screen.getByText(mockTranslation.com_life_faq_a20)).toHaveTextContent('不是预测');
     expect(screen.getByText(mockTranslation.com_life_faq_a22)).toHaveTextContent('不会自动改变');
     expect(screen.getByText(mockTranslation.com_life_faq_a13)).toHaveTextContent('只记类别编号');

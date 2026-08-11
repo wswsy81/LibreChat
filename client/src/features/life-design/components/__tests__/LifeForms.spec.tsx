@@ -145,7 +145,7 @@ test('入口只开放财务、工作、情感、事业，健康单独留在雾�
   expect(mapButton('com_life_map_house_h1')).toBeDisabled();
 });
 
-test('承诺屏五句与三张前台示例卡同屏，内部线名不出现', () => {
+test('首次进入不再教学三条未来线，仍保留直接聊与领域入口', () => {
   render(
     <MemoryRouter>
       <FirstArchiveSetup />
@@ -165,11 +165,13 @@ test('承诺屏五句与三张前台示例卡同屏，内部线名不出现', ()
     'com_life_setup_line_intervention_help',
     'com_life_setup_line_rupture_help',
   ]) {
-    expect(screen.getByText(key)).toBeInTheDocument();
+    expect(screen.queryByText(key)).not.toBeInTheDocument();
   }
-  expect(screen.queryByText('惯性线')).not.toBeInTheDocument();
-  expect(screen.queryByText('干预线')).not.toBeInTheDocument();
-  expect(screen.queryByText('断裂线')).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /com_life_free_chat_action/ })).toHaveAttribute(
+    'href',
+    '/c/new',
+  );
+  expect(screen.getByText('com_life_choose_house')).toBeInTheDocument();
 });
 
 test('“说件新事”不重复首次建档承诺，并沿用原来的人物档案名', () => {

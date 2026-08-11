@@ -136,8 +136,8 @@ export default defineConfig(({ command }) => ({
       },
       includeAssets: [],
       manifest: {
-        name: '人生设计室',
-        short_name: '人生设计室',
+        name: '未来线',
+        short_name: '未来线',
         display: 'standalone',
         background_color: '#000000',
         theme_color: '#009688',

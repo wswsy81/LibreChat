@@ -68,7 +68,7 @@ async function main() {
         `production build raised a browser page error:\n${pageErrors.join('\n---\n')}`,
       );
     }
-    if (state.title !== '人生设计室' || state.rootChildren < 1) {
+    if (state.title !== '未来线' || state.rootChildren < 1) {
       throw new Error(`production build did not mount: ${JSON.stringify(state)}`);
     }
     console.log(

@@ -125,10 +125,10 @@ if (!html.includes('registration.update()')) {
 if (!swHeal.includes('clientBuildId === ACTIVE_BUILD_ID')) {
   failures.push('service worker does not reject responsive clients from a stale build');
 }
-if (manifest.name !== '人生设计室' || manifest.short_name !== '人生设计室') {
-  failures.push('installed PWA brand must be 人生设计室 without the upstream LibreChat name');
+if (manifest.name !== '未来线' || manifest.short_name !== '未来线') {
+  failures.push('installed PWA brand must be 未来线 without the upstream LibreChat name');
 }
-if (!html.includes('id="loading-label"') || !html.includes('>人生设计室</span>')) {
+if (!html.includes('id="loading-label"') || !html.includes('>未来线</span>')) {
   failures.push('production shell has no contentful branded loading state');
 }
 if (modulePreloads.length === 0) {

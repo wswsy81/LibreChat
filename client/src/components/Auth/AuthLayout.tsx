@@ -67,9 +67,8 @@ function AuthLayout({
       <Banner />
       <BlinkAnimation active={isFetching}>
         <div className="mt-10 w-full text-center" style={{ userSelect: 'none' }}>
-          {/* eslint-disable-next-line i18next/no-literal-string */}
           <p className="font-life-mono text-[10px] tracking-[0.26em] text-life-cinnabar">
-            LIFE DESIGN STUDIO
+            {localize('com_life_brand_eyebrow')}
           </p>
           <p className="mt-1 font-life-serif text-2xl font-black text-life-ink">
             {localize('com_life_brand')}

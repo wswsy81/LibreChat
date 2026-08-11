@@ -52,38 +52,34 @@ function PublicHome() {
 
         <section className="py-9 sm:py-12 lg:py-14">
           <PublicHero>
-            {(selectedHouse) => (
-              <>
-                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                  <Button
-                    asChild
-                    className="min-h-12 w-full rounded-[4px] bg-life-moss px-6 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep sm:w-auto sm:px-7"
-                  >
-                    <Link to={`/register?entryHouse=${selectedHouse}`} onClick={startRegistration}>
-                      {localize('com_life_start_first')}
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="min-h-12 w-full rounded-[4px] border-life-ink/25 bg-transparent px-6 font-life-sans dark:border-white/15 sm:w-auto sm:px-7"
-                  >
-                    <Link to="/login?redirect_to=%2Fhome">
-                      {localize('com_life_login_archive')}
-                    </Link>
-                  </Button>
-                </div>
-                {!registrationEnabled && (
-                  <p
-                    className="mt-5 max-w-[32em] border-l-2 border-life-brass py-1 pl-4 font-life-kai text-life-sm leading-7 text-life-brass"
-                    role="status"
-                  >
-                    {localize('com_life_invite_only_notice')}
-                  </p>
-                )}
-              </>
-            )}
+            <>
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                <Button
+                  asChild
+                  className="min-h-12 w-full rounded-[4px] bg-life-moss px-6 font-life-sans text-life-body text-life-paper hover:bg-life-moss-deep sm:w-auto sm:px-7"
+                >
+                  <Link to="/register" onClick={startRegistration}>
+                    {localize('com_life_start_first')}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="min-h-12 w-full rounded-[4px] border-life-ink/25 bg-transparent px-6 font-life-sans dark:border-white/15 sm:w-auto sm:px-7"
+                >
+                  <Link to="/login?redirect_to=%2Fhome">{localize('com_life_login_archive')}</Link>
+                </Button>
+              </div>
+              {!registrationEnabled && (
+                <p
+                  className="mt-5 max-w-[32em] border-l-2 border-life-brass py-1 pl-4 font-life-kai text-life-sm leading-7 text-life-brass"
+                  role="status"
+                >
+                  {localize('com_life_invite_only_notice')}
+                </p>
+              )}
+            </>
           </PublicHero>
         </section>
 

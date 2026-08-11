@@ -13,49 +13,35 @@ jest.mock('~/hooks', () => ({
   useLocalize: () => (key: string) => mockTranslation[key] ?? '',
 }));
 
-jest.mock('./PublicMistMap', () => {
-  const actual = jest.requireActual('./PublicMistMap');
-  return {
-    __esModule: true,
-    ...actual,
-    default: () => <div data-testid="public-mist-map" />,
-  };
-});
-
-test('公开首页三条未来线与报告共用唯一名称，不再暴露内部或旧奥德赛术语', () => {
+test('公开首页先说明长期人生顾问与四步续接循环', () => {
   render(
     <MemoryRouter>
       <PublicHero />
     </MemoryRouter>,
   );
 
-  for (const label of ['照现在这样走', '先试一小步', '彻底转向']) {
+  expect(screen.getByText('一位会记得你的长期人生顾问。')).toBeInTheDocument();
+  for (const label of [
+    '你先说一件最近发生的事',
+    '一起弄清现在要处理什么',
+    '找到现实里能试的一步',
+    '回来看看结果',
+  ]) {
     expect(screen.getByText(label)).toBeInTheDocument();
   }
-  expect(screen.queryByText('惯性线')).not.toBeInTheDocument();
-  expect(screen.queryByText('干预线')).not.toBeInTheDocument();
-  expect(screen.queryByText('断裂线')).not.toBeInTheDocument();
-  expect(screen.queryByText('当前延展')).not.toBeInTheDocument();
-  expect(screen.queryByText('如果这条没了')).not.toBeInTheDocument();
-  expect(screen.queryByText('不计代价')).not.toBeInTheDocument();
+  expect(
+    screen.getByText('你确认的内容会进入自己的人生存档；不对的可以改写或划掉。'),
+  ).toBeInTheDocument();
 });
 
-test('公开首页三线示例从 translation key 读取，可被 CopyPanel 热覆写', () => {
-  mockTranslation.com_life_public_sample_h6_1 = '热轨替换后的工作示例一';
-  mockTranslation.com_life_public_sample_h6_2 = '热轨替换后的工作示例二';
-  mockTranslation.com_life_public_sample_h6_3 = '热轨替换后的工作示例三';
-
+test('公开首页不展示三线示例、默认工作或公开可选地图', () => {
   render(
     <MemoryRouter>
       <PublicHero />
     </MemoryRouter>,
   );
-
-  for (const text of [
-    '热轨替换后的工作示例一',
-    '热轨替换后的工作示例二',
-    '热轨替换后的工作示例三',
-  ]) {
-    expect(screen.getByText(text)).toBeInTheDocument();
+  for (const text of ['照现在这样走', '先试一小步', '彻底转向', '看你自己的「工作」']) {
+    expect(screen.queryByText(text)).not.toBeInTheDocument();
   }
+  expect(screen.queryByRole('group', { name: /迷雾人生地图/ })).not.toBeInTheDocument();
 });

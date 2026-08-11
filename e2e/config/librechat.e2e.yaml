@@ -101,7 +101,7 @@ modelSpecs:
     - 'agents'
   list:
     - name: 'future-lines'
-      label: '人生设计室'
+      label: '未来线'
       preset:
         endpoint: 'Mock Provider A'
         model: 'mock-model-a'

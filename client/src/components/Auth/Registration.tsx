@@ -31,6 +31,7 @@ const Registration: React.FC = () => {
   const requestedEntryHouse = getEntryHouseFromSearch(location.search);
   const entryHouse = requestedEntryHouse ?? getStoredEntryHouse();
   const homePath = homePathForEntryHouse(entryHouse);
+  const storedInviteCode = getStoredInviteCode();
 
   const {
     watch,
@@ -39,7 +40,7 @@ const Registration: React.FC = () => {
     formState: { errors },
   } = useForm<TRegisterUser>({
     mode: 'onChange',
-    defaultValues: { inviteCode: getStoredInviteCode() },
+    defaultValues: { inviteCode: storedInviteCode },
   });
   const password = watch('password');
 
@@ -181,11 +182,10 @@ const Registration: React.FC = () => {
     );
   };
 
-  const optionalBasicsValidation = {
-    maxLength: {
-      value: 60,
-      message: localize('com_auth_basic_profile_max_length'),
-    },
+  const inviteCodeValidation = {
+    required: inviteRequired ? localize('com_auth_invite_code_required') : false,
+    validate: (value?: string) =>
+      !value || Boolean(formatLifeInviteCode(value)) || localize('com_auth_invite_code_invalid'),
   };
 
   return (
@@ -225,15 +225,9 @@ const Registration: React.FC = () => {
             method="POST"
             onSubmit={handleSubmit((data: TRegisterUser) => {
               const inviteCode = data.inviteCode?.trim() || undefined;
-              const gender = data.gender?.trim() || undefined;
-              const age = data.age?.trim() || undefined;
-              const city = data.city?.trim() || undefined;
               track('register_submit', { invited: Boolean(inviteCode || token) });
               registerUser.mutate({
                 ...data,
-                gender,
-                age,
-                city,
                 inviteCode,
                 token: token ?? undefined,
               });
@@ -248,16 +242,6 @@ const Registration: React.FC = () => {
               maxLength: {
                 value: 80,
                 message: localize('com_auth_name_max_length'),
-              },
-            })}
-            {renderInput('username', 'com_auth_username', 'text', {
-              minLength: {
-                value: 2,
-                message: localize('com_auth_username_min_length'),
-              },
-              maxLength: {
-                value: 80,
-                message: localize('com_auth_username_max_length'),
               },
             })}
             {renderInput('email', 'com_auth_email', 'email', {
@@ -275,24 +259,19 @@ const Registration: React.FC = () => {
                 message: localize('com_auth_email_pattern'),
               },
             })}
-            {renderInput('inviteCode', 'com_auth_invite_code', 'text', {
-              required: inviteRequired ? localize('com_auth_invite_code_required') : false,
-              validate: (value?: string) =>
-                !value ||
-                Boolean(formatLifeInviteCode(value)) ||
-                localize('com_auth_invite_code_invalid'),
-            })}
-            <fieldset className="mb-4 rounded-[4px] border border-border-light px-3.5 pb-1 pt-3">
-              <legend className="px-1 font-life-sans text-sm text-text-primary">
-                {localize('com_auth_basic_profile_title')}
-              </legend>
-              <p className="mb-4 text-left text-xs leading-5 text-text-secondary-alt">
-                {localize('com_auth_basic_profile_description')}
-              </p>
-              {renderInput('gender', 'com_auth_gender_optional', 'text', optionalBasicsValidation)}
-              {renderInput('age', 'com_auth_age_optional', 'text', optionalBasicsValidation)}
-              {renderInput('city', 'com_auth_city_optional', 'text', optionalBasicsValidation)}
-            </fieldset>
+            {storedInviteCode ? (
+              <>
+                <input type="hidden" {...register('inviteCode', inviteCodeValidation)} />
+                <p
+                  className="mb-4 border-l-2 border-life-moss py-1 pl-4 text-left text-sm leading-6 text-life-moss"
+                  role="status"
+                >
+                  {localize('com_auth_invite_code_applied')}
+                </p>
+              </>
+            ) : (
+              renderInput('inviteCode', 'com_auth_invite_code', 'text', inviteCodeValidation)
+            )}
             {renderInput('password', 'com_auth_password', 'password', {
               required: localize('com_auth_password_required'),
               minLength: {

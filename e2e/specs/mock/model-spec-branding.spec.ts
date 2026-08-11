@@ -11,7 +11,7 @@ const BRANDED_SPEC = {
 
 /** The `softDefault: true` spec does not set `showOnLanding`, so it is unbranded. */
 const UNBRANDED_SPEC_LABEL = 'E2E Soft Default';
-const FUTURE_LINES_SPEC_LABEL = '人生设计室';
+const FUTURE_LINES_SPEC_LABEL = '未来线';
 
 test.describe('model spec branding on landing', () => {
   test('branded spec replaces the greeting with its label and rendered description', async ({

@@ -71,7 +71,7 @@ describe('public registration policy', () => {
     expect(screen.getByText('com_life_invite_only_notice')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /com_life_start_first/ })).toHaveAttribute(
       'href',
-      '/register?entryHouse=h6',
+      '/register',
     );
   });
 
@@ -81,39 +81,29 @@ describe('public registration policy', () => {
 
     expect(screen.getByRole('link', { name: /com_life_start_first/ })).toHaveAttribute(
       'href',
-      '/register?entryHouse=h6',
+      '/register',
     );
   });
 
-  it('keeps the selected house on the registration action', async () => {
-    renderHome();
-
-    const financial = screen
-      .getAllByText('com_life_map_house_h2')
-      .map((node) => node.closest('[role="button"],button'))
-      .filter((node): node is HTMLElement => node instanceof HTMLElement);
-    expect(financial.every((button) => button.getAttribute('aria-pressed') === 'false')).toBe(true);
-
-    await userEvent.click(financial[0]);
-
-    expect(screen.getByRole('link', { name: /com_life_start_first/ })).toHaveAttribute(
-      'href',
-      '/register?entryHouse=h2',
-    );
-    expect(financial.every((button) => button.getAttribute('aria-pressed') === 'true')).toBe(true);
-  });
-
-  it('explains the product and shows the mist map', () => {
+  it('explains the long-term advisor loop without making three lines or a domain the default', () => {
     renderHome();
 
     expect(screen.getByText('com_life_public_title')).toBeInTheDocument();
     expect(screen.getByText('com_life_public_description')).toBeInTheDocument();
-    expect(screen.getByText('com_life_line_inertia')).toBeInTheDocument();
-    expect(screen.getByText('com_life_line_intervention')).toBeInTheDocument();
-    expect(screen.getByText('com_life_line_rupture')).toBeInTheDocument();
-    expect(screen.getByText('com_life_line_sample_note')).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'com_life_public_map_aria' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'com_life_map_you_are_here' })).toBeInTheDocument();
+    for (const key of [
+      'com_life_public_loop_step_1',
+      'com_life_public_loop_step_2',
+      'com_life_public_loop_step_3',
+      'com_life_public_loop_step_4',
+    ]) {
+      expect(screen.getByText(key)).toBeInTheDocument();
+    }
+    expect(screen.queryByText('com_life_line_inertia')).not.toBeInTheDocument();
+    expect(screen.queryByText('com_life_line_intervention')).not.toBeInTheDocument();
+    expect(screen.queryByText('com_life_line_rupture')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('group', { name: 'com_life_public_map_aria' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText('com_life_public_private')).toBeInTheDocument();
   });
 

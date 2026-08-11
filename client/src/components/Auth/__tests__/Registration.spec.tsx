@@ -150,16 +150,16 @@ jest.mock('react-router-dom', () => ({
 }));
 
 test('renders registration form', () => {
-  const { getByText, getByTestId, getByRole } = setup();
+  const { getByText, getByTestId, getByRole, queryByRole } = setup();
   expect(getByText(/Create your account/i)).toBeInTheDocument();
   expect(getByRole('textbox', { name: /Full name/i })).toBeInTheDocument();
   expect(getByRole('form', { name: /Registration form/i })).toBeVisible();
-  expect(getByRole('textbox', { name: /Username/i })).toBeInTheDocument();
+  expect(queryByRole('textbox', { name: /Username/i })).not.toBeInTheDocument();
   expect(getByRole('textbox', { name: /Email/i })).toBeInTheDocument();
-  expect(getByRole('group', { name: /Basic details/i })).toBeInTheDocument();
-  expect(getByRole('textbox', { name: /Gender/i })).toBeInTheDocument();
-  expect(getByRole('textbox', { name: /Age or age range/i })).toBeInTheDocument();
-  expect(getByRole('textbox', { name: /Current city/i })).toBeInTheDocument();
+  expect(queryByRole('group', { name: /Basic details/i })).not.toBeInTheDocument();
+  expect(queryByRole('textbox', { name: /Gender/i })).not.toBeInTheDocument();
+  expect(queryByRole('textbox', { name: /Age or age range/i })).not.toBeInTheDocument();
+  expect(queryByRole('textbox', { name: /Current city/i })).not.toBeInTheDocument();
   expect(getByTestId('password')).toBeInTheDocument();
   expect(getByTestId('confirm_password')).toBeInTheDocument();
   expect(getByRole('button', { name: /Submit registration/i })).toBeInTheDocument();
@@ -192,7 +192,7 @@ test('renders registration form', () => {
   );
 });
 
-test('submits optional basic facts', async () => {
+test('submits only the account fields needed to start', async () => {
   const mutate = jest.fn();
   const { getByTestId, getByRole } = setup({
     useRegisterUserMutationReturnValue: {
@@ -205,19 +205,24 @@ test('submits optional basic facts', async () => {
     },
   });
 
-  await userEvent.type(getByRole('textbox', { name: /Full name/i }), 'Basic Facts');
-  await userEvent.type(getByRole('textbox', { name: /Email/i }), 'basics@example.com');
-  await userEvent.type(getByRole('textbox', { name: /Gender/i }), '女');
-  await userEvent.type(getByRole('textbox', { name: /Age or age range/i }), '30多岁');
-  await userEvent.type(getByRole('textbox', { name: /Current city/i }), '厦门');
+  await userEvent.type(getByRole('textbox', { name: /Full name/i }), 'Invite User');
+  await userEvent.type(getByRole('textbox', { name: /Email/i }), 'invite@example.com');
   await userEvent.type(getByTestId('password'), 'password123');
   await userEvent.type(getByTestId('confirm_password'), 'password123');
   await userEvent.click(getByRole('button', { name: /Submit registration/i }));
 
   await waitFor(() =>
     expect(mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ gender: '女', age: '30多岁', city: '厦门' }),
+      expect.objectContaining({
+        name: 'Invite User',
+        email: 'invite@example.com',
+        password: 'password123',
+        confirm_password: 'password123',
+      }),
     ),
+  );
+  expect(mutate.mock.calls[0][0]).not.toEqual(
+    expect.objectContaining({ username: expect.anything(), gender: expect.anything() }),
   );
 });
 
@@ -262,9 +267,9 @@ test('keeps the registration form available for an invite link', () => {
   expect(getByRole('textbox', { name: '邀请码' })).toBeVisible();
 });
 
-test('prefills the invite code saved by the home invitation link', () => {
+test('applies the invite code saved by the home invitation link without showing it', () => {
   sessionStorage.setItem('life_invite_code', 'YW-7K9P-2M8Q');
-  const { getByRole } = setup({
+  const { getByRole, getByText, container } = setup({
     useGetStartupConfigReturnValue: {
       ...mockStartupConfig,
       data: {
@@ -274,7 +279,10 @@ test('prefills the invite code saved by the home invitation link', () => {
     },
   });
 
-  expect(getByRole('textbox', { name: '邀请码' })).toHaveValue('YW-7K9P-2M8Q');
+  expect(getByRole('form', { name: /Registration form/i })).toBeVisible();
+  expect(screen.queryByRole('textbox', { name: '邀请码' })).not.toBeInTheDocument();
+  expect(container.querySelector('input[name="inviteCode"]')).toHaveValue('YW-7K9P-2M8Q');
+  expect(getByText(/邀请码已从邀请链接带入/)).toBeInTheDocument();
 });
 
 test('preserves a valid entryHouse from the registration URL', async () => {
@@ -370,17 +378,15 @@ test('logs in immediately after registration when email verification is disabled
 test('shows validation error messages', async () => {
   const { getByTestId, getAllByRole, getByRole } = setup();
   await userEvent.type(getByRole('textbox', { name: /Full name/i }), 'J');
-  await userEvent.type(getByRole('textbox', { name: /Username/i }), 'j');
   await userEvent.type(getByRole('textbox', { name: /Email/i }), 'test');
   await userEvent.type(getByTestId('password'), 'pass');
   await userEvent.type(getByTestId('confirm_password'), 'password1');
   const alerts = getAllByRole('alert');
-  expect(alerts).toHaveLength(5);
+  expect(alerts).toHaveLength(4);
   expect(alerts[0]).toHaveTextContent(/2/);
-  expect(alerts[1]).toHaveTextContent(/Username must be at least 2 characters/i);
-  expect(alerts[2]).toHaveTextContent(/You must enter a valid email address/i);
-  expect(alerts[3]).toHaveTextContent(/Password must be at least 8 characters/i);
-  expect(alerts[4]).toHaveTextContent(/Passwords do not match/i);
+  expect(alerts[1]).toHaveTextContent(/You must enter a valid email address/i);
+  expect(alerts[2]).toHaveTextContent(/Password must be at least 8 characters/i);
+  expect(alerts[3]).toHaveTextContent(/Passwords do not match/i);
 });
 
 test('shows error message when registration fails', async () => {
@@ -397,7 +403,6 @@ test('shows error message when registration fails', async () => {
   });
 
   await userEvent.type(getByRole('textbox', { name: /Full name/i }), 'John Doe');
-  await userEvent.type(getByRole('textbox', { name: /Username/i }), 'johndoe');
   await userEvent.type(getByRole('textbox', { name: /Email/i }), 'test@test.com');
   await userEvent.type(getByTestId('password'), 'password');
   await userEvent.type(getByTestId('confirm_password'), 'password');

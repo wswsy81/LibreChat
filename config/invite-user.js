@@ -1,12 +1,17 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const mongoose = require('mongoose');
-const { checkEmailConfig, createInvite } = require('@librechat/api');
-const { User } = require('@librechat/data-schemas').createModels(mongoose);
+const {
+  checkEmailConfig,
+  generateLifeInviteCode,
+  formatLifeInviteCode,
+} = require('@librechat/api');
+const { createModels, hashToken } = require('@librechat/data-schemas');
+const { User } = createModels(mongoose);
 require('module-alias')({ base: path.resolve(__dirname, '..', 'api') });
 const { askQuestion, silentExit } = require('./helpers');
 const { sendEmail } = require('~/server/utils');
-const { createToken } = require('~/models');
+const { createLifeInvitation } = require('~/models');
 const connect = require('./connect');
 
 (async () => {
@@ -45,8 +50,44 @@ const connect = require('./connect');
     silentExit(1);
   }
 
-  const token = await createInvite(email, { createToken });
-  const inviteLink = `${process.env.DOMAIN_CLIENT}/register?token=${token}`;
+  const inviterEmail = process.env.LIFE_INVITER_EMAIL || '';
+  const inviter = inviterEmail
+    ? await User.findOne({ email: inviterEmail })
+    : await User.findOne({ role: 'ADMIN' }).sort({ createdAt: 1 });
+  if (!inviter || inviter.role !== 'ADMIN') {
+    console.red(
+      inviterEmail
+        ? `Error: LIFE_INVITER_EMAIL is not an admin account: ${inviterEmail}`
+        : 'Error: No admin account is available as the inviter.',
+    );
+    silentExit(1);
+  }
+
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  let code;
+  let invitation;
+  for (let attempt = 0; attempt < 5 && !invitation; attempt += 1) {
+    code = generateLifeInviteCode();
+    try {
+      invitation = await createLifeInvitation({
+        codeHash: await hashToken(code),
+        codeHint: code.slice(-4),
+        codePlain: code,
+        inviterUserId: inviter._id,
+        expiresAt,
+      });
+    } catch (error) {
+      if (error?.code !== 11000) {
+        throw error;
+      }
+    }
+  }
+  if (!invitation || !code) {
+    console.red('Error: Failed to generate a unique invitation code.');
+    silentExit(1);
+  }
+  const base = (process.env.DOMAIN_CLIENT || 'http://localhost:3080').replace(/\/+$/, '');
+  const inviteLink = `${base}/home#invite=${encodeURIComponent(formatLifeInviteCode(code))}`;
 
   const appName = process.env.APP_TITLE || 'LibreChat';
 

@@ -9,20 +9,6 @@ import useHouseEntry from '../hooks/useEntry';
 import { useLocalize } from '~/hooks';
 import { track } from '~/utils/track';
 
-const PROMISE_LINE_KEYS = [
-  'com_life_setup_promise_1',
-  'com_life_setup_promise_2',
-  'com_life_setup_promise_3',
-  'com_life_setup_promise_4',
-  'com_life_setup_promise_5',
-] as const;
-
-const EXAMPLE_LINE_CARDS = [
-  { titleKey: 'com_life_line_inertia', bodyKey: 'com_life_setup_line_inertia_help' },
-  { titleKey: 'com_life_line_intervention', bodyKey: 'com_life_setup_line_intervention_help' },
-  { titleKey: 'com_life_line_rupture', bodyKey: 'com_life_setup_line_rupture_help' },
-] as const;
-
 const readError = (error: Error | null) => {
   const response = (error as Error & { response?: { data?: { error?: { message?: string } } } })
     ?.response;
@@ -167,51 +153,6 @@ export default function FirstArchiveSetup({
           <span className="h-px flex-1 bg-life-rule" />
         </div>
 
-        {!isNewMatter && (
-          <>
-            <div className="mb-7 border-l-2 border-life-cinnabar pl-4 sm:pl-5">
-              <h2 className="font-life-serif text-life-lead font-semibold text-life-ink">
-                {localize('com_life_setup_promise_title')}
-              </h2>
-              <ol className="mt-3 space-y-2 font-life-kai text-life-sm leading-7 text-life-muted">
-                {PROMISE_LINE_KEYS.map((key, index) => (
-                  <li key={key} className="flex gap-3">
-                    <span className="font-life-mono text-life-meta text-life-brass">
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
-                    <span>{localize(key)}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-            <section className="mb-7" aria-labelledby="life-setup-lines-title">
-              <h2
-                id="life-setup-lines-title"
-                className="font-life-serif text-life-lead font-semibold text-life-ink"
-              >
-                {localize('com_life_setup_lines_title')}
-              </h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                {EXAMPLE_LINE_CARDS.map((card, index) => (
-                  <article
-                    key={card.titleKey}
-                    className="border border-life-rule bg-life-paper p-4"
-                  >
-                    <p className="font-life-mono text-life-meta text-life-cinnabar">
-                      {String(index + 1).padStart(2, '0')}
-                    </p>
-                    <h3 className="mt-2 font-life-serif text-life-body font-semibold text-life-ink">
-                      {localize(card.titleKey)}
-                    </h3>
-                    <p className="mt-2 font-life-kai text-life-sm leading-7 text-life-muted">
-                      {localize(card.bodyKey)}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </>
-        )}
         <div>
           <div className="mb-5">
             <h2 className="font-life-serif text-life-lead font-semibold text-life-ink">
