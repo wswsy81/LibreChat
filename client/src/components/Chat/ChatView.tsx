@@ -27,7 +27,6 @@ import Header from './Header';
 import Footer from './Footer';
 import { cn, getLatestText } from '~/utils';
 import store from '~/store';
-import LifeArchiveDrawer from '~/features/life-design/components/LifeArchiveDrawer';
 
 function LoadingSpinner() {
   return (
@@ -136,12 +135,6 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
                 </div>
                 {isLandingPage && <Footer />}
               </>
-              {!isLandingPage && (
-                <LifeArchiveDrawer
-                  isSubmitting={isSubmitting}
-                  latestAssistantMessage={latestMessage}
-                />
-              )}
             </div>
           </Presentation>
         </AddedChatContext.Provider>

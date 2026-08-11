@@ -107,11 +107,14 @@ jest.mock('./Footer', () => () => null);
 jest.mock('./Landing', () => () => null);
 jest.mock('./Input/ConversationStarters', () => () => null);
 jest.mock('./ProjectLandingChip', () => () => null);
-jest.mock('~/features/life-design/components/LifeArchiveDrawer', () => () => null);
+jest.mock('~/features/life-design/components/LifeArchiveDrawer', () => () => (
+  <button aria-label="人生档案浮标" />
+));
 
 test('完整 ChatView 的首入态同时只有唯一 ChatForm 文本框', () => {
   render(<ChatView />);
 
   expect(screen.getAllByRole('textbox')).toHaveLength(1);
   expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', '想到哪写到哪；一两句也可以');
+  expect(screen.queryByRole('button', { name: '人生档案浮标' })).not.toBeInTheDocument();
 });

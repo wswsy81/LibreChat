@@ -22,7 +22,7 @@ const useSpeechToTextExternal = (
   const [permission, setPermission] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isRequestBeingMade, setIsRequestBeingMade] = useState(false);
-  const [audioMimeType, setAudioMimeType] = useState<string>(() => getBestSupportedMimeType());
+  const audioMimeTypeRef = useRef<string>(getBestSupportedMimeType());
 
   const [minDecibels] = useRecoilState(store.decibelValue);
   const [autoSendText] = useRecoilState(store.autoSendText);
@@ -118,23 +118,31 @@ const useSpeechToTextExternal = (
       return;
     }
 
-    if (audioChunksRef.current.length > 0) {
-      const audioBlob = new Blob(audioChunksRef.current, { type: audioMimeType });
-      const fileExtension = getFileExtension(audioMimeType);
+    const audioChunks = audioChunksRef.current.filter((chunk) => chunk.size > 0);
+    audioChunksRef.current = [];
 
-      audioChunksRef.current = [];
-
-      const formData = new FormData();
-      formData.append('audio', audioBlob, `audio.${fileExtension}`);
-      if (languageSTT) {
-        formData.append('language', languageSTT);
-      }
-      setIsRequestBeingMade(true);
+    if (audioChunks.length === 0) {
       cleanup();
-      processAudio(formData);
-    } else {
       showToast({ message: 'The audio was too short', status: 'warning' });
+      return;
     }
+
+    const mimeType = mediaRecorderRef.current?.mimeType || audioMimeTypeRef.current;
+    const audioBlob = new Blob(audioChunks, { type: mimeType });
+    if (audioBlob.size === 0) {
+      cleanup();
+      showToast({ message: 'The audio was too short', status: 'warning' });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('audio', audioBlob, `audio.${getFileExtension(mimeType)}`);
+    if (languageSTT) {
+      formData.append('language', languageSTT);
+    }
+    setIsRequestBeingMade(true);
+    cleanup();
+    processAudio(formData);
   };
 
   const monitorSilence = (stream: MediaStream, stopRecording: () => void) => {
@@ -186,16 +194,18 @@ const useSpeechToTextExternal = (
       try {
         audioChunksRef.current = [];
         const bestMimeType = getBestSupportedMimeType();
-        setAudioMimeType(bestMimeType);
-
-        mediaRecorderRef.current = new MediaRecorder(audioStream.current, {
-          mimeType: audioMimeType,
+        const mediaRecorder = new MediaRecorder(audioStream.current, {
+          mimeType: bestMimeType,
         });
-        mediaRecorderRef.current.addEventListener('dataavailable', (event: BlobEvent) => {
-          audioChunksRef.current.push(event.data);
+        mediaRecorderRef.current = mediaRecorder;
+        audioMimeTypeRef.current = mediaRecorder.mimeType || bestMimeType;
+        mediaRecorder.addEventListener('dataavailable', (event: BlobEvent) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
         });
-        mediaRecorderRef.current.addEventListener('stop', handleStop);
-        mediaRecorderRef.current.start(100);
+        mediaRecorder.addEventListener('stop', handleStop);
+        mediaRecorder.start();
         if (!audioContextRef.current && autoTranscribeAudio && speechToText) {
           monitorSilence(audioStream.current, stopRecording);
         }
