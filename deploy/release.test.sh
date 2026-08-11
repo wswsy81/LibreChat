@@ -587,6 +587,11 @@ grep -F 'packages/data-provider changed but packages/data-provider/dist/index.js
 grep -F 'sudo install -d -o \"\$owner\" -g \"\$group\" -m 700' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
 grep -F 'sudo chown \"\$owner:\$group\"' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
 grep -F 'sudo chmod 600' "$SCRIPT_DIR/deploy-product-skills.sh" >/dev/null
+grep -F 'RUNTIME_CONFIG_FILES=(' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
+grep -F 'banks-asset-' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
+grep -F 'sudo -n install -o root -g root -m 644' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
+grep -F 'container_runtime_sha=' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
+grep -F 'rollback.tgz' "$ENGINE_DIR/scripts/deploy-banks.sh" >/dev/null
 
 PROVENANCE_TEST_DIR="$TEST_ROOT/provenance"
 mkdir -p "$PROVENANCE_TEST_DIR/clean" "$PROVENANCE_TEST_DIR/dirty"

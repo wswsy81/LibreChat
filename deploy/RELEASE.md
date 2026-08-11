@@ -95,7 +95,7 @@ bash deploy/apply-release.sh .releases/B5-20260719.rollback.env
 
 ## 话术库热更新(2026-07-22 起)
 
-bank 文案与代码发布解耦:生产 compose 把 `../future-engine-shim/banks-live` 只读挂进引擎(`ADVISOR_BANKS_DIR=/app/banks-live`),`bank-loader` 按 mtime 失效缓存、坏文件回落上一版。改文案=本地改 `banks/*.json` 过 lint+拍板 → `bash scripts/deploy-banks.sh`,秒级生效,不重建镜像不重启容器。镜像内 `banks/` 仍是兜底(热目录缺该文件时用)。
+bank 文案与代码发布解耦:生产同时使用 `ADVISOR_BANKS_DIR=/app/banks-live` 和 `FUTURE_ENGINE_BANK_ROOT=/app/runtime-config`。`deploy-banks.sh` 会先同步 banks-live，再为 runtime-config 生成精确 rollback、原子替换现役资产并比较本地／宿主／容器 SHA；两处任一未同步都失败。改文案=本地改 `banks/*.json` 过 lint+拍板 → `bash scripts/deploy-banks.sh`，秒级生效，不重建镜像不重启容器。镜像内 `banks/` 仍是最终兜底。
 
 生产发布不再同步整仓源码。若仅为修复宿主发布控制脚本做一次显式同步，仍必须保护 `.env`、`runtime-config/`、`data/`、`banks-live/`、`uploads/`、`images/` 与 `.releases/`。
 

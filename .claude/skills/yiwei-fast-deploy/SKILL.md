@@ -46,6 +46,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 26. 代码与 `product-skills`、bank 同时变化时，发布计划必须完整执行 source release、product-skill 热更和 bank 热更中实际需要的部分；禁止只上线代码或只上线部分资产。热更复用最新 VERIFIED 并只保留精确资产 rollback，不新建整库备份；Product Skill rollback 必须归应用发布用户所有且权限为 `0600`。
 27. `packages/data-provider/src` 的普通业务改动，在依赖、迁移、身份与隔离边界未变时，由 `ssh-source` 打包已验证的 `packages/data-provider/dist` 并只读挂载到 API，同时发布同 revision 的 Client 静态产物；dist 缺失必须 fail-closed，不得自动改走 full。
 28. 删除前端源码、普通 API JS 或 Engine JS 时不得仅因 deletion 自动升级镜像发布：Client 以同 revision 静态产物覆盖；API／Engine 由 `ssh-source` 生成只读、加载即失败的 tombstone 隐藏稳定镜像旧文件，并把删除计入变化服务与精确 rollback。删除依赖、镜像、compose、迁移、身份隔离或不支持的共享运行时仍 fail-closed。
+29. bank 热更必须同时覆盖 `ADVISOR_BANKS_DIR=/app/banks-live` 和 `FUTURE_ENGINE_BANK_ROOT=/app/runtime-config`；`deploy-banks.sh` 要为 runtime-config 生成应用发布用户 `0600` 的精确 rollback，以 `/tmp → sudo install → 原子替换` 更新，并比较本地、宿主和容器 SHA。只同步 banks-live 不得标记完成。
 
 只改发布/备份/skill 管道时使用 `projects/未来线/librechat/deploy/verify-local.sh --release`；业务代码开发用 `--quick`，最终完整交付用 `--full`。
 
@@ -59,7 +60,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 6. **生产验收**：按 `references/definition-of-done.md` 的 fail-closed 原则检查：
    - `.release.env` 与容器 digest 一致，权限为 `0600` 且固定发布用户可读；
    - `user=node`、`restart=0`、`no-new-privileges:true`；
-   - API `/health` 200；engine `/health` 200、工具数和 dependencies 正常；
+   - API `/health` 200；engine `/health` 200、工具列表与当前注册表逐项一致、dependencies 正常；
    - 公网 `/`、`/home`、`/login`、`/faq`、`/health` 全部 200；
    - 最近日志无新 `error|exception|fatal|EACCES`（明确的非致命 RAG 告警单列）。
 7. **运行时控制面 canary**：仅当改动 runtime-copy/prompt 管道时执行。
