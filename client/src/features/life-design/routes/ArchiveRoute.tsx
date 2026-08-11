@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useLifeArchiveQuery, useLifeBootstrapQuery } from '~/data-provider';
@@ -89,6 +89,7 @@ export default function ArchiveRoute() {
   const location = useLocation();
   const archive = useLifeArchiveQuery();
   const bootstrap = useLifeBootstrapQuery();
+  const articleRef = useRef<HTMLElement>(null);
   const [basicsOpen, setBasicsOpen] = useState(location.hash === '#me-basics');
 
   useEffect(() => {
@@ -96,10 +97,39 @@ export default function ArchiveRoute() {
   }, [location.hash]);
 
   useEffect(() => {
-    if (!basicsOpen || location.hash !== '#me-basics') return;
-    window.requestAnimationFrame(() => {
-      document.getElementById('me-basics')?.scrollIntoView({ block: 'start' });
+    const targetId = location.hash.slice(1);
+    if (!targetId || (targetId === 'me-basics' && !basicsOpen)) return;
+
+    const target = document.getElementById(targetId);
+    const article = articleRef.current;
+    if (!target || !article) return;
+
+    const scrollToTarget = () => target.scrollIntoView({ block: 'start' });
+    const frame = window.requestAnimationFrame(scrollToTarget);
+
+    if (typeof window.ResizeObserver !== 'function') {
+      const fallback = window.setTimeout(scrollToTarget, 500);
+      return () => {
+        window.cancelAnimationFrame(frame);
+        window.clearTimeout(fallback);
+      };
+    }
+
+    let articleHeight = article.getBoundingClientRect().height;
+    const observer = new window.ResizeObserver(([entry]) => {
+      const nextHeight = entry?.contentRect.height ?? article.getBoundingClientRect().height;
+      if (Math.abs(nextHeight - articleHeight) < 1) return;
+      articleHeight = nextHeight;
+      scrollToTarget();
     });
+    observer.observe(article);
+    const stopObserving = window.setTimeout(() => observer.disconnect(), 3000);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(stopObserving);
+      observer.disconnect();
+    };
   }, [archive.data, basicsOpen, location.hash]);
 
   if (archive.isLoading) {
@@ -178,21 +208,21 @@ export default function ArchiveRoute() {
             <ol className="mt-4 grid md:grid-cols-2 md:gap-x-8 lg:grid-cols-1 lg:gap-x-0">
               {contents.map((item) => (
                 <li key={item.id}>
-                  <a
-                    href={`#${item.id}`}
+                  <Link
+                    to={`/me#${item.id}`}
                     className="flex min-h-11 items-center justify-between gap-4 border-b border-life-rule py-2 font-life-sans text-life-sm text-life-ink transition hover:border-life-ink hover:text-life-cinnabar dark:border-white/10 dark:text-gray-200 dark:hover:text-[#D98A76]"
                   >
                     <span>{item.label}</span>
                     <span className="font-life-mono text-life-meta tabular-nums text-life-muted dark:text-gray-500">
                       {item.index}
                     </span>
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ol>
           </nav>
 
-          <article className="min-w-0 lg:col-start-1 lg:row-start-1">
+          <article ref={articleRef} className="min-w-0 lg:col-start-1 lg:row-start-1">
             <section
               id="me-current"
               className="border-y border-life-ink/70 py-7 dark:border-white/30"
@@ -467,12 +497,12 @@ export default function ArchiveRoute() {
                 {localize('com_life_archive_revisions_help')}
               </p>
               <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
-                <a
-                  href="#archive-dossier"
+                <Link
+                  to="/me#archive-dossier"
                   className="inline-flex min-h-11 items-center border-b border-life-brass font-life-sans text-life-sm font-medium text-life-brass hover:text-life-ink"
                 >
                   {localize('com_life_archive_open_revision_history')}
-                </a>
+                </Link>
               </div>
             </ArchiveSection>
           </article>

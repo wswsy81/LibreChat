@@ -4,7 +4,7 @@
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import ArchiveRoute from '../ArchiveRoute';
 
 jest.mock('@librechat/client', () => ({
@@ -104,8 +104,11 @@ test('统一我页面保留档案正文，并按新顺序提供八个稳定章�
   ).toEqual(['01', '02', '03', '04', '05', '06', '07', '08']);
   expect(screen.getByRole('link', { name: /com_life_archive_reports_title/ })).toHaveAttribute(
     'href',
-    '#archive-reports',
+    '/me#archive-reports',
   );
+  expect(
+    screen.getByRole('link', { name: /com_life_archive_open_revision_history/ }),
+  ).toHaveAttribute('href', '/me#archive-dossier');
 });
 
 test('基本资料靠后且默认收起，用户点击后才加载表单', async () => {
@@ -121,8 +124,31 @@ test('基本资料靠后且默认收起，用户点击后才加载表单', async
   expect(screen.getByText('basics-form')).toBeInTheDocument();
 });
 
-test('/me#me-basics 会直接展开并定位基本资料章节', () => {
+test('/me#archive-map 会由路由滚动合同定位目标章节', async () => {
   Element.prototype.scrollIntoView = jest.fn();
+  renderArchive('/me#archive-map');
+
+  await waitFor(() =>
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'start' }),
+  );
+  expect(document.getElementById('archive-map')).toBeInTheDocument();
+});
+
+test('/me#me-basics 会展开，并在上方异步布局变化后重新定位', async () => {
+  const scrollIntoView = jest.fn();
+  let resize: ResizeObserverCallback | undefined;
+  Element.prototype.scrollIntoView = scrollIntoView;
+  window.ResizeObserver = class {
+    constructor(callback: ResizeObserverCallback) {
+      resize = callback;
+    }
+
+    observe() {}
+
+    unobserve() {}
+
+    disconnect() {}
+  };
   renderArchive('/me#me-basics');
 
   expect(screen.getByText('basics-form')).toBeInTheDocument();
@@ -130,4 +156,16 @@ test('/me#me-basics 会直接展开并定位基本资料章节', () => {
     'aria-expanded',
     'true',
   );
+  await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+
+  resize?.(
+    [
+      {
+        contentRect: { height: 2000 },
+      } as ResizeObserverEntry,
+    ],
+    {} as ResizeObserver,
+  );
+
+  expect(scrollIntoView).toHaveBeenCalledTimes(2);
 });
