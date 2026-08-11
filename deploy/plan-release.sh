@@ -27,8 +27,9 @@ let targetSeconds = { min: 0, max: 0 };
 const active = [brain, app].filter((plan) => plan.channel !== "none");
 const hasHardImageRisk = active.some((plan) => {
   const facts = plan.facts || {};
+  const identityBoundaryChanged = facts.identityOrIsolationChanged && !facts.clientOnly;
   return facts.lockChanged || facts.dependencyChanged || facts.baseImageChanged
-    || facts.schemaChanged || facts.identityOrIsolationChanged || facts.migrationChanged;
+    || facts.schemaChanged || identityBoundaryChanged || facts.migrationChanged;
 });
 if (!hasHardImageRisk && (active.length > 1 || active.some((plan) => plan.channel === "full"))) {
   channel = "ssh-source";

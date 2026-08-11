@@ -42,7 +42,7 @@ ssh tencentcloud2 'cd /home/ubuntu/app/librechat && sudo bash deploy/apply-relea
 
 纯客户端的登录界面、认证恢复回跳和 hash/search 保留仍属于 `client-static`；文件名包含 `auth` 不等于服务端身份边界变化。只要同时触及 API、共享认证合同、租户或隔离运行时，分类器仍必须 fail-closed 升为 `full`。
 
-发码运维工具 `gen-invite.sh` / `config/invite-user.js` 以及 `e2e/` 验收配置属于发布控制面，不进入用户运行时产物，不得把同批纯 Client 邀请页改动误升为 `full`。若改动真正触及 API 注册、邀请校验、权限、租户或隔离合同，仍必须 fail-closed。
+发码运维工具 `gen-invite.sh` / `config/invite-user.js` 以及 `e2e/` 验收配置属于发布控制面，不进入用户运行时产物，分类器和总计划器都不得把同批纯 Client 邀请页改动误升为 `full`。若改动真正触及 API 注册、邀请校验、权限、租户或隔离合同，仍必须 fail-closed。
 
 已有全绿候选在 apply 阶段只做 provenance、双 health 与 canary，不重跑本地大套件。`stage-release.sh` 可重复执行；已 `deployable` 的同一候选会直接返回，网络中断后再次运行会跳过 revision label 已匹配的镜像，不从头重传，也不重复做 VERIFIED 备份。
 

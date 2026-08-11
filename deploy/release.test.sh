@@ -560,6 +560,31 @@ CROSS_PLAN=$(BRAIN_DIR_OVERRIDE="$BRAIN_PLAN_REPO" APP_DIR_OVERRIDE="$APP_PLAN_R
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[0])' "$CROSS_PLAN") == 'deploy/ssh-source-release.sh' ]]
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[1])' "$CROSS_PLAN") == 'deploy/deploy-product-skills.sh' ]]
 [[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[2])' "$CROSS_PLAN") == 'future-engine-shim/scripts/deploy-banks.sh' ]]
+
+INVITE_BRAIN_PLAN_REPO="$TEST_ROOT/invite-brain-plan"
+INVITE_APP_PLAN_REPO="$TEST_ROOT/invite-app-plan"
+mkdir -p "$INVITE_BRAIN_PLAN_REPO" "$INVITE_APP_PLAN_REPO"
+printf 'brain\n' > "$INVITE_BRAIN_PLAN_REPO/.keep"
+printf 'app\n' > "$INVITE_APP_PLAN_REPO/.keep"
+init_pushed_repo "$INVITE_BRAIN_PLAN_REPO" "$TEST_ROOT/invite-brain-plan-origin.git"
+init_pushed_repo "$INVITE_APP_PLAN_REPO" "$TEST_ROOT/invite-app-plan-origin.git"
+INVITE_BRAIN_PLAN_BASE=$(git -C "$INVITE_BRAIN_PLAN_REPO" rev-parse HEAD)
+INVITE_APP_PLAN_BASE=$(git -C "$INVITE_APP_PLAN_REPO" rev-parse HEAD)
+mkdir -p "$INVITE_BRAIN_PLAN_REPO/projects/未来线/future-engine-shim/banks"
+printf 'module.exports = {};\n' > "$INVITE_BRAIN_PLAN_REPO/projects/未来线/future-engine-shim/choice-ui.js"
+printf '{}\n' > "$INVITE_BRAIN_PLAN_REPO/projects/未来线/future-engine-shim/banks/runtime-copy.v1.json"
+git -C "$INVITE_BRAIN_PLAN_REPO" add . && git -C "$INVITE_BRAIN_PLAN_REPO" commit -m invite-engine >/dev/null
+mkdir -p "$INVITE_APP_PLAN_REPO/client/src/components/Auth" "$INVITE_APP_PLAN_REPO/config" "$INVITE_APP_PLAN_REPO/e2e/config"
+printf 'export {};\n' > "$INVITE_APP_PLAN_REPO/client/src/components/Auth/Registration.tsx"
+printf 'module.exports = {};\n' > "$INVITE_APP_PLAN_REPO/config/invite-user.js"
+printf '#!/usr/bin/env bash\n' > "$INVITE_APP_PLAN_REPO/gen-invite.sh"
+printf 'version: 1\n' > "$INVITE_APP_PLAN_REPO/e2e/config/invite.yaml"
+git -C "$INVITE_APP_PLAN_REPO" add . && git -C "$INVITE_APP_PLAN_REPO" commit -m invite-client >/dev/null
+INVITE_PLAN=$(BRAIN_DIR_OVERRIDE="$INVITE_BRAIN_PLAN_REPO" APP_DIR_OVERRIDE="$INVITE_APP_PLAN_REPO" \
+  bash "$SCRIPT_DIR/plan-release.sh" "$INVITE_BRAIN_PLAN_BASE" "$INVITE_APP_PLAN_BASE")
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).channel)' "$INVITE_PLAN") == ssh-source ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[0])' "$INVITE_PLAN") == 'deploy/ssh-source-release.sh' ]]
+[[ $(node -e 'console.log(JSON.parse(process.argv[1]).executors[1])' "$INVITE_PLAN") == 'future-engine-shim/scripts/deploy-banks.sh' ]]
 grep -F 'sudo -n install -d -o \"\$owner\" -g \"\$group\" -m 700 \"\$app/.release-src\"' \
   "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F 'test \"\$(stat -c '\''%a'\'' \"\$app/.release-src\")\" = 700' \
