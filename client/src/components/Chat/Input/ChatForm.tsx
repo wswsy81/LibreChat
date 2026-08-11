@@ -80,6 +80,7 @@ const ChatForm = memo(function ChatForm({
   const [, setIsScrollable] = useState(false);
   const [visualRowCount, setVisualRowCount] = useState(1);
   const [isTextAreaFocused, setIsTextAreaFocused] = useState(false);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [backupBadges, setBackupBadges] = useState<Pick<BadgeItem, 'id'>[]>([]);
 
   const SpeechToText = useRecoilValue(store.speechToText);
@@ -88,6 +89,12 @@ const ChatForm = memo(function ChatForm({
   const automaticPlayback = useRecoilValue(store.automaticPlayback);
   const maximizeChatSpace = useRecoilValue(store.maximizeChatSpace);
   const centerFormOnLanding = useRecoilValue(store.centerFormOnLanding);
+
+  useEffect(() => {
+    if (!SpeechToText) {
+      setIsVoiceMode(false);
+    }
+  }, [SpeechToText]);
   const isTemporary = useRecoilValue(store.isTemporary);
 
   const [badges, setBadges] = useRecoilState(store.chatBadges);
@@ -331,7 +338,7 @@ const ChatForm = memo(function ChatForm({
               setFiles={setFiles}
               setFilesLoading={setFilesLoading}
             />
-            {endpoint && (
+            {endpoint && !isVoiceMode && (
               <div className={cn('flex', isRTL ? 'flex-row-reverse' : 'flex-row')}>
                 <div
                   className="relative flex-1"
@@ -391,62 +398,74 @@ const ChatForm = memo(function ChatForm({
             )}
             <div
               className={cn(
-                '@container items-between flex gap-2 pb-2',
+                '@container items-between flex',
+                !isVoiceMode && 'gap-2 pb-2',
                 isRTL ? 'flex-row-reverse' : 'flex-row',
               )}
             >
-              <div className={`${isRTL ? 'mr-2' : 'ml-2'}`}>
-                <AttachFileChat
-                  conversation={conversation}
-                  disableInputs={disableInputs}
-                  files={files}
-                  setFiles={setFiles}
-                  setFilesLoading={setFilesLoading}
-                />
-              </div>
-              <BadgeRow
-                showEphemeralBadges={
-                  !!endpoint &&
-                  !hideBadgeRow &&
-                  !isAgentsEndpoint(endpoint) &&
-                  !isAssistantsEndpoint(endpoint)
-                }
-                isSubmitting={isSubmitting}
-                conversationId={conversationId}
-                specName={conversation?.spec}
-                onChange={setBadges}
-                isInChat={
-                  Array.isArray(conversation?.messages) && conversation.messages.length >= 1
-                }
-              />
-              <div className="mx-auto flex" />
-              <TokenUsage index={index} conversation={conversation} isSubmitting={isSubmitting} />
+              {!isVoiceMode && (
+                <>
+                  <div className={`${isRTL ? 'mr-2' : 'ml-2'}`}>
+                    <AttachFileChat
+                      conversation={conversation}
+                      disableInputs={disableInputs}
+                      files={files}
+                      setFiles={setFiles}
+                      setFilesLoading={setFilesLoading}
+                    />
+                  </div>
+                  <BadgeRow
+                    showEphemeralBadges={
+                      !!endpoint &&
+                      !hideBadgeRow &&
+                      !isAgentsEndpoint(endpoint) &&
+                      !isAssistantsEndpoint(endpoint)
+                    }
+                    isSubmitting={isSubmitting}
+                    conversationId={conversationId}
+                    specName={conversation?.spec}
+                    onChange={setBadges}
+                    isInChat={
+                      Array.isArray(conversation?.messages) && conversation.messages.length >= 1
+                    }
+                  />
+                  <div className="mx-auto flex" />
+                  <TokenUsage
+                    index={index}
+                    conversation={conversation}
+                    isSubmitting={isSubmitting}
+                  />
+                </>
+              )}
               {SpeechToText && (
                 <AudioRecorder
                   methods={methods}
                   ask={submitMessage}
                   disabled={disableInputs || isNotAppendable}
                   isSubmitting={isSubmitting}
+                  onVoiceModeChange={setIsVoiceMode}
                 />
               )}
-              <div className={`${isRTL ? 'ml-2' : 'mr-2'}`}>
-                {isSubmitting && showStopButton && !answerMode.active ? (
-                  <StopButton stop={handleStopGenerating} setShowStopButton={setShowStopButton} />
-                ) : (
-                  endpoint && (
-                    <SendButton
-                      ref={submitButtonRef}
-                      control={methods.control}
-                      disabled={
-                        filesLoading ||
-                        disableInputs ||
-                        isNotAppendable ||
-                        (isSubmitting && !answerMode.active)
-                      }
-                    />
-                  )
-                )}
-              </div>
+              {!isVoiceMode && (
+                <div className={`${isRTL ? 'ml-2' : 'mr-2'}`}>
+                  {isSubmitting && showStopButton && !answerMode.active ? (
+                    <StopButton stop={handleStopGenerating} setShowStopButton={setShowStopButton} />
+                  ) : (
+                    endpoint && (
+                      <SendButton
+                        ref={submitButtonRef}
+                        control={methods.control}
+                        disabled={
+                          filesLoading ||
+                          disableInputs ||
+                          isNotAppendable ||
+                          (isSubmitting && !answerMode.active)
+                        }
+                      />
+                    )
+                  )}
+                </div>
+              )}
             </div>
             {TextToSpeech && automaticPlayback && <StreamAudio index={index} />}
           </div>

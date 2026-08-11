@@ -19,11 +19,13 @@ export default memo(function AudioRecorder({
   ask,
   methods,
   isSubmitting,
+  onVoiceModeChange,
 }: {
   disabled: boolean;
   ask: TAskFunction;
   methods: ReturnType<typeof useChatFormContext>;
   isSubmitting: boolean;
+  onVoiceModeChange?: (isVoiceMode: boolean) => void;
 }) {
   const { setValue, reset, getValues } = methods;
   const localize = useLocalize();
@@ -34,6 +36,13 @@ export default memo(function AudioRecorder({
   const [isCancelling, setIsCancelling] = useState(false);
   const [isAwaitingTranscription, setIsAwaitingTranscription] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const updateVoiceMode = useCallback(
+    (nextVoiceMode: boolean) => {
+      setIsVoiceMode(nextVoiceMode);
+      onVoiceModeChange?.(nextVoiceMode);
+    },
+    [onVoiceModeChange],
+  );
 
   const existingTextRef = useRef<string>('');
   const isSubmittingRef = useRef(isSubmitting);
@@ -104,10 +113,10 @@ export default memo(function AudioRecorder({
       if (isExternalSTT(speechToTextEndpoint) && awaitingTranscriptionRef.current) {
         awaitingTranscriptionRef.current = false;
         setIsAwaitingTranscription(false);
-        setIsVoiceMode(false);
+        updateVoiceMode(false);
       }
     },
-    [setValue, speechToTextEndpoint],
+    [setValue, speechToTextEndpoint, updateVoiceMode],
   );
 
   const {
@@ -169,8 +178,8 @@ export default memo(function AudioRecorder({
 
     awaitingTranscriptionRef.current = false;
     setIsAwaitingTranscription(false);
-    setIsVoiceMode(false);
-  }, [isAwaitingTranscription, isLoading]);
+    updateVoiceMode(false);
+  }, [isAwaitingTranscription, isLoading, updateVoiceMode]);
 
   const finalizeRecording = useCallback(
     (action: 'cancel' | 'transcribe') => {
@@ -193,9 +202,9 @@ export default memo(function AudioRecorder({
       }
 
       stopRecording();
-      setIsVoiceMode(false);
+      updateVoiceMode(false);
     },
-    [cancelRecording, setValue, speechToTextEndpoint, stopRecording],
+    [cancelRecording, setValue, speechToTextEndpoint, stopRecording, updateVoiceMode],
   );
 
   const finishHold = useCallback(
@@ -321,7 +330,7 @@ export default memo(function AudioRecorder({
     if (isActiveHoldRef.current) {
       finishHold('cancel');
     }
-    setIsVoiceMode(false);
+    updateVoiceMode(false);
   };
 
   const toggleVoiceMode = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -330,13 +339,10 @@ export default memo(function AudioRecorder({
       closeVoiceMode();
       return;
     }
-    setIsVoiceMode(true);
+    updateVoiceMode(true);
   };
 
   const renderIcon = () => {
-    if (isVoiceMode) {
-      return <Keyboard className="stroke-life-ink" />;
-    }
     if (isListening === true) {
       return <MicOff className="stroke-red-500" />;
     }
@@ -361,85 +367,77 @@ export default memo(function AudioRecorder({
     holdMeta = localize('com_life_voice_transcribing_help');
   }
 
-  return (
-    <>
-      {isVoiceMode && (
-        <div
-          role="group"
-          aria-label={localize('com_life_voice_mode')}
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] left-1/2 z-50 flex min-h-16 w-[calc(100vw-1rem)] max-w-3xl -translate-x-1/2 items-stretch gap-2 rounded-[4px] border border-life-rule bg-life-paper p-2 text-life-ink"
-          onClick={(event) => event.stopPropagation()}
+  if (isVoiceMode) {
+    return (
+      <div
+        role="group"
+        aria-label={localize('com_life_voice_mode')}
+        className="flex min-h-16 w-full flex-1 items-stretch gap-2 p-2 text-life-ink"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          aria-label={localize('com_life_voice_keyboard')}
+          onClick={closeVoiceMode}
+          disabled={isAwaitingTranscription}
+          className="flex min-h-12 min-w-12 items-center justify-center rounded-[4px] border border-life-rule text-life-muted transition-colors hover:border-life-ink hover:text-life-ink disabled:cursor-wait disabled:opacity-50"
         >
-          <button
-            type="button"
-            aria-label={localize('com_life_voice_keyboard')}
-            onClick={closeVoiceMode}
-            disabled={isAwaitingTranscription}
-            className="flex min-h-12 min-w-12 items-center justify-center rounded-[4px] border border-life-rule text-life-muted transition-colors hover:border-life-ink hover:text-life-ink disabled:cursor-wait disabled:opacity-50"
-          >
-            <Keyboard className="size-5" />
-          </button>
-          <button
-            type="button"
-            aria-label={holdLabel}
-            aria-pressed={isHolding}
-            disabled={disabled || isAwaitingTranscription}
-            onContextMenu={(event) => event.preventDefault()}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerCancel}
-            onKeyDown={handleKeyDown}
-            onKeyUp={handleKeyUp}
-            className={cn(
-              'flex min-h-12 flex-1 touch-none select-none items-center justify-center gap-3 rounded-[4px] border px-4 font-life-sans transition-colors',
-              isAwaitingTranscription &&
-                'cursor-wait border-life-rule bg-life-paper-deep text-life-muted',
-              isCancelling && 'border-life-cinnabar bg-life-cinnabar text-life-paper',
-              isHolding && !isCancelling && 'border-life-moss bg-life-moss text-life-paper',
-              !isHolding &&
-                !isAwaitingTranscription &&
-                'border-life-ink/20 bg-life-paper text-life-ink hover:border-life-moss',
-            )}
-          >
-            {isAwaitingTranscription ? (
-              <Spinner className="size-5 stroke-life-muted" />
-            ) : (
-              <Mic className="size-5" />
-            )}
-            <span aria-live="polite" className="flex flex-col items-start leading-none">
-              <span className="text-life-sm font-medium">{holdLabel}</span>
-              <span className="mt-1 font-life-mono text-life-meta opacity-80">{holdMeta}</span>
-            </span>
-          </button>
-        </div>
-      )}
-      <TooltipAnchor
-        description={
-          isVoiceMode ? localize('com_life_voice_keyboard') : localize('com_ui_use_micrphone')
-        }
-        render={
-          <button
-            id="audio-recorder"
-            type="button"
-            aria-label={
-              isVoiceMode ? localize('com_life_voice_keyboard') : localize('com_ui_use_micrphone')
-            }
-            onClick={toggleVoiceMode}
-            disabled={disabled || isLoading}
-            className={cn(
-              'flex size-9 items-center justify-center rounded-full p-1 transition-colors hover:bg-surface-hover',
-              isVoiceMode && 'bg-life-paper-deep',
-            )}
-            title={
-              isVoiceMode ? localize('com_life_voice_keyboard') : localize('com_ui_use_micrphone')
-            }
-            aria-pressed={isVoiceMode}
-          >
-            {renderIcon()}
-          </button>
-        }
-      />
-    </>
+          <Keyboard className="size-5" />
+        </button>
+        <button
+          type="button"
+          aria-label={holdLabel}
+          aria-pressed={isHolding}
+          disabled={disabled || isAwaitingTranscription}
+          onContextMenu={(event) => event.preventDefault()}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          onKeyDown={handleKeyDown}
+          onKeyUp={handleKeyUp}
+          className={cn(
+            'flex min-h-12 flex-1 touch-none select-none items-center justify-center gap-3 rounded-[4px] border px-4 font-life-sans transition-colors',
+            isAwaitingTranscription &&
+              'cursor-wait border-life-rule bg-life-paper-deep text-life-muted',
+            isCancelling && 'border-life-cinnabar bg-life-cinnabar text-life-paper',
+            isHolding && !isCancelling && 'border-life-moss bg-life-moss text-life-paper',
+            !isHolding &&
+              !isAwaitingTranscription &&
+              'border-life-ink/20 bg-life-paper text-life-ink hover:border-life-moss',
+          )}
+        >
+          {isAwaitingTranscription ? (
+            <Spinner className="size-5 stroke-life-muted" />
+          ) : (
+            <Mic className="size-5" />
+          )}
+          <span aria-live="polite" className="flex flex-col items-start leading-none">
+            <span className="text-life-sm font-medium">{holdLabel}</span>
+            <span className="mt-1 font-life-mono text-life-meta opacity-80">{holdMeta}</span>
+          </span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <TooltipAnchor
+      description={localize('com_ui_use_micrphone')}
+      render={
+        <button
+          id="audio-recorder"
+          type="button"
+          aria-label={localize('com_ui_use_micrphone')}
+          onClick={toggleVoiceMode}
+          disabled={disabled || isLoading}
+          className="flex size-9 items-center justify-center rounded-full p-1 transition-colors hover:bg-surface-hover"
+          title={localize('com_ui_use_micrphone')}
+          aria-pressed={false}
+        >
+          {renderIcon()}
+        </button>
+      }
+    />
   );
 });

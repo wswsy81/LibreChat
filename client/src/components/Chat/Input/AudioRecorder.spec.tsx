@@ -128,7 +128,7 @@ describe('AudioRecorder submission cleanup', () => {
 });
 
 describe('AudioRecorder hold-to-talk interaction', () => {
-  const renderRecorder = () => {
+  const renderRecorder = (onVoiceModeChange = jest.fn()) => {
     const methods = {
       setValue: jest.fn(),
       reset: jest.fn(),
@@ -140,9 +140,10 @@ describe('AudioRecorder hold-to-talk interaction', () => {
         ask={jest.fn()}
         methods={methods as never}
         isSubmitting={false}
+        onVoiceModeChange={onVoiceModeChange}
       />,
     );
-    return methods;
+    return { methods, onVoiceModeChange };
   };
 
   beforeEach(() => {
@@ -155,13 +156,28 @@ describe('AudioRecorder hold-to-talk interaction', () => {
   });
 
   it('opens a full hold-to-talk control instead of starting on the mic tap', () => {
-    renderRecorder();
+    const { onVoiceModeChange } = renderRecorder();
 
     fireEvent.click(screen.getByRole('button', { name: 'com_ui_use_micrphone' }));
 
-    expect(screen.getByRole('group', { name: 'com_life_voice_mode' })).toBeInTheDocument();
+    const voiceMode = screen.getByRole('group', { name: 'com_life_voice_mode' });
+    expect(voiceMode).toBeInTheDocument();
+    expect(voiceMode).not.toHaveClass('fixed');
+    expect(voiceMode).toHaveClass('w-full');
+    expect(screen.getAllByRole('button', { name: 'com_life_voice_keyboard' })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'com_life_voice_hold' })).toBeInTheDocument();
+    expect(onVoiceModeChange).toHaveBeenCalledWith(true);
     expect(mockStartRecording).not.toHaveBeenCalled();
+  });
+
+  it('returns the composer to text mode from the inline keyboard control', () => {
+    const { onVoiceModeChange } = renderRecorder();
+    fireEvent.click(screen.getByRole('button', { name: 'com_ui_use_micrphone' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'com_life_voice_keyboard' }));
+
+    expect(screen.queryByRole('group', { name: 'com_life_voice_mode' })).not.toBeInTheDocument();
+    expect(onVoiceModeChange).toHaveBeenLastCalledWith(false);
   });
 
   it('starts while held and stops for transcription on release', async () => {
@@ -180,8 +196,23 @@ describe('AudioRecorder hold-to-talk interaction', () => {
     expect(screen.getByText('com_life_voice_transcribing')).toBeInTheDocument();
   });
 
+  it.each([' ', 'Enter'])('supports holding with the %p keyboard key', async (key) => {
+    renderRecorder();
+    fireEvent.click(screen.getByRole('button', { name: 'com_ui_use_micrphone' }));
+    const holdButton = screen.getByRole('button', { name: 'com_life_voice_hold' });
+
+    await act(async () => {
+      fireEvent.keyDown(holdButton, { key });
+    });
+    fireEvent.keyUp(holdButton, { key });
+
+    expect(mockStartRecording).toHaveBeenCalledTimes(1);
+    expect(mockStopRecording).toHaveBeenCalledTimes(1);
+    expect(mockCancelRecording).not.toHaveBeenCalled();
+  });
+
   it('discards the recording and restores existing text after an upward cancel gesture', async () => {
-    const methods = renderRecorder();
+    const { methods } = renderRecorder();
     fireEvent.click(screen.getByRole('button', { name: 'com_ui_use_micrphone' }));
     const holdButton = screen.getByRole('button', { name: 'com_life_voice_hold' });
 
