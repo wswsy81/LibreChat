@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen, Check, Map, Pencil, Save, Trash2, X } from 'lucide-react';
-import { useToastContext } from '@librechat/client';
+import { useMediaQuery, useToastContext } from '@librechat/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
 import type {
@@ -31,13 +31,15 @@ const openingSeenKey = (announcedAt: string) => `life-archive-opening:${announce
 const ARCHIVE_REFRESH_INTERVAL_MS = 5_000;
 const ARCHIVE_REFRESH_WINDOW_MS = 120_000;
 
-export default function LifeArchiveDrawer({
-  isSubmitting,
-  latestAssistantMessage,
-}: {
+type LifeArchiveDrawerProps = {
   isSubmitting: boolean;
   latestAssistantMessage: TMessage | null;
-}) {
+};
+
+function DesktopLifeArchiveDrawer({
+  isSubmitting,
+  latestAssistantMessage,
+}: LifeArchiveDrawerProps) {
   const localize = useLocalize();
   const { showToast } = useToastContext();
   const queryClient = useQueryClient();
@@ -349,4 +351,10 @@ export default function LifeArchiveDrawer({
       </aside>
     </>
   );
+}
+
+export default function LifeArchiveDrawer(props: LifeArchiveDrawerProps) {
+  const isSmallScreen = useMediaQuery('(max-width: 768px)');
+  if (isSmallScreen) return null;
+  return <DesktopLifeArchiveDrawer {...props} />;
 }

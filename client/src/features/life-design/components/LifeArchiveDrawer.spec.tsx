@@ -10,9 +10,11 @@ import LifeArchiveDrawer from './LifeArchiveDrawer';
 
 const mockMutate = jest.fn();
 const mockToast = jest.fn();
+let mockSmallScreen = false;
 let mockArchive: Record<string, unknown>;
 
 jest.mock('@librechat/client', () => ({
+  useMediaQuery: () => mockSmallScreen,
   useToastContext: () => ({ showToast: mockToast }),
 }));
 
@@ -52,6 +54,7 @@ const renderDrawer = (props?: Partial<React.ComponentProps<typeof LifeArchiveDra
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSmallScreen = false;
   window.localStorage.clear();
   mockArchive = {
     data: {
@@ -69,6 +72,16 @@ beforeEach(() => {
     },
     isLoading: false,
   };
+});
+
+test('移动端不渲染会遮挡聊天输入的书页把手或抽屉', () => {
+  mockSmallScreen = true;
+  renderDrawer();
+
+  expect(
+    screen.queryByRole('button', { name: 'com_life_archive_drawer_handle' }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('com_life_archive_drawer_title')).not.toBeInTheDocument();
 });
 
 test('抽屉把手始终可见，普通存档变化只亮一次微光，不自动打开', () => {
