@@ -22,6 +22,15 @@ const CORE_PROMPT_SLOT = 'advisor.prompt.core';
 
 export type AdvisorMode = 'free_chat' | 'guided_interview' | 'tool_action' | 'report' | 'mingli';
 
+const REPORT_REQUEST_PATTERN =
+  /(?:报告|揭晓|三线).{0,12}(?:生成|查看|打开|更新|重跑|导出)|(?:生成|查看|打开|更新|重跑|导出|给我|想看).{0,12}(?:报告|揭晓|三线)/u;
+const MINGLI_REQUEST_PATTERN =
+  /(?:帮我|请你|我想|想要|我要|用|按|结合|从|拿).{0,8}(?:八字|命理|星盘|占星|紫微|排盘|四柱|大运|流年|对答案)|给我.{0,3}(?:看看?|算算?|排|分析|解读|对照|对一下).{0,8}(?:八字|命理|星盘|占星|紫微|排盘|四柱|大运|流年)|^(?:看看?|算算?|排|分析|解读|对照|对一下).{0,8}(?:八字|命理|星盘|占星|紫微|排盘|四柱|大运|流年)|^(?:八字|命理|星盘|占星|紫微|排盘|四柱)[：:]|(?:八字|命理|星盘|占星|紫微|排盘|四柱|大运|流年).{0,8}(?:帮我|看看?|算算?|排一下|分析|解读|对照|对一下|怎么看|如何看)/u;
+const TOOL_REQUEST_PATTERN =
+  /(?:帮我|请你|现在)?(?:查一下|搜索|搜一下|联网查|生成图片|画一张|导出|下载|发送消息|发消息|删除|创建提醒|设置提醒)/u;
+const MINGLI_EXIT_PATTERN =
+  /(?:先|暂时|暂且)?(?:不聊|不看|不算|不排|停止|结束|退出|到这里|到这儿).{0,8}(?:星盘|占星|八字|命理|排盘|这个|这块|了)|(?:换个|换一|切换)(?:个)?(?:话题|问题|方向)|(?:先|暂时|暂且)?(?:不聊|不看|不算|不排)(?:这个|这块)?了/u;
+
 const MODE_DEFINITIONS: Readonly<Record<AdvisorMode, { nodeId: string; promptSlot: string }>> =
   Object.freeze({
     free_chat: Object.freeze({ nodeId: 'route-free-chat', promptSlot: 'advisor.prompt.free-chat' }),
@@ -157,12 +166,16 @@ function messageText(value: unknown): string {
 export function resolveAdvisorMode(messages: readonly unknown[] = []): AdvisorMode {
   let lastMessage: { role: string; text: string } | undefined;
   let userText = '';
+  let mingliActive = false;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const role = messageRole(messages[index]);
     const text = messageText(messages[index]).trim();
     if (!lastMessage && (role || text)) lastMessage = { role, text };
-    if (role === 'user') {
-      userText = text;
+    if (role !== 'user') continue;
+    if (!userText) userText = text;
+    if (MINGLI_EXIT_PATTERN.test(text)) break;
+    if (MINGLI_REQUEST_PATTERN.test(text)) {
+      mingliActive = true;
       break;
     }
   }
@@ -176,27 +189,17 @@ export function resolveAdvisorMode(messages: readonly unknown[] = []): AdvisorMo
   }
   if (lastMessage?.role === 'tool') return 'tool_action';
   if (!userText) return 'free_chat';
-  if (
-    /(?:报告|揭晓|三线).{0,12}(?:生成|查看|打开|更新|重跑|导出)|(?:生成|查看|打开|更新|重跑|导出|给我|想看).{0,12}(?:报告|揭晓|三线)/u.test(
-      userText,
-    )
-  ) {
+  if (REPORT_REQUEST_PATTERN.test(userText)) {
     return 'report';
   }
-  if (
-    /(?:帮我|请你|我想|想要|我要|用|按|结合|从|拿).{0,8}(?:八字|命理|星盘|占星|紫微|排盘|四柱|大运|流年|对答案)|给我.{0,3}(?:看看?|算算?|排|分析|解读|对照|对一下).{0,8}(?:八字|命理|星盘|占星|紫微|排盘|四柱|大运|流年)|^(?:看看?|算算?|排|分析|解读|对照|对一下).{0,8}(?:八字|命理|星盘|占星|紫微|排盘|四柱|大运|流年)|^(?:八字|命理|星盘|占星|紫微|排盘|四柱)[：:]|(?:八字|命理|星盘|占星|紫微|排盘|四柱|大运|流年).{0,8}(?:帮我|看看?|算算?|排一下|分析|解读|对照|对一下|怎么看|如何看)/u.test(
-      userText,
-    )
-  ) {
+  if (MINGLI_REQUEST_PATTERN.test(userText)) {
     return 'mingli';
   }
-  if (
-    /(?:帮我|请你|现在)?(?:查一下|搜索|搜一下|联网查|生成图片|画一张|导出|下载|发送消息|发消息|删除|创建提醒|设置提醒)/u.test(
-      userText,
-    )
-  ) {
+  if (TOOL_REQUEST_PATTERN.test(userText)) {
     return 'tool_action';
   }
+  if (MINGLI_EXIT_PATTERN.test(userText)) return 'free_chat';
+  if (mingliActive) return 'mingli';
   return 'free_chat';
 }
 

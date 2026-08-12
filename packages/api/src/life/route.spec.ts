@@ -273,6 +273,42 @@ describe('Advisor Product Runner route', () => {
     expect(proof?.prompts.modeCard).toBe('命理：只做现实对答案。');
   });
 
+  it('keeps an explicitly entered astrology service active across direct follow-ups and exits cleanly', () => {
+    const entered = [
+      { role: 'user', content: '我想看星盘' },
+      { role: 'assistant', content: '可以，我们先确认出生资料。' },
+      { role: 'user', content: '那我现在去输入出生信息？' },
+    ];
+    expect(resolveAdvisorMode(entered)).toBe('mingli');
+
+    const saved = [
+      ...entered,
+      { role: 'assistant', content: '可以，填好后回来继续。' },
+      { role: 'user', content: '我已经填写好了，现在有什么变化我能看到吗？' },
+    ];
+    expect(resolveAdvisorMode(saved)).toBe('mingli');
+
+    expect(
+      resolveAdvisorMode([
+        ...saved,
+        { role: 'assistant', content: '出生参考已经生成，我们可以继续看。' },
+        { role: 'user', content: '先不聊这个了，换个话题，说说明天的会议。' },
+      ]),
+    ).toBe('free_chat');
+    expect(
+      resolveAdvisorMode([
+        ...saved,
+        { role: 'assistant', content: '出生参考已经生成，我们可以继续看。' },
+        { role: 'user', content: '帮我生成这次的完整报告' },
+      ]),
+    ).toBe('report');
+
+    expect(resolveAdvisorMode([{ role: 'user', content: '我已经填好了' }])).toBe('free_chat');
+    expect(
+      resolveAdvisorMode([{ role: 'user', content: '朋友昨天给我发了张星盘，我还没点开。' }]),
+    ).toBe('free_chat');
+  });
+
   it('retains experiment assignment in the validated snapshot digest', async () => {
     const assigned = contract();
     assigned.snapshot = createProductSnapshot({

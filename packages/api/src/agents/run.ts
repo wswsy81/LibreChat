@@ -1063,10 +1063,13 @@ export async function createRun({
     const toolInstructions = joinInstructionMap(agent.toolContextMap);
     const dynamicToolInstructions = joinInstructionMap(agent.dynamicToolContextMap);
 
-    const advisorInstructions =
+    const advisorPrompts =
       !isSubagent && advisorRouteProof?.endpoint === agent.endpoint
-        ? [advisorRouteProof.prompts.core, advisorRouteProof.prompts.modeCard].join('\n\n')
-        : (agent.instructions ?? '');
+        ? advisorRouteProof?.prompts
+        : undefined;
+    const advisorInstructions = advisorPrompts
+      ? [advisorPrompts.core, advisorPrompts.modeCard].join('\n\n')
+      : (agent.instructions ?? '');
     const systemContent = [toolInstructions, advisorInstructions].join('\n').trim();
 
     const additionalInstructions = [dynamicToolInstructions, agent.additional_instructions ?? '']
