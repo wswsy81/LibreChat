@@ -24,6 +24,7 @@
 - 镜像必须是内容寻址 digest，manifest 记录 release ID、revision、digest、构建时间与服务范围。
 - 镜像体积门禁：LibreChat `<= 2.1GB`，future-engine `<= 1.0GB`；超过即拒绝生成候选。
 - 生产 apply 不依赖整仓源码同步；provenance 由构建前已推送 revision、测试证据、transport 和镜像 revision label 共同验证。
+- 镜像候选若切换的服务仍出现在 `.release-source.override.yml`，必须在任何生产修改前拒绝 apply；先用 `ssh-source` 发布累计覆盖，或通过独立验证过的退役发布移除该服务 override，不能让旧 bind mount 遮挡新镜像后仅凭 health 判定成功。
 - `ssh-source` 例外不依赖 GitHub/GHCR：必须证明双仓 clean HEAD、活动镜像 base revision、源码包 SHA、生产解包 SHA、`.release-src/current` 与只读 bind mount 一致；发现依赖/镜像/迁移/隔离变化必须拒绝该通道。
 - 任一门禁失败就停止，不称为“基本通过”。
 

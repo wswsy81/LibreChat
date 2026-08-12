@@ -247,6 +247,31 @@ set -e
 [[ $tampered_status -ne 0 ]]
 mv "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.evidence.clean" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.evidence"
 
+rm -rf -- "$APP_DIR/runtime-config" "$ENGINE_DIR/data/runtime-last-good"
+cat > "$APP_DIR/.release-source.override.yml" <<'EOF'
+services:
+  future-engine:
+    volumes:
+      - type: bind
+        source: /release-src/advisor-gateway.js
+        target: /app/advisor-gateway.js
+        read_only: true
+EOF
+: > "$FAKE_LOG"
+SOURCE_OVERRIDE_ERROR="$TEST_ROOT/source-override.error"
+if bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env" \
+  >/dev/null 2>"$SOURCE_OVERRIDE_ERROR"; then
+  echo 'apply-release accepted an image candidate shadowed by source override' >&2
+  exit 1
+fi
+grep -F 'active source override shadows candidate service: future-engine' "$SOURCE_OVERRIDE_ERROR" >/dev/null
+! grep -q 'compose .* up --detach' "$FAKE_LOG"
+grep -qx "FUTURE_ENGINE_RELEASE_IMAGE=$CURRENT_ENGINE" "$APP_DIR/.release.env"
+[[ ! -e "$APP_DIR/runtime-config" ]]
+[[ ! -e "$ENGINE_DIR/data/runtime-last-good" ]]
+! find "$RELEASE_ROOT" -maxdepth 1 -name '.effective-release.*' -print -quit | grep -q .
+rm -f "$APP_DIR/.release-source.override.yml"
+
 : > "$FAKE_LOG"
 bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/ENGINE-HOTFIX-TEST.env" >/dev/null
 up_line=$(grep 'compose .* up --detach' "$FAKE_LOG")

@@ -36,71 +36,6 @@ fi
   exit 1
 }
 
-install -d -m 755 "$RUNTIME_CONFIG_DIR" "$RUNTIME_CONFIG_DIR/.last-good" "$ENGINE_LAST_GOOD_DIR"
-for file in runtime-policy.v1.json security-contract.v1.json product-catalog.v1.json product-experiments.v1.json rules.v1.json; do
-  if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
-    install -m 644 "$ENGINE_DIR/../config/$file" "$RUNTIME_CONFIG_DIR/$file"
-  fi
-done
-
-if [[ ! -f "$RUNTIME_CONFIG_DIR/global-prompt.v1.md" ]]; then
-  install -m 644 "$ENGINE_DIR/../config/global-prompt.v1.md" "$RUNTIME_CONFIG_DIR/global-prompt.v1.md"
-fi
-for file in \
-  runtime-copy.v1.json \
-  rescue-bank.v1.json \
-  topics-bank.v1.json \
-  house-entry-options-bank.v1.json \
-  reveal-scenario-registry.v1.json \
-  reveal-common-variables.v1.json \
-  house-opening-bank.v1.json \
-  house-opening-bank.v2.json \
-  constitution.v1.json \
-  constitution.v3.json; do
-  if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
-    install -m 644 "$ENGINE_DIR/banks/$file" "$RUNTIME_CONFIG_DIR/$file"
-  fi
-done
-
-if [[ ! -f "$RUNTIME_CONFIG_DIR/.last-good/global-prompt.v1.md" ]]; then
-  install -m 644 "$RUNTIME_CONFIG_DIR/global-prompt.v1.md" "$RUNTIME_CONFIG_DIR/.last-good/global-prompt.v1.md"
-fi
-for file in runtime-copy.v1.json rescue-bank.v1.json topics-bank.v1.json; do
-  if [[ ! -f "$ENGINE_LAST_GOOD_DIR/$file" ]]; then
-    install -m 644 "$RUNTIME_CONFIG_DIR/$file" "$ENGINE_LAST_GOOD_DIR/$file"
-  fi
-done
-
-# 运行时资产不含密钥，且被只读挂载给 uid 1000 的非 root 容器。即使文件已存在，
-# 也要修复旧发布留下的 0600/0700，否则容器启动时会因 EACCES 循环重启。
-chmod 755 "$RUNTIME_CONFIG_DIR" "$RUNTIME_CONFIG_DIR/.last-good" "$ENGINE_LAST_GOOD_DIR"
-chmod 644 \
-  "$RUNTIME_CONFIG_DIR"/runtime-policy.v1.json \
-  "$RUNTIME_CONFIG_DIR"/security-contract.v1.json \
-  "$RUNTIME_CONFIG_DIR"/product-catalog.v1.json \
-  "$RUNTIME_CONFIG_DIR"/product-experiments.v1.json \
-  "$RUNTIME_CONFIG_DIR"/rules.v1.json \
-  "$RUNTIME_CONFIG_DIR"/global-prompt.v1.md \
-  "$RUNTIME_CONFIG_DIR"/runtime-copy.v1.json \
-  "$RUNTIME_CONFIG_DIR"/rescue-bank.v1.json \
-  "$RUNTIME_CONFIG_DIR"/topics-bank.v1.json \
-  "$RUNTIME_CONFIG_DIR"/house-entry-options-bank.v1.json \
-  "$RUNTIME_CONFIG_DIR"/reveal-scenario-registry.v1.json \
-  "$RUNTIME_CONFIG_DIR"/reveal-common-variables.v1.json \
-  "$RUNTIME_CONFIG_DIR"/house-opening-bank.v1.json \
-  "$RUNTIME_CONFIG_DIR"/house-opening-bank.v2.json \
-  "$RUNTIME_CONFIG_DIR"/constitution.v1.json \
-  "$RUNTIME_CONFIG_DIR"/constitution.v3.json \
-  "$RUNTIME_CONFIG_DIR"/.last-good/global-prompt.v1.md \
-  "$ENGINE_LAST_GOOD_DIR"/runtime-copy.v1.json \
-  "$ENGINE_LAST_GOOD_DIR"/rescue-bank.v1.json \
-  "$ENGINE_LAST_GOOD_DIR"/topics-bank.v1.json
-
-# last-known-good 快照由容器内的 node(uid/gid 1000) 原子写入。目录只读会让
-# 服务看似健康，却无法更新持久回退点；因此不只检查模式，还必须修复所有权。
-chown -R "$RUNTIME_WRITER_UID:$RUNTIME_WRITER_GID" \
-  "$RUNTIME_CONFIG_DIR/.last-good" \
-  "$ENGINE_LAST_GOOD_DIR"
 
 if [[ "$CANDIDATE" != /* ]]; then
   CANDIDATE="$APP_DIR/$CANDIDATE"
@@ -364,6 +299,95 @@ if [[ "$MANIFEST_SCHEMA" == yiwei.release-manifest.v2 ]]; then
   verify_runtime_image "$ENGINE_IMAGE" "$ENGINE_IMAGE_REVISION" future-engine
 fi
 
+CURRENT_API=$("${DOCKER[@]}" inspect --format '{{.Image}}' LibreChat)
+CURRENT_ENGINE=$("${DOCKER[@]}" inspect --format '{{.Image}}' future-engine)
+CHANGED_SERVICES=()
+[[ "$ENGINE_IMAGE" == "$CURRENT_ENGINE" ]] || CHANGED_SERVICES+=(future-engine)
+[[ "$API_IMAGE" == "$CURRENT_API" ]] || CHANGED_SERVICES+=(api)
+
+source_override_has_service() {
+  local service=$1
+  [[ -s "$SOURCE_OVERRIDE_FILE" ]] || return 1
+  awk -v service="$service" '
+    $0 == "  " service ":" { found = 1 }
+    END { exit(found ? 0 : 1) }
+  ' "$SOURCE_OVERRIDE_FILE"
+}
+
+for changed_service in "${CHANGED_SERVICES[@]}"; do
+  if source_override_has_service "$changed_service"; then
+    echo "active source override shadows candidate service: $changed_service" >&2
+    echo "use deploy/ssh-source-release.sh or retire the service override with a dedicated verified release" >&2
+    exit 1
+  fi
+done
+
+install -d -m 755 "$RUNTIME_CONFIG_DIR" "$RUNTIME_CONFIG_DIR/.last-good" "$ENGINE_LAST_GOOD_DIR"
+for file in runtime-policy.v1.json security-contract.v1.json product-catalog.v1.json product-experiments.v1.json rules.v1.json; do
+  if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
+    install -m 644 "$ENGINE_DIR/../config/$file" "$RUNTIME_CONFIG_DIR/$file"
+  fi
+done
+
+if [[ ! -f "$RUNTIME_CONFIG_DIR/global-prompt.v1.md" ]]; then
+  install -m 644 "$ENGINE_DIR/../config/global-prompt.v1.md" "$RUNTIME_CONFIG_DIR/global-prompt.v1.md"
+fi
+for file in \
+  runtime-copy.v1.json \
+  rescue-bank.v1.json \
+  topics-bank.v1.json \
+  house-entry-options-bank.v1.json \
+  reveal-scenario-registry.v1.json \
+  reveal-common-variables.v1.json \
+  house-opening-bank.v1.json \
+  house-opening-bank.v2.json \
+  constitution.v1.json \
+  constitution.v3.json; do
+  if [[ ! -f "$RUNTIME_CONFIG_DIR/$file" ]]; then
+    install -m 644 "$ENGINE_DIR/banks/$file" "$RUNTIME_CONFIG_DIR/$file"
+  fi
+done
+
+if [[ ! -f "$RUNTIME_CONFIG_DIR/.last-good/global-prompt.v1.md" ]]; then
+  install -m 644 "$RUNTIME_CONFIG_DIR/global-prompt.v1.md" "$RUNTIME_CONFIG_DIR/.last-good/global-prompt.v1.md"
+fi
+for file in runtime-copy.v1.json rescue-bank.v1.json topics-bank.v1.json; do
+  if [[ ! -f "$ENGINE_LAST_GOOD_DIR/$file" ]]; then
+    install -m 644 "$RUNTIME_CONFIG_DIR/$file" "$ENGINE_LAST_GOOD_DIR/$file"
+  fi
+done
+
+# 运行时资产不含密钥，且被只读挂载给 uid 1000 的非 root 容器。即使文件已存在，
+# 也要修复旧发布留下的 0600/0700，否则容器启动时会因 EACCES 循环重启。
+chmod 755 "$RUNTIME_CONFIG_DIR" "$RUNTIME_CONFIG_DIR/.last-good" "$ENGINE_LAST_GOOD_DIR"
+chmod 644 \
+  "$RUNTIME_CONFIG_DIR"/runtime-policy.v1.json \
+  "$RUNTIME_CONFIG_DIR"/security-contract.v1.json \
+  "$RUNTIME_CONFIG_DIR"/product-catalog.v1.json \
+  "$RUNTIME_CONFIG_DIR"/product-experiments.v1.json \
+  "$RUNTIME_CONFIG_DIR"/rules.v1.json \
+  "$RUNTIME_CONFIG_DIR"/global-prompt.v1.md \
+  "$RUNTIME_CONFIG_DIR"/runtime-copy.v1.json \
+  "$RUNTIME_CONFIG_DIR"/rescue-bank.v1.json \
+  "$RUNTIME_CONFIG_DIR"/topics-bank.v1.json \
+  "$RUNTIME_CONFIG_DIR"/house-entry-options-bank.v1.json \
+  "$RUNTIME_CONFIG_DIR"/reveal-scenario-registry.v1.json \
+  "$RUNTIME_CONFIG_DIR"/reveal-common-variables.v1.json \
+  "$RUNTIME_CONFIG_DIR"/house-opening-bank.v1.json \
+  "$RUNTIME_CONFIG_DIR"/house-opening-bank.v2.json \
+  "$RUNTIME_CONFIG_DIR"/constitution.v1.json \
+  "$RUNTIME_CONFIG_DIR"/constitution.v3.json \
+  "$RUNTIME_CONFIG_DIR"/.last-good/global-prompt.v1.md \
+  "$ENGINE_LAST_GOOD_DIR"/runtime-copy.v1.json \
+  "$ENGINE_LAST_GOOD_DIR"/rescue-bank.v1.json \
+  "$ENGINE_LAST_GOOD_DIR"/topics-bank.v1.json
+
+# last-known-good 快照由容器内的 node(uid/gid 1000) 原子写入。目录只读会让
+# 服务看似健康，却无法更新持久回退点；因此不只检查模式，还必须修复所有权。
+chown -R "$RUNTIME_WRITER_UID:$RUNTIME_WRITER_GID" \
+  "$RUNTIME_CONFIG_DIR/.last-good" \
+  "$ENGINE_LAST_GOOD_DIR"
+
 EFFECTIVE_ENV=$(mktemp "$RELEASE_ROOT/.effective-release.XXXXXX")
 CLIENT_SWITCH_APPLIED=false
 RULES_SWITCH_APPLIED=false
@@ -441,12 +465,6 @@ chmod 600 "$EFFECTIVE_ENV"
   printf 'LIBRECHAT_RELEASE_IMAGE=%s\n' "$API_IMAGE"
   printf 'FUTURE_ENGINE_RELEASE_IMAGE=%s\n' "$ENGINE_IMAGE"
 } > "$EFFECTIVE_ENV"
-
-CURRENT_API=$("${DOCKER[@]}" inspect --format '{{.Image}}' LibreChat)
-CURRENT_ENGINE=$("${DOCKER[@]}" inspect --format '{{.Image}}' future-engine)
-CHANGED_SERVICES=()
-[[ "$ENGINE_IMAGE" == "$CURRENT_ENGINE" ]] || CHANGED_SERVICES+=(future-engine)
-[[ "$API_IMAGE" == "$CURRENT_API" ]] || CHANGED_SERVICES+=(api)
 
 CLIENT_RELEASE_SHA=
 if [[ -f "$MANIFEST_FILE" ]]; then

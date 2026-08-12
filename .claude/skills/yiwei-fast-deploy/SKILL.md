@@ -48,6 +48,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 28. 删除前端源码、普通 API JS 或 Engine JS 时不得仅因 deletion 自动升级镜像发布：Client 以同 revision 静态产物覆盖；API／Engine 由 `ssh-source` 生成只读、加载即失败的 tombstone 隐藏稳定镜像旧文件，并把删除计入变化服务与精确 rollback。删除依赖、镜像、compose、迁移、身份隔离或不支持的共享运行时仍 fail-closed。
 29. bank 热更必须同时覆盖 `ADVISOR_BANKS_DIR=/app/banks-live` 和 `FUTURE_ENGINE_BANK_ROOT=/app/runtime-config`；`deploy-banks.sh` 要为 runtime-config 生成应用发布用户 `0600` 的精确 rollback，以 `/tmp → sudo install → 原子替换` 更新，并比较本地、宿主和容器 SHA。只同步 banks-live 不得标记完成。
 30. bank runtime-config 资产包与 SSH source/client 包遵守同一 macOS provenance 门：`COPYFILE_DISABLE=1`、真实空归档探测 `--no-xattrs`、上传前扫描最终 tar；出现 `LIBARCHIVE.xattr.com.apple.provenance` 不得标记完成。
+31. 镜像候选切换前必须检查 `.release-source.override.yml`：若候选要切换的 `api` 或 `future-engine` 仍被现役 source override 覆盖，`apply-release.sh` 必须在生成 rollback、改配置或 recreate 容器前 fail-closed，并明确改走 `ssh-source`；禁止以双 health 代替“新镜像代码实际生效”的 canary。
 
 只改发布/备份/skill 管道时使用 `projects/未来线/librechat/deploy/verify-local.sh --release`；业务代码开发用 `--quick`，最终完整交付用 `--full`。
 
