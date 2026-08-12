@@ -196,6 +196,31 @@ describe('AudioRecorder hold-to-talk interaction', () => {
     expect(screen.getByText('com_life_voice_transcribing')).toBeInTheDocument();
   });
 
+  it('does not transcribe when the hold ends while microphone permission is still pending', async () => {
+    let resolveStart: ((started: boolean) => void) | undefined;
+    mockStartRecording.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveStart = resolve;
+        }),
+    );
+    renderRecorder();
+    fireEvent.click(screen.getByRole('button', { name: 'com_ui_use_micrphone' }));
+    const holdButton = screen.getByRole('button', { name: 'com_life_voice_hold' });
+
+    firePointerEvent(holdButton, 'pointerdown', { button: 0, clientY: 200, pointerId: 4 });
+    firePointerEvent(holdButton, 'pointerup', { clientY: 200, pointerId: 4 });
+    await act(async () => {
+      resolveStart?.(true);
+    });
+
+    expect(mockStartRecording).toHaveBeenCalledTimes(1);
+    expect(mockCancelRecording).toHaveBeenCalledTimes(1);
+    expect(mockStopRecording).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'com_life_voice_hold' })).toBeInTheDocument();
+    expect(screen.queryByText('com_life_voice_transcribing')).not.toBeInTheDocument();
+  });
+
   it.each([' ', 'Enter'])('supports holding with the %p keyboard key', async (key) => {
     renderRecorder();
     fireEvent.click(screen.getByRole('button', { name: 'com_ui_use_micrphone' }));

@@ -255,7 +255,11 @@ export default memo(function AudioRecorder({
 
     const pendingFinish = pendingFinishRef.current;
     if (pendingFinish) {
-      finalizeRecording(pendingFinish);
+      /** 首次授权会让 pointerup 发生在 getUserMedia 返回之前。此时原手势已经
+       *  失效，授权回来后即使 MediaRecorder 成功启动，也不能把这次松手当成
+       *  有效录音提交，否则会刚 start 就 stop 并上传空音频。统一按取消收尾，
+       *  保留语音模式，让用户在权限已授予后重新按住。 */
+      finalizeRecording('cancel');
     }
   }, [disabled, finalizeRecording, getValues, isAwaitingTranscription, isLoading, startRecording]);
 
