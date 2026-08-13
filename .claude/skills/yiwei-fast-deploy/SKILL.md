@@ -36,7 +36,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 16. `client-static` 必须把新前端 revision 绑定在 evidence/manifest/静态包 SHA 上；API/Engine 镜像是 `reused-active` 时仍校验 digest、`linux/amd64` 与 `user=node`，但禁止用新前端 revision 校验旧镜像 label。
 17. staging 前必须确认生产 `.release.env` 为 `0600` 且固定发布用户可读；root apply 写回后 owner 必须恢复为应用目录 owner。只用 `sudo` 临时读过去不算闭环。
 18. 新发布故障必须完成“脚本修复＋确定性回归＋手册/skill 回写”三件套后才能标记 DONE；现场命令绕过、重复手工 `chown` 或修改候选 manifest 都不算永久修复。
-19. 权限预检必须在传输前验证 SSH 用户等于应用目录 owner、`.release.env=owner:0600`、`.releases=owner:0700`、`sudo -n docker info` 可用。候选文件必须安装为应用 owner 的 `0600`；root 管理的静态目录只能经 `/tmp → sudo install → 原子切换` 写入。禁止直接 SCP 到应用目录，也禁止递归 `chown /app`（会误碰 `data/runtime-config/banks-live` 只读挂载）。
+19. 权限预检必须在传输前验证 SSH 用户等于应用目录 owner、`.release.env=owner:0600`、`.releases=owner:0700`、`sudo -n docker info` 可用。候选文件和 root apply 新生成的 rollback 文件都必须归应用 owner 且为 `0600`；root apply 必须按 `.releases` owner 归还 rollback 所有权。root 管理的静态目录只能经 `/tmp → sudo install → 原子切换` 写入。禁止直接 SCP 到应用目录，也禁止递归 `chown /app`（会误碰 `data/runtime-config/banks-live` 只读挂载）。
 20. package/lockfile、Dockerfile、compose 关键结构、迁移、身份隔离均未变化时，普通 API/Engine/前端组合默认走 `deploy/ssh-source-release.sh`：复用活动依赖镜像，只上传相对镜像 revision 的变化源码与前端静态包，落到 `.release-src/<sha>` 并原子切换；禁止因此创建“两个增量镜像”。
 21. SSH 返回多行 revision/digest 时使用 `mapfile`/逐行数组并断言数量；禁止把去掉结尾换行的管道交给单次 `read`，避免已经读到值却因 EOF 状态 1 静默退出。
 22. macOS 打源码/静态 tar 包必须在支持时使用 `--no-xattrs`，并保留 `COPYFILE_DISABLE=1`；生产日志不得被 `LIBARCHIVE.xattr.com.apple.provenance` 淹没。

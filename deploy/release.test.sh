@@ -403,6 +403,8 @@ bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CLIENT-STATIC-TEST.env" >/dev
 ! grep -q 'compose .* up --detach' "$FAKE_LOG"
 grep -qx 'client_release_changed=true' "$RELEASE_ROOT/CLIENT-STATIC-TEST.apply"
 grep -qx 'client_release_action=remove' "$RELEASE_ROOT/CLIENT-STATIC-TEST.rollback.manifest"
+grep -F 'align_release_owner "$ROLLBACK_ENV"' "$SCRIPT_DIR/apply-release.sh" >/dev/null
+grep -F 'chown --reference="$RELEASE_ROOT" "$@"' "$SCRIPT_DIR/apply-release.sh" >/dev/null
 bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CLIENT-STATIC-TEST.rollback.env" >/dev/null
 [[ ! -e "$APP_DIR/client-releases/current" ]]
 bash "$SCRIPT_DIR/apply-release.sh" "$RELEASE_ROOT/CLIENT-STATIC-TEST.env" >/dev/null

@@ -79,6 +79,11 @@ sha256_file() {
   fi
 }
 
+align_release_owner() {
+  [[ $EUID -eq 0 ]] || return 0
+  chown --reference="$RELEASE_ROOT" "$@"
+}
+
 API_SOURCE_IMAGE=$(read_release_value LIBRECHAT_RELEASE_IMAGE "$CANDIDATE")
 ENGINE_SOURCE_IMAGE=$(read_release_value FUTURE_ENGINE_RELEASE_IMAGE "$CANDIDATE")
 IMAGE_ID_PATTERN='^sha256:[0-9a-f]{64}$'
@@ -556,6 +561,7 @@ umask 077
   printf 'FUTURE_ENGINE_RELEASE_IMAGE=%s\n' "$CURRENT_ENGINE"
 } > "$ROLLBACK_ENV"
 chmod 600 "$ROLLBACK_ENV"
+align_release_owner "$ROLLBACK_ENV"
 
 RULES_ROLLBACK_FILE=""
 if [[ "$RULES_CHANGED" == true ]]; then
@@ -574,6 +580,7 @@ if [[ "$RULES_CHANGED" == true ]]; then
     printf 'finished_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   } > "$ROLLBACK_EVIDENCE"
   chmod 600 "$ROLLBACK_EVIDENCE"
+  align_release_owner "$ROLLBACK_EVIDENCE"
   ROLLBACK_EVIDENCE_SHA=$(sha256_file "$ROLLBACK_EVIDENCE")
   {
     printf 'manifest_schema=yiwei.release-manifest.v2\n'
@@ -591,6 +598,7 @@ if [[ "$RULES_CHANGED" == true ]]; then
     printf 'runtime_config_rules_restore_file=%s\n' "$RULES_ROLLBACK_FILE"
   } > "$ROLLBACK_MANIFEST"
   chmod 600 "$ROLLBACK_MANIFEST"
+  align_release_owner "$ROLLBACK_MANIFEST"
 
   RULES_TMP="$RUNTIME_CONFIG_DIR/.rules.v1.json.$RELEASE_NAME.tmp"
   install -m 644 "$RULES_SOURCE" "$RULES_TMP"
@@ -627,6 +635,7 @@ if [[ "$CLIENT_CHANGED" == true ]]; then
       printf 'finished_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$ROLLBACK_EVIDENCE"
     chmod 600 "$ROLLBACK_EVIDENCE"
+    align_release_owner "$ROLLBACK_EVIDENCE"
     ROLLBACK_EVIDENCE_SHA=$(sha256_file "$ROLLBACK_EVIDENCE")
     {
       printf 'manifest_schema=yiwei.release-manifest.v2\n'
@@ -644,6 +653,7 @@ if [[ "$CLIENT_CHANGED" == true ]]; then
       printf 'runtime_config_rules_sha256=not-applicable\n'
     } > "$ROLLBACK_MANIFEST"
     chmod 600 "$ROLLBACK_MANIFEST"
+    align_release_owner "$ROLLBACK_MANIFEST"
   fi
   if [[ "$CLIENT_ROLLBACK_SHA" == not-applicable ]]; then
     printf 'client_release_action=remove\nclient_release_sha256=not-applicable\n' >> "$ROLLBACK_MANIFEST"
