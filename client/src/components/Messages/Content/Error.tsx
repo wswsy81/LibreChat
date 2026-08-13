@@ -6,6 +6,7 @@ import { useLocalize } from '~/hooks';
 import CodeBlock from './CodeBlock';
 
 const localizedErrorPrefix = 'com_error';
+const safeDefaultResponse = '这一回合没有完成。先别重说，直接重试这一条就行。';
 
 type TConcurrent = {
   limit: number;
@@ -131,11 +132,9 @@ const errorMessages = {
 const Error = ({ text }: { text: string }) => {
   const localize = useLocalize();
   const jsonString = extractJson(text);
-  const errorMessage = text.length > 512 && !jsonString ? text.slice(0, 512) + '...' : text;
-  const defaultResponse = `Something went wrong. Here's the specific error message we encountered: ${errorMessage}`;
 
   if (!isJson(jsonString)) {
-    return defaultResponse;
+    return safeDefaultResponse;
   }
 
   const json = JSON.parse(jsonString);
@@ -149,7 +148,7 @@ const Error = ({ text }: { text: string }) => {
   } else if (keyExists) {
     return errorMessages[errorKey];
   } else {
-    return defaultResponse;
+    return safeDefaultResponse;
   }
 };
 

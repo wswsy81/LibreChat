@@ -1764,7 +1764,7 @@ class AgentClient extends BaseClient {
         } else {
           this.contentParts.push({
             type: ContentTypes.ERROR,
-            [ContentTypes.ERROR]: `An error occurred while processing the request${err?.message ? `: ${err.message}` : ''}`,
+            [ContentTypes.ERROR]: '这一回合没有完成。先别重说，直接重试这一条就行。',
           });
         }
       }
