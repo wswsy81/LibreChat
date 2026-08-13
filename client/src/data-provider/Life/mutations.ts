@@ -12,6 +12,8 @@ import type {
   LifeBirthResponse,
   LifeDossierAnnotateRequest,
   LifeDossierAnnotateResponse,
+  LifeSelfChapterItem,
+  LifeSelfProjectionResponse,
   LifeOnboardingRequest,
   LifeOnboardingResponse,
   LifeResumeResponse,
@@ -19,6 +21,76 @@ import type {
   LifeStanceFeedbackRequest,
   LifeStanceFeedbackResponse,
 } from 'librechat-data-provider';
+
+const DOSSIER_ANNOTATE_TIMEOUT_MS = 8_000;
+const DOSSIER_RECONCILE_TIMEOUT_MS = 5_000;
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error('life dossier request timed out')), timeoutMs);
+  });
+  return Promise.race([promise, expired]).finally(() => clearTimeout(timeout));
+};
+
+const findDossierItem = (
+  projection: LifeSelfProjectionResponse,
+  payload: LifeDossierAnnotateRequest,
+): LifeSelfChapterItem | undefined =>
+  Object.values(projection.projection.chapters)
+    .flat()
+    .find(
+      (item) =>
+        item.dossierRef?.section === payload.section && item.dossierRef.entryId === payload.entryId,
+    );
+
+const annotationWasApplied = (
+  projection: LifeSelfProjectionResponse,
+  payload: LifeDossierAnnotateRequest,
+) => {
+  const item = findDossierItem(projection, payload);
+  if (payload.action === 'keep') return item?.status === 'confirmed';
+  if (payload.action === 'rewrite') {
+    return item?.status === 'user_rewrite' && item.text === payload.text?.trim();
+  }
+  return item == null;
+};
+
+const reconciledAnnotation = (
+  payload: LifeDossierAnnotateRequest,
+): LifeDossierAnnotateResponse => ({
+  ok: true,
+  entry: {
+    id: payload.entryId,
+    status:
+      payload.action === 'keep'
+        ? 'confirmed'
+        : payload.action === 'rewrite'
+          ? 'edited'
+          : payload.action === 'strike'
+            ? 'dismissed'
+            : 'merged',
+  },
+});
+
+export async function annotateLifeDossierWithReconciliation(
+  payload: LifeDossierAnnotateRequest,
+  requestTimeoutMs = DOSSIER_ANNOTATE_TIMEOUT_MS,
+  reconcileTimeoutMs = DOSSIER_RECONCILE_TIMEOUT_MS,
+): Promise<LifeDossierAnnotateResponse> {
+  try {
+    return await withTimeout(dataService.annotateLifeDossier(payload), requestTimeoutMs);
+  } catch (error) {
+    const projection = await withTimeout(
+      dataService.getLifeSelfProjection(),
+      reconcileTimeoutMs,
+    ).catch(() => null);
+    if (projection && annotationWasApplied(projection, payload)) {
+      return reconciledAnnotation(payload);
+    }
+    throw error;
+  }
+}
 
 export interface LifeStanceFeedbackVariables {
   reportId: string;
@@ -78,18 +150,15 @@ export const useLifeDossierAnnotateMutation = (): UseMutationResult<
   LifeDossierAnnotateRequest
 > => {
   const queryClient = useQueryClient();
-  return useMutation(
-    (payload: LifeDossierAnnotateRequest) => dataService.annotateLifeDossier(payload),
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries([QueryKeys.lifeDossierHtml]);
-        queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
-        queryClient.invalidateQueries([QueryKeys.lifeArchive]);
-        queryClient.invalidateQueries([QueryKeys.lifeSelfProjection]);
-        queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
-      },
+  return useMutation(annotateLifeDossierWithReconciliation, {
+    onSettled: () => {
+      queryClient.invalidateQueries([QueryKeys.lifeDossierHtml]);
+      queryClient.invalidateQueries([QueryKeys.lifeMapHtml]);
+      queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+      queryClient.invalidateQueries([QueryKeys.lifeSelfProjection]);
+      queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
     },
-  );
+  });
 };
 
 export const useLifeBasicsMutation = (): UseMutationResult<
