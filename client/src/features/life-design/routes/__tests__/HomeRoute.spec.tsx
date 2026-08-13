@@ -85,25 +85,23 @@ describe('public registration policy', () => {
     );
   });
 
-  it('explains the long-term advisor loop without making three lines or a domain the default', () => {
+  it('restores the mist map without exposing a three-line preview', () => {
     renderHome();
 
     expect(screen.getByText('com_life_public_title')).toBeInTheDocument();
     expect(screen.getByText('com_life_public_description')).toBeInTheDocument();
-    for (const key of [
-      'com_life_public_loop_step_1',
-      'com_life_public_loop_step_2',
-      'com_life_public_loop_step_3',
-      'com_life_public_loop_step_4',
-    ]) {
-      expect(screen.getByText(key)).toBeInTheDocument();
-    }
+    expect(screen.getByText('com_life_public_result_problem')).toBeInTheDocument();
+    expect(screen.getByText('com_life_public_result_map')).toBeInTheDocument();
+    expect(screen.getByText('com_life_public_result_next')).toBeInTheDocument();
     expect(screen.queryByText('com_life_line_inertia')).not.toBeInTheDocument();
     expect(screen.queryByText('com_life_line_intervention')).not.toBeInTheDocument();
     expect(screen.queryByText('com_life_line_rupture')).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('group', { name: 'com_life_public_map_aria' }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('com_life_line_sample_note')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'com_life_public_map_aria' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /com_life_start_first/ })).toHaveAttribute(
+      'href',
+      '/register',
+    );
     expect(screen.getByText('com_life_public_private')).toBeInTheDocument();
   });
 

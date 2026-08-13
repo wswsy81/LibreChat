@@ -180,6 +180,17 @@ export default function PublicMistMap({
                 const lit = litIslands?.has(domain.id) ?? false;
                 const available = ACTIVE_PUBLIC_HOUSES.has(domain.id);
                 const name = localize(PUBLIC_MAP_LABEL_KEYS[domain.id]);
+                if (!interactive) {
+                  return (
+                    <li key={domain.id}>
+                      <span
+                        className={`flex min-h-11 w-full items-center text-left font-life-serif text-life-sm ${mobileDomainClass(active, lit, available)}`}
+                      >
+                        {name}
+                      </span>
+                    </li>
+                  );
+                }
                 return (
                   <li key={domain.id}>
                     <button
@@ -202,16 +213,22 @@ export default function PublicMistMap({
               })}
               {continent.key === 'living' && (
                 <li>
-                  <button
-                    type="button"
-                    disabled
-                    aria-label={localize('com_life_map_still_foggy', {
-                      0: localize('com_life_map_health'),
-                    })}
-                    className="min-h-11 w-full cursor-not-allowed text-left font-life-serif text-life-sm text-life-muted/55"
-                  >
-                    {localize('com_life_map_health')}
-                  </button>
+                  {interactive ? (
+                    <button
+                      type="button"
+                      disabled
+                      aria-label={localize('com_life_map_still_foggy', {
+                        0: localize('com_life_map_health'),
+                      })}
+                      className="min-h-11 w-full cursor-not-allowed text-left font-life-serif text-life-sm text-life-muted/55"
+                    >
+                      {localize('com_life_map_health')}
+                    </button>
+                  ) : (
+                    <span className="flex min-h-11 w-full items-center text-left font-life-serif text-life-sm text-life-muted/55">
+                      {localize('com_life_map_health')}
+                    </span>
+                  )}
                 </li>
               )}
             </ul>

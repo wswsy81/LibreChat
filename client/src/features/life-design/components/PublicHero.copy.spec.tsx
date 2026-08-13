@@ -1,9 +1,7 @@
 /**
  * @jest-environment @happy-dom/jest-environment
  */
-import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
 
 import PublicHero from './PublicHero';
 
@@ -13,35 +11,24 @@ jest.mock('~/hooks', () => ({
   useLocalize: () => (key: string) => mockTranslation[key] ?? '',
 }));
 
-test('公开首页先说明长期人生顾问与四步续接循环', () => {
-  render(
-    <MemoryRouter>
-      <PublicHero />
-    </MemoryRouter>,
-  );
-
-  expect(screen.getByText('一位会记得你的长期人生顾问。')).toBeInTheDocument();
-  for (const label of [
-    '你先说一件最近发生的事',
-    '一起弄清现在要处理什么',
-    '找到现实里能试的一步',
-    '回来看看结果',
-  ]) {
-    expect(screen.getByText(label)).toBeInTheDocument();
-  }
-  expect(
-    screen.getByText('你确认的内容会进入自己的人生存档；不对的可以改写或划掉。'),
-  ).toBeInTheDocument();
+jest.mock('./PublicMistMap', () => {
+  const actual = jest.requireActual('./PublicMistMap');
+  return {
+    __esModule: true,
+    ...actual,
+    default: () => <div data-testid="public-mist-map" />,
+  };
 });
 
-test('公开首页不展示三线示例、默认工作或公开可选地图', () => {
-  render(
-    <MemoryRouter>
-      <PublicHero />
-    </MemoryRouter>,
-  );
-  for (const text of ['照现在这样走', '先试一小步', '彻底转向', '看你自己的「工作」']) {
-    expect(screen.queryByText(text)).not.toBeInTheDocument();
+test('公开首页恢复三条短内容与迷雾图，但不展示三条未来线预览', () => {
+  render(<PublicHero />);
+
+  expect(screen.getByTestId('public-mist-map')).toBeInTheDocument();
+  expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  for (const text of ['先说一件最近发生的事', '一起弄清现在要处理什么', '找到现实里能试的一步']) {
+    expect(screen.getByText(text)).toBeInTheDocument();
   }
-  expect(screen.queryByRole('group', { name: /迷雾人生地图/ })).not.toBeInTheDocument();
+  for (const label of ['照现在这样走', '先试一小步', '彻底转向']) {
+    expect(screen.queryByText(label)).not.toBeInTheDocument();
+  }
 });
