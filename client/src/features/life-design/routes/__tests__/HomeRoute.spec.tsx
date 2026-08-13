@@ -85,14 +85,22 @@ describe('public registration policy', () => {
     );
   });
 
-  it('restores the mist map without exposing a three-line preview', () => {
+  it('keeps the long-term advisor positioning and mist map without exposing three lines', () => {
     renderHome();
 
     expect(screen.getByText('com_life_public_title')).toBeInTheDocument();
     expect(screen.getByText('com_life_public_description')).toBeInTheDocument();
-    expect(screen.getByText('com_life_public_result_problem')).toBeInTheDocument();
-    expect(screen.getByText('com_life_public_result_map')).toBeInTheDocument();
-    expect(screen.getByText('com_life_public_result_next')).toBeInTheDocument();
+    for (const key of [
+      'com_life_public_loop_step_1',
+      'com_life_public_loop_step_2',
+      'com_life_public_loop_step_3',
+      'com_life_public_loop_step_4',
+    ]) {
+      expect(screen.getByText(key)).toBeInTheDocument();
+    }
+    expect(screen.queryByText('com_life_public_result_problem')).not.toBeInTheDocument();
+    expect(screen.queryByText('com_life_public_result_map')).not.toBeInTheDocument();
+    expect(screen.queryByText('com_life_public_result_next')).not.toBeInTheDocument();
     expect(screen.queryByText('com_life_line_inertia')).not.toBeInTheDocument();
     expect(screen.queryByText('com_life_line_intervention')).not.toBeInTheDocument();
     expect(screen.queryByText('com_life_line_rupture')).not.toBeInTheDocument();
