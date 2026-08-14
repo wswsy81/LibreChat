@@ -18,7 +18,7 @@ for file in runtime-policy.v1.json security-contract.v1.json product-catalog.v1.
   printf '{}\n' > "$TEST_ROOT/config/$file"
 done
 printf 'test prompt\n' > "$TEST_ROOT/config/global-prompt.v1.md"
-for file in runtime-copy.v1.json rescue-bank.v1.json topics-bank.v1.json house-entry-options-bank.v1.json reveal-scenario-registry.v1.json reveal-common-variables.v1.json house-opening-bank.v1.json house-opening-bank.v2.json constitution.v1.json constitution.v3.json constitution.v4.json; do
+for file in runtime-copy.v1.json rescue-bank.v1.json topics-bank.v1.json house-entry-options-bank.v1.json reveal-scenario-registry.v1.json reveal-common-variables.v1.json house-opening-bank.v1.json house-opening-bank.v2.json constitution.v1.json constitution.v3.json constitution.v4.json constitution.v5.json; do
   printf '{}\n' > "$ENGINE_DIR/banks/$file"
 done
 
