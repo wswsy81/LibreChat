@@ -24,6 +24,7 @@ import { useChatContext } from '~/Providers/ChatContext';
 import store, { ephemeralAgentByConvoId } from '~/store';
 import useClientResize from './useClientResize';
 import useUpdateFiles from './useUpdateFiles';
+import { isDeviceDataMode } from '~/features/local-data';
 
 type UseFileHandling = {
   fileSetter?: FileSetter;
@@ -185,6 +186,11 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
   );
 
   const startUpload = async (extendedFile: ExtendedFile) => {
+    if (isDeviceDataMode() && isConversationUpload) {
+      deleteFileById(extendedFile.file_id);
+      setError('设备本地模式暂不支持长期保存文件，请先只发送文字。');
+      return;
+    }
     const filename = extendedFile.file?.name ?? 'File';
     startUploadTimer(extendedFile.file_id, filename, extendedFile.size);
 

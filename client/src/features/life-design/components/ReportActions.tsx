@@ -8,6 +8,7 @@ import {
   useLifeShareMutation,
 } from '~/data-provider';
 import { useLocalize } from '~/hooks';
+import { isDeviceDataMode } from '~/features/local-data';
 
 const safeName = (value: string, fallback: string) =>
   (value || fallback)
@@ -25,6 +26,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
   const [confirmed, setConfirmed] = useState(false);
   const [expiry, setExpiry] = useState<'never' | '7' | '30'>('never');
   const [copied, setCopied] = useState(false);
+  const shareAvailable = !isDeviceDataMode();
 
   const downloadHtml = () => {
     htmlExport.mutate(reportId, {
@@ -107,17 +109,19 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
           <MessageCircleMore className="h-4 w-4" aria-hidden="true" />
           {localize('com_life_continue_with_report')}
         </Button>
-        <Button
-          type="button"
-          data-testid="life-report-share"
-          variant="outline"
-          className="min-h-11 min-w-11 rounded-[4px] border-life-rule bg-transparent px-3 font-life-sans text-life-ink hover:bg-life-paper-deep dark:border-white/20 dark:text-gray-200 dark:hover:bg-white/10"
-          aria-label={localize('com_life_share')}
-          onClick={() => setShareOpen(true)}
-        >
-          <Share2 className="h-4 w-4" aria-hidden="true" />
-          <span className="hidden sm:inline">{localize('com_life_share')}</span>
-        </Button>
+        {shareAvailable && (
+          <Button
+            type="button"
+            data-testid="life-report-share"
+            variant="outline"
+            className="min-h-11 min-w-11 rounded-[4px] border-life-rule bg-transparent px-3 font-life-sans text-life-ink hover:bg-life-paper-deep dark:border-white/20 dark:text-gray-200 dark:hover:bg-white/10"
+            aria-label={localize('com_life_share')}
+            onClick={() => setShareOpen(true)}
+          >
+            <Share2 className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">{localize('com_life_share')}</span>
+          </Button>
+        )}
         <Button
           type="button"
           data-testid="life-report-download"
@@ -161,7 +165,7 @@ export default function ReportActions({ reportId, title }: { reportId: string; t
         </p>
       )}
 
-      {shareOpen && (
+      {shareAvailable && shareOpen && (
         <div
           className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-5"
           role="presentation"

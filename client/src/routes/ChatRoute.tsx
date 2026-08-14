@@ -23,6 +23,7 @@ import {
   useGetStartupConfig,
   useGetEndpointsQuery,
   useProjectQuery,
+  useLifeBootstrapQuery,
 } from '~/data-provider';
 import {
   useAssistantListMap,
@@ -34,6 +35,7 @@ import {
 import { ToolCallsMapProvider } from '~/Providers';
 import ChatView from '~/components/Chat/ChatView';
 import { NotificationSeverity } from '~/common';
+import { isDeviceDataMode } from '~/features/local-data';
 import useAuthRedirect from './useAuthRedirect';
 import temporaryStore from '~/store/temporary';
 import store from '~/store';
@@ -45,6 +47,8 @@ export default function ChatRoute() {
   const { data: startupConfig } = useGetStartupConfig();
   const { isAuthenticated, user, roles } = useAuthRedirect();
   const queryClient = useQueryClient();
+  const lifeBootstrap = useLifeBootstrapQuery({ enabled: isAuthenticated });
+  const deviceDataMode = isDeviceDataMode();
 
   const defaultTemporaryChat = useRecoilValue(temporaryStore.defaultTemporaryChat);
   const setIsTemporary = useRecoilCallback(
@@ -60,7 +64,8 @@ export default function ChatRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { conversationId = '' } = useParams();
   const projectIdParam = searchParams.get('projectId');
-  const chatProjectId = isValidChatProjectId(projectIdParam) ? projectIdParam : null;
+  const chatProjectId =
+    !deviceDataMode && isValidChatProjectId(projectIdParam) ? projectIdParam : null;
   useIdChangeEffect(conversationId);
   const { hasSetConversation, conversation } = store.useCreateConversationAtom(index);
   const { newConversation } = useNewConvo();
@@ -116,13 +121,30 @@ export default function ChatRoute() {
     );
   }, [projectScopeMissing, setSearchParams]);
 
+  useEffect(() => {
+    if (!deviceDataMode || !projectIdParam) {
+      return;
+    }
+    setSearchParams(
+      (params) => {
+        const next = new URLSearchParams(params);
+        next.delete('projectId');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [deviceDataMode, projectIdParam, setSearchParams]);
+
   const modelsQuery = useGetModelsQuery({
     enabled: isAuthenticated,
     refetchOnMount: 'always',
   });
   const initialConvoQuery = useGetConvoIdQuery(conversationId, {
     enabled:
-      isAuthenticated && conversationId !== Constants.NEW_CONVO && !hasSetConversation.current,
+      isAuthenticated &&
+      lifeBootstrap.isSuccess &&
+      conversationId !== Constants.NEW_CONVO &&
+      !hasSetConversation.current,
   });
   const endpointsQuery = useGetEndpointsQuery({ enabled: isAuthenticated });
   const assistantListMap = useAssistantListMap();
@@ -276,7 +298,7 @@ export default function ChatRoute() {
     conversation?.conversationId,
   ]);
 
-  if (endpointsQuery.isLoading || modelsQuery.isLoading) {
+  if (endpointsQuery.isLoading || modelsQuery.isLoading || lifeBootstrap.isLoading) {
     return (
       <div className="flex h-screen items-center justify-center" aria-live="polite" role="status">
         <Spinner className="text-text-primary" />

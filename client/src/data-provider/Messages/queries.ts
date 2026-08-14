@@ -5,6 +5,7 @@ import type { UseQueryOptions, QueryObserverResult, QueryClient } from '@tanstac
 import { Constants, QueryKeys, dataService } from 'librechat-data-provider';
 import type * as t from 'librechat-data-provider';
 import { isNotFoundError, logger } from '~/utils';
+import { getDeviceMessages, isDeviceDataMode } from '~/features/local-data';
 
 type StableMessagesParams = {
   pathname: string;
@@ -101,7 +102,9 @@ export const useGetMessagesByConvoId = <TData = t.TMessage[]>(
     async () => {
       let result: t.TMessage[];
       try {
-        result = await dataService.getMessagesByConvoId(id);
+        result = isDeviceDataMode()
+          ? await getDeviceMessages(id)
+          : await dataService.getMessagesByConvoId(id);
       } catch (error) {
         const currentMessages = queryClient.getQueryData<t.TMessage[]>([QueryKeys.messages, id]);
         const hasLiveStream = isStreamingRef.current || hasActiveJob(queryClient, id);

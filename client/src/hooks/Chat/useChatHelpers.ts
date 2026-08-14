@@ -6,6 +6,7 @@ import type { TMessage } from 'librechat-data-provider';
 import type { ActiveJobsResponse } from '~/data-provider';
 import useChatFunctions from '~/hooks/Chat/useChatFunctions';
 import { useAbortStreamMutation } from '~/data-provider';
+import { isDeviceDataMode } from '~/features/local-data';
 import useNewConvo from '~/hooks/useNewConvo';
 import { useLatestMessage, useLatestMessageId } from '~/hooks/Messages/useLatestMessage';
 import { getMessageCacheIds } from './cache';
@@ -146,7 +147,10 @@ export default function useChatHelpers(index = 0, paramId?: string) {
 
       try {
         console.log('[useChatHelpers] Calling abort mutation for:', conversationId);
-        await abortMutation.mutateAsync({ conversationId });
+        await abortMutation.mutateAsync({
+          conversationId,
+          ...(isDeviceDataMode() ? { dataStorageMode: 'device' as const } : {}),
+        });
         console.log('[useChatHelpers] Abort mutation succeeded');
         // The SSE will receive a `done` event with `aborted: true` and clean up
         // We still clear submissions as a fallback

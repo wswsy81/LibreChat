@@ -90,6 +90,37 @@ describe('AgentClient - recordCollectedUsage', () => {
   });
 
   describe('basic functionality', () => {
+    it('skips token transaction persistence for a device-local beta user', async () => {
+      const previous = {
+        enabled: process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED,
+        ids: process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS,
+      };
+      process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = 'true';
+      process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = 'user-123';
+      try {
+        await client.recordCollectedUsage({
+          collectedUsage: [{ input_tokens: 100, output_tokens: 50, model: 'gpt-4' }],
+          balance: { enabled: true },
+          transactions: { enabled: true },
+        });
+
+        expect(mockRecordCollectedUsage).not.toHaveBeenCalled();
+        expect(mockSpendTokens).not.toHaveBeenCalled();
+        expect(mockBulkInsertTransactions).not.toHaveBeenCalled();
+      } finally {
+        if (previous.enabled === undefined) {
+          delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED;
+        } else {
+          process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = previous.enabled;
+        }
+        if (previous.ids === undefined) {
+          delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS;
+        } else {
+          process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = previous.ids;
+        }
+      }
+    });
+
     it('should delegate to recordCollectedUsage with full deps', async () => {
       const collectedUsage = [{ input_tokens: 100, output_tokens: 50, model: 'gpt-4' }];
 

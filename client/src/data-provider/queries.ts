@@ -32,6 +32,11 @@ import type {
 } from 'librechat-data-provider';
 import type { ConversationCursorData } from '~/utils/convos';
 import { findConversationInInfinite, isNotFoundError } from '~/utils';
+import {
+  getDeviceConversation,
+  isDeviceDataMode,
+  listDeviceConversations,
+} from '~/features/local-data';
 
 export const useGetPresetsQuery = (
   config?: UseQueryOptions<TPreset[]>,
@@ -64,6 +69,9 @@ export const useGetConvoIdQuery = (
       if (found && found.messages != null) {
         return found;
       }
+      if (isDeviceDataMode()) {
+        return getDeviceConversation(id);
+      }
       // Otherwise, fetch from API
       return dataService.getConversationById(id);
     },
@@ -93,8 +101,32 @@ export const useConversationsInfiniteQuery = (
       isArchived ? QueryKeys.archivedConversations : QueryKeys.allConversations,
       { isArchived, sortBy, sortDirection, tags, search, projectId },
     ],
-    queryFn: ({ pageParam }) =>
-      dataService.listConversations({
+    queryFn: async ({ pageParam }) => {
+      if (isDeviceDataMode()) {
+        if (pageParam) return { conversations: [], nextCursor: null };
+        let conversations = await listDeviceConversations();
+        conversations = conversations.filter((conversation) => {
+          if (Boolean(conversation.isArchived) !== Boolean(isArchived)) return false;
+          if (projectId && conversation.chatProjectId !== projectId) return false;
+          if (
+            search &&
+            !String(conversation.title || '')
+              .toLowerCase()
+              .includes(search.toLowerCase())
+          ) {
+            return false;
+          }
+          return !tags?.length;
+        });
+        if (sortBy) {
+          conversations.sort((left, right) => {
+            const compared = String(left[sortBy] || '').localeCompare(String(right[sortBy] || ''));
+            return sortDirection === 'asc' ? compared : -compared;
+          });
+        }
+        return { conversations, nextCursor: null };
+      }
+      return dataService.listConversations({
         isArchived,
         sortBy,
         sortDirection,
@@ -102,7 +134,8 @@ export const useConversationsInfiniteQuery = (
         search,
         projectId,
         cursor: pageParam?.toString(),
-      }),
+      });
+    },
     getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
     keepPreviousData: true,
     staleTime: 5 * 60 * 1000, // 5 minutes

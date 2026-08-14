@@ -411,6 +411,48 @@ describe('Agent Abort Endpoint', () => {
           expect.stringContaining('Failed to save partial response'),
         );
       });
+
+      it('does not persist an aborted partial for a device-local beta user', async () => {
+        const previous = {
+          enabled: process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED,
+          ids: process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS,
+        };
+        process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = 'true';
+        process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = 'test-user-123';
+        try {
+          mockGenerationJobManager.getJob.mockResolvedValue({
+            metadata: { userId: 'test-user-123' },
+          });
+          mockGenerationJobManager.abortJob.mockResolvedValue({
+            success: true,
+            jobData: {
+              userMessage: { messageId: 'user-msg-123' },
+              responseMessageId: 'response-msg-456',
+              conversationId: 'local-conversation',
+            },
+            content: [{ type: 'text', text: 'partial' }],
+            text: 'partial',
+          });
+
+          const response = await request(app)
+            .post('/api/agents/chat/abort')
+            .send({ conversationId: 'local-conversation', dataStorageMode: 'device' });
+
+          expect(response.status).toBe(200);
+          expect(mockSaveMessage).not.toHaveBeenCalled();
+        } finally {
+          if (previous.enabled === undefined) {
+            delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED;
+          } else {
+            process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = previous.enabled;
+          }
+          if (previous.ids === undefined) {
+            delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS;
+          } else {
+            process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = previous.ids;
+          }
+        }
+      });
     });
 
     describe('Job Not Found', () => {

@@ -19,6 +19,29 @@ export function getLifeBootstrap(): Promise<t.LifeBootstrapResponse> {
   return request.get(endpoints.lifeBootstrap());
 }
 
+export function getLifeDataStorage(): Promise<t.LifeDataStorageResponse> {
+  return request.get(endpoints.lifeDataStorage());
+}
+
+export function createLifeLocalDataSession(payload: {
+  snapshot: t.LifeEngineSnapshot | null;
+  transcripts: t.TMessage[];
+}): Promise<t.LifeLocalDataSessionResponse> {
+  return request.post(endpoints.lifeLocalDataSession(), payload);
+}
+
+export function getLifeLocalDataSession(): Promise<t.LifeLocalDataSessionResponse> {
+  return request.get(endpoints.lifeLocalDataSession());
+}
+
+export function getLifeLocalDataSnapshot(): Promise<t.LifeLocalDataSnapshotResponse> {
+  return request.get(endpoints.lifeLocalDataSnapshot());
+}
+
+export function deleteLifeLocalDataSession(): Promise<{ ok: boolean; deleted: boolean }> {
+  return request.delete(endpoints.lifeLocalDataSession());
+}
+
 /** 显式传 key 才能重试同一次提交:重试必须复用原 key,改选必须换新 key。 */
 const idempotencyHeaders = (key?: string) => ({
   headers: { 'Idempotency-Key': key ?? crypto.randomUUID() },
@@ -30,8 +53,10 @@ export function createLifeOnboarding(
   return request.post(endpoints.lifeOnboarding(), payload, idempotencyHeaders());
 }
 
-export function resumeLifeConversation(): Promise<t.LifeResumeResponse> {
-  return request.post(endpoints.lifeResume(), undefined, idempotencyHeaders());
+export function resumeLifeConversation(
+  payload?: t.LifeResumeRequest,
+): Promise<t.LifeResumeResponse> {
+  return request.post(endpoints.lifeResume(), payload, idempotencyHeaders());
 }
 
 export function getLifeArchive(): Promise<t.LifeArchiveResponse> {

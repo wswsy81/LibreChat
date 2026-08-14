@@ -23,6 +23,7 @@ const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const { importConversations } = require('~/server/utils/import');
 const getLogStores = require('~/cache/getLogStores');
 const db = require('~/models');
+const { blockLocalDataPersistence } = require('~/server/utils/futureLinesLocalData');
 
 const assistantClients = {
   [EModelEndpoint.azureAssistants]: require('~/server/services/Endpoints/azureAssistants'),
@@ -31,6 +32,7 @@ const assistantClients = {
 
 const router = express.Router();
 router.use(requireJwtAuth);
+router.use(blockLocalDataPersistence);
 
 const isValidProjectFilter = (projectId) =>
   !projectId || projectId === 'unassigned' || /^[a-f\d]{24}$/i.test(projectId);

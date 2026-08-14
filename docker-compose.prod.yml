@@ -49,6 +49,7 @@ services:
       - FUTURE_ENGINE_LAST_GOOD_ROOT=/app/data/runtime-last-good
       - FUTURE_ENGINE_PRODUCT_SKILL_ROOT=/app/runtime-config/product-skills
       - FUTURE_ENGINE_PRODUCT_PLUGIN_ROOT=/app/product-plugins
+      - FUTURE_LINES_LOCAL_DATA_ROOT=/run/future-lines-local
       - ADVISOR_GATEWAY_ENABLED=on
       # 产品运行时成对开关:必须与 api 的 FUTURELINE_PRODUCT_RUNNER_ENABLED 同时切换,
       # 只开一侧会让每个回合的 Snapshot proof 对不上而 409 fail-closed。默认 off,先发镜像再单独打开。
@@ -68,6 +69,8 @@ services:
       # 整目录挂载(不是逐文件):单文件 bind mount 会把 inode 钉死,
       # ADMIN 页的原子写(临时文件 + rename)换的正是 inode,改了到不了引擎。
       - ./runtime-config:/app/runtime-config:ro
+    tmpfs:
+      - /run/future-lines-local:size=64m,mode=0700
     networks:
       trusted-data: {}
       engine-egress:
@@ -98,6 +101,9 @@ services:
       - no_proxy=localhost,127.0.0.1,::1,mongodb,chat-mongodb,future-engine
       - NO_PROXY=localhost,127.0.0.1,::1,mongodb,chat-mongodb,future-engine
       - FUTURE_ENGINE_URL=http://future-engine:8899
+      - FUTURE_LINES_LOCAL_DATA_BETA_ENABLED=${FUTURE_LINES_LOCAL_DATA_BETA_ENABLED:-off}
+      - FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS=${FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS:-}
+      - FUTURE_LINES_LOCAL_DATA_BETA_EMAILS=${FUTURE_LINES_LOCAL_DATA_BETA_EMAILS:-}
       - FUTURE_ENGINE_INTERNAL_TOKEN=${FUTURE_ENGINE_INTERNAL_TOKEN}
       - FUTURE_ENGINE_IDENTITY_SECRET=${FUTURE_ENGINE_IDENTITY_SECRET}
       - ADVISOR_GATEWAY_API_KEY=${ADVISOR_GATEWAY_API_KEY}

@@ -21,6 +21,7 @@ import type {
   LifeStanceFeedbackRequest,
   LifeStanceFeedbackResponse,
 } from 'librechat-data-provider';
+import { isDeviceDataMode, listDeviceConversationSummaries } from '~/features/local-data';
 
 const DOSSIER_ANNOTATE_TIMEOUT_MS = 8_000;
 const DOSSIER_RECONCILE_TIMEOUT_MS = 5_000;
@@ -104,16 +105,31 @@ export const useLifeOnboardingMutation = (): UseMutationResult<
   LifeOnboardingRequest
 > => {
   const queryClient = useQueryClient();
-  return useMutation(dataService.createLifeOnboarding, {
-    onSuccess: () => {
-      queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
-      queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+  return useMutation(
+    async (payload) => {
+      if (!isDeviceDataMode()) return dataService.createLifeOnboarding(payload);
+      return dataService.createLifeOnboarding({
+        ...payload,
+        localConversations: await listDeviceConversationSummaries(),
+      });
     },
-  });
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([QueryKeys.lifeBootstrap]);
+        queryClient.invalidateQueries([QueryKeys.lifeArchive]);
+      },
+    },
+  );
 };
 
 export const useLifeResumeMutation = (): UseMutationResult<LifeResumeResponse, Error, void> =>
-  useMutation(() => dataService.resumeLifeConversation());
+  useMutation(async () =>
+    dataService.resumeLifeConversation(
+      isDeviceDataMode()
+        ? { localConversations: await listDeviceConversationSummaries() }
+        : undefined,
+    ),
+  );
 
 export const useLifeShareMutation = (): UseMutationResult<
   LifeShareResponse,

@@ -7,6 +7,7 @@ export interface AbortStreamParams {
   streamId?: string;
   /** The conversation ID to abort (backend will look up the job) */
   conversationId?: string;
+  dataStorageMode?: 'device';
 }
 
 export interface AbortStreamResponse {

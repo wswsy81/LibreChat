@@ -57,6 +57,7 @@ jest.mock('~/server/middleware/optionalJwtAuth', () => (_req, _res, next) => nex
 jest.mock('~/server/middleware/requireJwtAuth', () => (_req, _res, next) => next());
 
 const lifeRouter = require('./life');
+const { resetLocalDataOperationStateForTests } = require('~/server/utils/futureLinesLocalData');
 
 function conversationQuery(value) {
   const conversations = value.map((conversation) =>
@@ -107,6 +108,72 @@ beforeEach(() => {
     })),
     replayed: false,
   }));
+  resetLocalDataOperationStateForTests();
+});
+
+test('device-local beta restores from browser summaries without reading or writing Mongo', async () => {
+  const previous = {
+    enabled: process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED,
+    ids: process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS,
+  };
+  process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = 'true';
+  process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = 'local-user';
+  try {
+    mockEngine.json.mockImplementation(async (pathname, options) => {
+      if (pathname === '/internal/local-data/session') {
+        return { schemaVersion: 1, sessionId: 'session-1' };
+      }
+      if (pathname === '/internal/bootstrap') {
+        return {
+          activeHouse: 'h6',
+          houseSessions: [{ entryHouse: 'h6', sessionId: 'local-conversation' }],
+        };
+      }
+      if (pathname === '/internal/onboarding') {
+        return {
+          ok: true,
+          entryEvent: {
+            kind: 'house_entered',
+            entryHouse: options.body.entryHouse,
+            visitMode: 'continue',
+            at: '2026-08-14T00:00:00.000Z',
+          },
+        };
+      }
+      throw new Error(`unexpected engine path: ${pathname}`);
+    });
+
+    const response = await request(buildApp({ id: 'local-user', name: '本地用户' }))
+      .post('/api/life/onboarding')
+      .set('Idempotency-Key', 'local-onboarding')
+      .send({
+        archiveName: '本地用户',
+        entryHouse: 'h6',
+        localConversations: [
+          {
+            conversationId: 'local-conversation',
+            title: '只在手机上的对话',
+            updatedAt: '2026-08-14T00:00:00.000Z',
+          },
+        ],
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      action: 'restored',
+      conversationId: 'local-conversation',
+      route: '/c/local-conversation',
+    });
+    expect(mockConversationFind).not.toHaveBeenCalled();
+    expect(mockMessageFind).not.toHaveBeenCalled();
+    expect(mockRunLifeOperation).not.toHaveBeenCalled();
+    expect(mockFinalizeLifeOperationResult).not.toHaveBeenCalled();
+  } finally {
+    if (previous.enabled === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED;
+    else process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = previous.enabled;
+    if (previous.ids === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS;
+    else process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = previous.ids;
+  }
 });
 
 test('ADMIN can read redacted runtime config with active engine SHA summary', async () => {

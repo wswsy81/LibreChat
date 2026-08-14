@@ -3,6 +3,7 @@ const { sendEvent } = require('@librechat/api');
 const { getResponseSender, Constants } = require('librechat-data-provider');
 const { sendError } = require('~/server/middleware/error');
 const { saveMessage } = require('~/models');
+const { isLocalDataRequest } = require('~/server/utils/futureLinesLocalData');
 
 /**
  * Denies a request by sending an error message and optionally saves the user's message.
@@ -41,7 +42,7 @@ const denyRequest = async (req, res, errorMessage) => {
 
   const shouldSaveMessage = _convoId && parentMessageId && parentMessageId !== Constants.NO_PARENT;
 
-  if (shouldSaveMessage) {
+  if (shouldSaveMessage && !isLocalDataRequest(req)) {
     await saveMessage(
       {
         userId: req?.user?.id,
@@ -59,7 +60,7 @@ const denyRequest = async (req, res, errorMessage) => {
     conversationId,
     parentMessageId: userMessage.messageId,
     text: responseText,
-    shouldSaveMessage,
+    shouldSaveMessage: shouldSaveMessage && !isLocalDataRequest(req),
     user: req.user.id,
   });
 };

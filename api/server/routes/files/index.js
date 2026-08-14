@@ -10,6 +10,10 @@ const { restoreTenantContextFromReq } = require('@librechat/api');
 const { avatar: asstAvatarRouter } = require('~/server/routes/assistants/v1');
 const { avatar: agentAvatarRouter } = require('~/server/routes/agents/v1');
 const { createMulterInstance } = require('./multer');
+const {
+  isLocalDataBetaUser,
+  localDataUnavailable,
+} = require('~/server/utils/futureLinesLocalData');
 
 const files = require('./files');
 const images = require('./images');
@@ -22,6 +26,14 @@ const initialize = async () => {
   router.use(configMiddleware);
   router.use(checkBan);
   router.use(uaParser);
+  router.use((req, res, next) => {
+    const conversationUpload =
+      req.method === 'POST' && (req.path === '/' || req.path === '/images');
+    if (conversationUpload && isLocalDataBetaUser(req.user)) {
+      return localDataUnavailable(res, '设备本地模式暂不支持长期保存文件，请先只发送文字');
+    }
+    return next();
+  });
 
   const upload = await createMulterInstance();
   router.post('/speech/stt', upload.single('audio'), restoreTenantContextFromReq);

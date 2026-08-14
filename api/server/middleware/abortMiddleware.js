@@ -14,6 +14,7 @@ const clearPendingReq = require('~/cache/clearPendingReq');
 const { sendError } = require('~/server/middleware/error');
 const { abortRun } = require('./abortRun');
 const db = require('~/models');
+const { isLocalDataRequest } = require('~/server/utils/futureLinesLocalData');
 
 /**
  * @param {Error | unknown} error
@@ -108,6 +109,7 @@ async function abortMessage(req, res) {
 
   const conversationId = abortKey?.split(':')?.[0] ?? req.user.id;
   const userId = req.user.id;
+  const localDataMode = isLocalDataRequest(req);
 
   // Use GenerationJobManager to abort the job (streamId === conversationId)
   const abortResult = await GenerationJobManager.abortJob(conversationId);
@@ -150,7 +152,7 @@ async function abortMessage(req, res) {
   }
 
   // Spend tokens for ALL models from collectedUsage (handles parallel agents/addedConvo)
-  if (collectedUsage && collectedUsage.length > 0) {
+  if (!localDataMode && collectedUsage && collectedUsage.length > 0) {
     await spendCollectedUsage({
       userId,
       conversationId: jobData?.conversationId,
@@ -158,7 +160,7 @@ async function abortMessage(req, res) {
       fallbackModel: jobData?.model,
       messageId: jobData?.responseMessageId,
     });
-  } else {
+  } else if (!localDataMode) {
     // Fallback: no collected usage, use text-based token counting for primary model only
     await db.spendTokens(
       { ...responseMessage, context: 'incomplete', user: userId },
@@ -166,18 +168,26 @@ async function abortMessage(req, res) {
     );
   }
 
-  await db.saveMessage(
-    {
-      userId: req?.user?.id,
-      isTemporary: req?.body?.isTemporary,
-      interfaceConfig: req?.config?.interfaceConfig,
-    },
-    { ...responseMessage, user: userId },
-    { context: 'api/server/middleware/abortMiddleware.js' },
-  );
+  if (!localDataMode)
+    await db.saveMessage(
+      {
+        userId: req?.user?.id,
+        isTemporary: req?.body?.isTemporary,
+        interfaceConfig: req?.config?.interfaceConfig,
+      },
+      { ...responseMessage, user: userId },
+      { context: 'api/server/middleware/abortMiddleware.js' },
+    );
 
   // Get conversation for title
-  const conversation = await db.getConvo(userId, conversationId);
+  const conversation = localDataMode
+    ? {
+        conversationId,
+        title: req.body?.localConversationTitle || 'New Chat',
+        endpoint: jobData?.endpoint,
+        updatedAt: new Date().toISOString(),
+      }
+    : await db.getConvo(userId, conversationId);
 
   const finalEvent = {
     title: conversation && !conversation.title ? null : conversation?.title || 'New Chat',

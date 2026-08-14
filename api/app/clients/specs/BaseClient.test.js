@@ -967,6 +967,77 @@ describe('BaseClient', () => {
       TestClient.options = savedOptions;
     });
 
+    test('device-local beta returns in-memory message data without Mongo writes', async () => {
+      const previous = {
+        enabled: process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED,
+        ids: process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS,
+      };
+      process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = 'true';
+      process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = 'local-user';
+      saveMessage.mockClear();
+      saveConvo.mockClear();
+      getConvo.mockClear();
+      try {
+        const req = {
+          user: { id: 'local-user' },
+          body: { localConversationTitle: '本地对话' },
+        };
+        TestClient = initializeFakeClient(apiKey, { ...options, endpoint: 'agents', req }, []);
+        const result = await TestClient.saveMessageToDatabase(
+          {
+            messageId: 'local-message',
+            conversationId: 'local-conversation',
+            isCreatedByUser: true,
+            text: '只留在设备上',
+          },
+          { endpoint: 'agents', endpointType: 'agents' },
+          { id: 'local-user' },
+        );
+
+        expect(result.message.text).toBe('只留在设备上');
+        expect(result.conversation.title).toBe('本地对话');
+        expect(saveMessage).not.toHaveBeenCalled();
+        expect(saveConvo).not.toHaveBeenCalled();
+        expect(getConvo).not.toHaveBeenCalled();
+      } finally {
+        if (previous.enabled === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED;
+        else process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = previous.enabled;
+        if (previous.ids === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS;
+        else process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = previous.ids;
+      }
+    });
+
+    test('device-local beta loads browser supplied history without Mongo reads', async () => {
+      const previous = {
+        enabled: process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED,
+        ids: process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS,
+      };
+      process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = 'true';
+      process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = 'local-user';
+      getMessages.mockClear();
+      try {
+        const req = {
+          user: { id: 'local-user' },
+          body: {
+            messages: messageHistory.map((message) => ({ ...message, conversationId })),
+          },
+        };
+        TestClient = new FakeClient(apiKey, { ...options, req });
+        TestClient.user = 'local-user';
+
+        const history = await TestClient.loadHistory(conversationId, '3');
+
+        expect(history).toHaveLength(3);
+        expect(history[2].text).toBe("What's up");
+        expect(getMessages).not.toHaveBeenCalled();
+      } finally {
+        if (previous.enabled === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED;
+        else process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = previous.enabled;
+        if (previous.ids === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS;
+        else process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = previous.ids;
+      }
+    });
+
     test('saveMessageToDatabase uses snapshot of options, immune to mid-await disposal', async () => {
       const savedOptions = TestClient.options;
       saveMessage.mockClear();

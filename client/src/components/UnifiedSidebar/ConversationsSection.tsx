@@ -17,6 +17,7 @@ import { Conversations } from '~/components/Conversations';
 import ProjectsSection from '~/components/Conversations/ProjectsSection';
 import FavoritesList from '~/components/Nav/Favorites/FavoritesList';
 import SearchBar from '~/components/Nav/SearchBar';
+import { isDeviceDataMode } from '~/features/local-data';
 import store from '~/store';
 
 const BookmarkNav = lazy(() => import('~/components/Nav/Bookmarks/BookmarkNav'));
@@ -26,6 +27,7 @@ const ConversationsSection = memo(() => {
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
   const setSidebarExpanded = useSetRecoilState(store.sidebarExpanded);
   const { isAuthenticated } = useAuthContext();
+  const deviceDataMode = isDeviceDataMode();
   useTitleGeneration(isAuthenticated);
 
   const [isChatsExpanded, setIsChatsExpanded] = useLocalStorage('chatsExpanded', true);
@@ -111,7 +113,7 @@ const ConversationsSection = memo(() => {
       aria-label={localize('com_ui_chat_history')}
     >
       <div className="flex items-center gap-0.5 px-3">
-        {hasAccessToBookmarks && (
+        {!deviceDataMode && hasAccessToBookmarks && (
           <Suspense fallback={null}>
             <BookmarkNav tags={tags} setTags={setTags} />
           </Suspense>
@@ -123,7 +125,9 @@ const ConversationsSection = memo(() => {
           <FavoritesList isSmallScreen={isSmallScreen} toggleNav={toggleNav} />
         </div>
       )}
-      {!search.query && <ProjectsSection toggleNav={toggleNav} isAuthenticated={isAuthenticated} />}
+      {!deviceDataMode && !search.query && (
+        <ProjectsSection toggleNav={toggleNav} isAuthenticated={isAuthenticated} />
+      )}
       <div className="flex min-h-0 flex-grow flex-col overflow-hidden">
         <Conversations
           conversations={conversations}

@@ -32,6 +32,7 @@ const { getStrategyFunctions } = require('~/server/services/Files/strategies');
 const { logViolation } = require('~/cache');
 const TextStream = require('./TextStream');
 const db = require('~/models');
+const { isLocalDataRequest } = require('~/server/utils/futureLinesLocalData');
 
 const collectHistoricalFileRefs = (message) => {
   const refs = [];
@@ -833,6 +834,22 @@ class BaseClient {
   async loadHistory(conversationId, parentMessageId = null) {
     logger.debug('[BaseClient] Loading history:', { conversationId, parentMessageId });
 
+    if (isLocalDataRequest(this.options?.req)) {
+      const supplied = Array.isArray(this.options?.req?.body?.messages)
+        ? this.options.req.body.messages.filter(
+            (message) => message && message.conversationId === conversationId,
+          )
+        : [];
+      if (supplied.length === 0) return [];
+      let mapMethod = null;
+      if (this.getMessageMapMethod) mapMethod = this.getMessageMapMethod();
+      return this.constructor.getMessagesForConversation({
+        messages: supplied,
+        parentMessageId,
+        mapMethod,
+      });
+    }
+
     const messages = (await db.getMessages({ conversationId, user: this.user })) ?? [];
 
     if (messages.length === 0) {
@@ -909,6 +926,28 @@ class BaseClient {
 
     if (this.user && user !== this.user) {
       throw new Error('User mismatch.');
+    }
+
+    if (isLocalDataRequest(options.req)) {
+      const now = new Date().toISOString();
+      return {
+        message: {
+          ...message,
+          endpoint: options.endpoint,
+          unfinished: false,
+          user,
+        },
+        conversation: {
+          conversationId: message.conversationId,
+          endpoint: options.endpoint,
+          endpointType: options.endpointType,
+          ...endpointOptions,
+          title: options.req.body?.localConversationTitle || 'New Chat',
+          createdAt: options.req.conversationCreatedAt || now,
+          updatedAt: now,
+          user: options.req.user?.id,
+        },
+      };
     }
 
     const hasAddedConvo = options?.req?.body?.addedConvo != null;
@@ -1001,6 +1040,7 @@ class BaseClient {
    * @param {Partial<TMessage>} message
    */
   async updateMessageInDatabase(message) {
+    if (isLocalDataRequest(this.options?.req)) return;
     await db.updateMessage(this.options?.req?.user?.id, message);
   }
 

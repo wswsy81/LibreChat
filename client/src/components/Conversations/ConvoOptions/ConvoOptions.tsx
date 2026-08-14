@@ -31,6 +31,7 @@ import { useChatContext } from '~/Providers';
 import ProjectButton from './ProjectButton';
 import DeleteButton from './DeleteButton';
 import ShareButton from './ShareButton';
+import { isDeviceDataMode } from '~/features/local-data';
 import { cn } from '~/utils';
 
 function ConvoOptions({
@@ -62,6 +63,7 @@ function ConvoOptions({
   const { data: startupConfig } = useGetStartupConfig();
   const { navigateToConvo } = useNavigateToConvo(index);
   const { showToast } = useToastContext();
+  const deviceDataMode = isDeviceDataMode();
 
   const navigate = useNavigate();
   const { conversationId: currentConvoId } = useParams();
@@ -267,7 +269,11 @@ function ConvoOptions({
         label: localize('com_ui_share'),
         onClick: shareHandler,
         icon: <Share2 className="icon-sm mr-2 text-text-primary" aria-hidden="true" />,
-        show: startupConfig && startupConfig.sharedLinksEnabled && canCreateSharedLinks,
+        show:
+          !deviceDataMode &&
+          startupConfig &&
+          startupConfig.sharedLinksEnabled &&
+          canCreateSharedLinks,
         ariaHasPopup: 'dialog' as const,
         ariaControls: 'share-conversation-dialog',
         /** NOTE: THE FOLLOWING PROPS ARE REQUIRED FOR MENU ITEMS THAT OPEN DIALOGS */
@@ -278,6 +284,7 @@ function ConvoOptions({
       {
         label: localize(isPinned ? 'com_ui_unpin' : 'com_ui_pin'),
         onClick: handlePinClick,
+        show: !deviceDataMode,
         hideOnClick: false,
         icon: isPinLoading ? (
           <Spinner className="size-4" />
@@ -293,6 +300,7 @@ function ConvoOptions({
       {
         label: localize('com_ui_duplicate'),
         onClick: handleDuplicateClick,
+        show: !deviceDataMode,
         hideOnClick: false,
         icon: isDuplicateLoading ? (
           <Spinner className="size-4" />
@@ -303,6 +311,7 @@ function ConvoOptions({
       {
         label: localize('com_ui_change_project'),
         onClick: projectHandler,
+        show: !deviceDataMode,
         icon: <FolderInput className="icon-sm mr-2 text-text-primary" aria-hidden="true" />,
         ariaHasPopup: 'dialog' as const,
         ariaControls: 'project-conversation-dialog',
@@ -313,7 +322,7 @@ function ConvoOptions({
       {
         label: localize('com_ui_remove_from_project'),
         onClick: removeProjectHandler,
-        show: Boolean(chatProjectId),
+        show: !deviceDataMode && Boolean(chatProjectId),
         hideOnClick: false,
         icon: assignConversationToProject.isLoading ? (
           <Spinner className="size-4" />
@@ -345,6 +354,7 @@ function ConvoOptions({
     ],
     [
       localize,
+      deviceDataMode,
       isPinned,
       isPinLoading,
       shareHandler,
@@ -440,7 +450,7 @@ function ConvoOptions({
         }
         items={dropdownItems}
       />
-      {showShareDialog && (
+      {!deviceDataMode && showShareDialog && (
         <ShareButton
           conversationId={conversationId ?? ''}
           open={showShareDialog}
@@ -459,7 +469,7 @@ function ConvoOptions({
           setShowDeleteDialog={setShowDeleteDialog}
         />
       )}
-      {showProjectDialog && (
+      {!deviceDataMode && showProjectDialog && (
         <ProjectButton
           conversationId={conversationId ?? ''}
           chatProjectId={chatProjectId}

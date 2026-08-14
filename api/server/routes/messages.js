@@ -18,9 +18,11 @@ const {
   prepareMessageRequestValidation,
 } = require('~/server/middleware');
 const db = require('~/models');
+const { blockLocalDataPersistence } = require('~/server/utils/futureLinesLocalData');
 
 const router = express.Router();
 router.use(requireJwtAuth);
+router.use(blockLocalDataPersistence);
 
 router.get('/', async (req, res) => {
   try {

@@ -18,6 +18,11 @@ import {
 import useUpdateTagsInConvo from '~/hooks/Conversations/useUpdateTagsInConvo';
 import { updateConversationTag } from '~/utils/conversationTags';
 import { useConversationTagsQuery } from './queries';
+import {
+  deleteDeviceConversation,
+  isDeviceDataMode,
+  updateDeviceConversation,
+} from '~/features/local-data';
 
 export const useUpdateConversationMutation = (
   id: string,
@@ -29,7 +34,10 @@ export const useUpdateConversationMutation = (
 > => {
   const queryClient = useQueryClient();
   return useMutation(
-    (payload: t.TUpdateConversationRequest) => dataService.updateConversation(payload),
+    (payload: t.TUpdateConversationRequest) =>
+      isDeviceDataMode()
+        ? updateDeviceConversation(payload.conversationId || id, payload)
+        : dataService.updateConversation(payload),
     {
       onSuccess: (updatedConvo, payload) => {
         const targetId = payload.conversationId || id;
@@ -76,7 +84,10 @@ export const useArchiveConvoMutation = (
   const { onMutate, onError, onSuccess, ..._options } = options || {};
 
   return useMutation(
-    (payload: t.TArchiveConversationRequest) => dataService.archiveConversation(payload),
+    (payload: t.TArchiveConversationRequest) =>
+      isDeviceDataMode()
+        ? updateDeviceConversation(payload.conversationId, { isArchived: payload.isArchived })
+        : dataService.archiveConversation(payload),
     {
       onMutate,
       onSuccess: (_data, vars, context) => {
@@ -506,8 +517,17 @@ export const useDeleteConversationMutation = (
   const queryClient = useQueryClient();
 
   return useMutation(
-    (payload: t.TDeleteConversationRequest) =>
-      dataService.deleteConversation(payload) as Promise<t.TDeleteConversationResponse>,
+    async (payload: t.TDeleteConversationRequest) => {
+      if (isDeviceDataMode() && payload.conversationId) {
+        const deleted = await deleteDeviceConversation(payload.conversationId);
+        return {
+          acknowledged: true,
+          deletedCount: deleted ? 1 : 0,
+          messages: { acknowledged: true, deletedCount: deleted ? 1 : 0 },
+        } satisfies t.TDeleteConversationResponse;
+      }
+      return dataService.deleteConversation(payload) as Promise<t.TDeleteConversationResponse>;
+    },
     {
       onMutate: async () => {
         await queryClient.cancelQueries([QueryKeys.allConversations]);

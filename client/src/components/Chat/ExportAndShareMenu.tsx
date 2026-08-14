@@ -8,6 +8,7 @@ import type * as t from '~/common';
 import ExportModal from '~/components/Nav/ExportConversation/ExportModal';
 import { ShareButton } from '~/components/Conversations/ConvoOptions';
 import { useHasAccess, useLocalize } from '~/hooks';
+import { isDeviceDataMode } from '~/features/local-data';
 import store from '~/store';
 
 export default function ExportAndShareMenu({
@@ -29,6 +30,7 @@ export default function ExportAndShareMenu({
   });
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
   const conversation = useRecoilValue(store.conversationByIndex(0));
+  const deviceDataMode = isDeviceDataMode();
 
   const exportable =
     conversation &&
@@ -53,7 +55,7 @@ export default function ExportAndShareMenu({
       label: localize('com_ui_share'),
       onClick: shareHandler,
       icon: <Share2 className="icon-md mr-2 text-text-secondary" />,
-      show: isSharedButtonEnabled && canCreateSharedLinks,
+      show: !deviceDataMode && isSharedButtonEnabled && canCreateSharedLinks,
       /** NOTE: THE FOLLOWING PROPS ARE REQUIRED FOR MENU ITEMS THAT OPEN DIALOGS */
       hideOnClick: false,
       ref: shareButtonRef,
@@ -81,18 +83,30 @@ export default function ExportAndShareMenu({
         setIsOpen={setIsPopoverActive}
         trigger={
           <TooltipAnchor
-            description={localize('com_endpoint_export_share')}
+            description={
+              deviceDataMode
+                ? localize('com_endpoint_export')
+                : localize('com_endpoint_export_share')
+            }
             render={
               <Ariakit.MenuButton
                 id="export-menu-button"
                 aria-label="Export options"
                 className="inline-flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-border-light bg-presentation text-text-primary transition-all ease-in-out hover:bg-surface-tertiary disabled:pointer-events-none disabled:opacity-50 radix-state-open:bg-surface-tertiary"
               >
-                <Share2
-                  className="icon-md text-text-primary"
-                  aria-hidden="true"
-                  focusable="false"
-                />
+                {deviceDataMode ? (
+                  <Upload
+                    className="icon-md text-text-primary"
+                    aria-hidden="true"
+                    focusable="false"
+                  />
+                ) : (
+                  <Share2
+                    className="icon-md text-text-primary"
+                    aria-hidden="true"
+                    focusable="false"
+                  />
+                )}
               </Ariakit.MenuButton>
             }
           />
@@ -107,12 +121,14 @@ export default function ExportAndShareMenu({
         triggerRef={exportButtonRef}
         aria-label={localize('com_ui_export_convo_modal')}
       />
-      <ShareButton
-        triggerRef={shareButtonRef}
-        conversationId={conversation.conversationId ?? ''}
-        open={showShareDialog}
-        onOpenChange={setShowShareDialog}
-      />
+      {!deviceDataMode && (
+        <ShareButton
+          triggerRef={shareButtonRef}
+          conversationId={conversation.conversationId ?? ''}
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+        />
+      )}
     </>
   );
 }

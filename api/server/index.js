@@ -79,7 +79,14 @@ const rejectChatStartsUntilReady = (req, res, next) => {
 };
 
 const configureGenerationStreams = () => {
-  const streamServices = createStreamServices();
+  const localDataBetaEnabled = ['1', 'true', 'on', 'yes'].includes(
+    String(process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED || '').toLowerCase(),
+  );
+  // Device-local beta conversations must never place message-bearing resumable job
+  // metadata in Redis/AOF. While the beta flag is enabled, all generation streams
+  // use the existing in-process store; ordinary conversations still persist through
+  // their normal Mongo path.
+  const streamServices = createStreamServices(localDataBetaEnabled ? { useRedis: false } : {});
   GenerationJobManager.configure({
     ...streamServices,
     cleanupOnComplete: !isEnabled(process.env.STREAM_KEEP_COMPLETED_JOBS),

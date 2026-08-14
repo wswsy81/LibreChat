@@ -91,6 +91,7 @@ const {
   removeNullishValues,
   DEFAULT_MEMORY_MAX_INPUT_TOKENS,
 } = require('librechat-data-provider');
+const { isLocalDataRequest } = require('~/server/utils/futureLinesLocalData');
 const { filterFilesByAgentAccess } = require('~/server/services/Files/permissions');
 const { encodeAndFormat } = require('~/server/services/Files/images/encode');
 const { createContextHandlers } = require('~/app/clients/prompts');
@@ -650,6 +651,7 @@ class AgentClient extends BaseClient {
    * @returns {Promise<{ withKeys?: string; withoutKeys?: string } | undefined>}
    */
   async useMemory() {
+    if (isLocalDataRequest(this.options.req)) return;
     const user = this.options.req.user;
     if (user.personalization?.memories === false) {
       return;
@@ -1053,6 +1055,7 @@ class AgentClient extends BaseClient {
     context = 'message',
     collectedUsage = this.collectedUsage,
   }) {
+    if (isLocalDataRequest(this.options.req)) return;
     const result = await recordCollectedUsage(
       {
         spendTokens: db.spendTokens,
@@ -1623,7 +1626,7 @@ class AgentClient extends BaseClient {
           // persists the pending action; the /resume route rebuilds + continues the run), so it
           // opts into the tool-approval wiring. Non-resumable callers (OpenAI-compat, Responses)
           // leave this off so an approval-gated tool can't pause where there's no resume path.
-          hitlCapable: true,
+          hitlCapable: !isLocalDataRequest(this.options.req),
           indexTokenCountMap,
           initialSummary,
           initialSessions,
@@ -1685,6 +1688,7 @@ class AgentClient extends BaseClient {
         // WITHOUT the approval policy) — an ask pause abandoned via job replacement
         // or Stop would otherwise rehydrate here and silently duplicate context.
         if (
+          !isLocalDataRequest(this.options.req) &&
           streamId &&
           (isHITLEnabled(agentsEConfig?.toolApproval) || agents.some(agentRequestsAskUserQuestion))
         ) {
@@ -1954,7 +1958,7 @@ class AgentClient extends BaseClient {
         messages: [],
         // The resumed run can pause AGAIN (another tool, a follow-up question), and this
         // controller owns that lifecycle, so it must keep the HITL wiring on the rebuilt run.
-        hitlCapable: true,
+        hitlCapable: !isLocalDataRequest(this.options.req),
         // Replay deferred tools discovered before the pause. With `messages: []` the
         // discovery scan finds nothing, so a deferred tool the paused call targets
         // would be absent from the rebuilt toolMap; these names (captured at pause)
@@ -2386,6 +2390,7 @@ class AgentClient extends BaseClient {
     completionTokens,
     context = 'message',
   }) {
+    if (isLocalDataRequest(this.options.req)) return;
     try {
       await db.spendTokens(
         {

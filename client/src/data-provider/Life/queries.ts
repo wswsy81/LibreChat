@@ -8,11 +8,12 @@ import type {
   LifeReportResponse,
   LifeSelfProjectionResponse,
 } from 'librechat-data-provider';
+import { prepareLifeBootstrap } from '~/features/local-data';
 
 export const useLifeBootstrapQuery = (
   config?: UseQueryOptions<LifeBootstrapResponse>,
 ): QueryObserverResult<LifeBootstrapResponse> =>
-  useQuery<LifeBootstrapResponse>([QueryKeys.lifeBootstrap], dataService.getLifeBootstrap, {
+  useQuery<LifeBootstrapResponse>([QueryKeys.lifeBootstrap], prepareLifeBootstrap, {
     staleTime: 30_000,
     cacheTime: 60_000,
     refetchOnWindowFocus: true,

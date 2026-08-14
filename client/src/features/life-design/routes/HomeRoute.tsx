@@ -12,6 +12,35 @@ import { useAuthContext, useLocalize } from '~/hooks';
 import PublicHero from '../components/PublicHero';
 import { ProductShell } from '~/routes/Root';
 import { track } from '~/utils/track';
+import { clearDeviceData } from '~/features/local-data';
+
+function DeviceDataNotice({ notice }: { notice: string }) {
+  const clearLocalData = async () => {
+    const confirmed = window.confirm('确定清除这台设备上的未来线数据吗？清除后无法恢复。');
+    if (!confirmed) return;
+    await clearDeviceData();
+    window.location.assign('/home');
+  };
+  return (
+    <aside className="border-b border-life-brass/35 bg-life-paper-deep px-5 py-3 text-life-ink sm:px-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="font-life-sans text-life-sm leading-7">
+          <p>{notice}</p>
+          <p className="text-life-muted">
+            删除单段对话只删除聊天记录；已经形成的人物志会保留，清除本机数据才会一起删除。
+          </p>
+        </div>
+        <button
+          type="button"
+          className="min-h-11 self-start border border-life-ink/20 px-3 font-life-sans text-life-sm hover:bg-life-ink/5 sm:self-auto"
+          onClick={clearLocalData}
+        >
+          清除本机数据
+        </button>
+      </div>
+    </aside>
+  );
+}
 
 function PublicHome() {
   const localize = useLocalize();
@@ -162,5 +191,12 @@ export default function HomeRoute() {
     );
   }
 
-  return <ProductShell>{content}</ProductShell>;
+  return (
+    <ProductShell>
+      {bootstrap.data?.dataStorage?.mode === 'device' && bootstrap.data.dataStorage.notice ? (
+        <DeviceDataNotice notice={bootstrap.data.dataStorage.notice} />
+      ) : null}
+      {content}
+    </ProductShell>
+  );
 }

@@ -45,6 +45,9 @@ export const user = () => `${BASE_URL}/api/user`;
 
 const lifeRoot = `${BASE_URL}/api/life`;
 export const lifeBootstrap = () => `${lifeRoot}/bootstrap`;
+export const lifeDataStorage = () => `${lifeRoot}/data-storage`;
+export const lifeLocalDataSession = () => `${lifeRoot}/local-data/session`;
+export const lifeLocalDataSnapshot = () => `${lifeRoot}/local-data/snapshot`;
 export const lifeOnboarding = () => `${lifeRoot}/onboarding`;
 export const lifeResume = () => `${lifeRoot}/resume`;
 export const lifeArchive = () => `${lifeRoot}/archive`;

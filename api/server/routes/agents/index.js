@@ -21,6 +21,7 @@ const {
   messageUserLimiter,
 } = require('~/server/middleware');
 const { saveMessage } = require('~/models');
+const { isLocalDataRequest } = require('~/server/utils/futureLinesLocalData');
 const responses = require('./responses');
 const openai = require('./openai');
 const { v1 } = require('./v1');
@@ -246,6 +247,7 @@ router.post('/chat/abort', configMiddleware, async (req, res) => {
 
   const { streamId, conversationId, abortKey } = req.body;
   const userId = req.user?.id;
+  const localDataMode = isLocalDataRequest(req);
 
   // streamId === conversationId, so try any of the provided IDs
   // Skip "new" as it's a placeholder for new conversations, not an actual ID
@@ -315,7 +317,10 @@ router.post('/chat/abort', configMiddleware, async (req, res) => {
     // a job aborted while paused still carries its pendingAction in metadata, which is
     // exactly the case whose checkpoint would otherwise go stale.
     const agentsCfg = req.config?.endpoints?.agents;
-    if (isHITLEnabled(agentsCfg?.toolApproval) || job.metadata?.pendingAction != null) {
+    if (
+      !localDataMode &&
+      (isHITLEnabled(agentsCfg?.toolApproval) || job.metadata?.pendingAction != null)
+    ) {
       await deleteAgentCheckpoint(jobStreamId, agentsCfg?.checkpointer).catch((err) =>
         logger.error(`[AgentStream] Failed to prune checkpoint on abort: ${jobStreamId}`, err),
       );
@@ -328,7 +333,8 @@ router.post('/chat/abort', configMiddleware, async (req, res) => {
       abortResult.success &&
       abortResult.jobData?.userMessage?.messageId &&
       abortResult.jobData?.responseMessageId &&
-      hasPersistableAbortContent(abortResult.content)
+      hasPersistableAbortContent(abortResult.content) &&
+      !localDataMode
     ) {
       const { jobData, text } = abortResult;
       // `abortResult.content` is already stamped by `transformAbortContent`

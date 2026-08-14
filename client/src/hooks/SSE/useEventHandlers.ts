@@ -19,6 +19,7 @@ import type {
   EventSubmission,
   TStartupConfig,
 } from 'librechat-data-provider';
+import { persistDeviceEngineSnapshot, saveDeviceConversationTurn } from '~/features/local-data';
 import type { InfiniteData } from '@tanstack/react-query';
 import type { SetterOrUpdater } from 'recoil';
 import type { TResData, TFinalResData, ConvoGenerator } from '~/common';
@@ -587,6 +588,29 @@ export default function useEventHandlers({
         });
       }
 
+      if (
+        submission.dataStorageMode === 'device' &&
+        !isTemporary &&
+        conversationId &&
+        userMessage
+      ) {
+        const firstText = userMessage.text?.replace(/^\[trigger:[^\]]+\]\s*/, '').trim();
+        const localConversation = {
+          ...submission.conversation,
+          ...update,
+          conversationId,
+          title:
+            update.title && update.title !== 'New Chat'
+              ? update.title
+              : firstText?.slice(0, 18) || '新对话',
+        } as TConversation;
+        void saveDeviceConversationTurn(localConversation, [...messages, userMessage]).catch(
+          (error) => {
+            console.error('[local-data] failed to persist submitted message', error);
+          },
+        );
+      }
+
       scrollToEnd(() => setAbortScroll(false));
     },
     [
@@ -646,6 +670,13 @@ export default function useEventHandlers({
         isRegenerate = false,
         isTemporary: _isTemporary = false,
       } = submission;
+      if (
+        submission.dataStorageMode === 'device' &&
+        (!conversation.title || conversation.title === 'New Chat')
+      ) {
+        const firstText = requestMessage?.text?.replace(/^\[trigger:[^\]]+\]\s*/, '').trim();
+        conversation.title = firstText?.slice(0, 18) || '新对话';
+      }
       const serverConversation = conversation as TConversation;
 
       try {
@@ -711,6 +742,28 @@ export default function useEventHandlers({
         const currentMessages = getMessages();
         /* Early return if messages are empty; i.e., the user navigated away */
         if (!currentMessages || currentMessages.length === 0) {
+          if (submission.dataStorageMode === 'device' && conversation.conversationId) {
+            let detachedFinalMessages: TMessage[] = [];
+            if (runMessages) {
+              detachedFinalMessages = [...runMessages];
+            } else if (isRegenerate && responseMessage) {
+              detachedFinalMessages = mergeRegenerateFinalMessages({
+                messages: submission.regenerateMessages ?? messages,
+                responseMessage,
+                initialResponseId: submission.initialResponse.messageId,
+              });
+            } else if (requestMessage != null && responseMessage != null) {
+              detachedFinalMessages = [...messages, requestMessage, responseMessage];
+            }
+            if (detachedFinalMessages.length > 0) {
+              void saveDeviceConversationTurn(conversation as TConversation, detachedFinalMessages)
+                .then(() => persistDeviceEngineSnapshot())
+                .then(() => queryClient.invalidateQueries([QueryKeys.lifeBootstrap]))
+                .catch((error) => {
+                  console.error('[local-data] failed to persist detached completed turn', error);
+                });
+            }
+          }
           return;
         }
 
@@ -788,6 +841,14 @@ export default function useEventHandlers({
 
         if (finalMessages.length > 0) {
           setFinalMessages(conversation.conversationId, finalMessages);
+          if (submission.dataStorageMode === 'device' && conversation.conversationId) {
+            void saveDeviceConversationTurn(conversation as TConversation, finalMessages)
+              .then(() => persistDeviceEngineSnapshot())
+              .then(() => queryClient.invalidateQueries([QueryKeys.lifeBootstrap]))
+              .catch((error) => {
+                console.error('[local-data] failed to persist completed turn', error);
+              });
+          }
         } else if (
           isAssistantsEndpoint(submissionConvo.endpoint) &&
           (!submissionConvo.conversationId ||
@@ -896,6 +957,21 @@ export default function useEventHandlers({
         const finalMessages: TMessage[] = [...messages, userMessage, errorMessage];
         setMessages(finalMessages);
         queryClient.setQueryData<TMessage[]>([QueryKeys.messages, convoId], finalMessages);
+        if (submission.dataStorageMode === 'device') {
+          const firstText = userMessage.text?.replace(/^\[trigger:[^\]]+\]\s*/, '').trim();
+          const localConversation = {
+            ...submission.conversation,
+            ...(data?.conversation ?? {}),
+            conversationId: convoId,
+            title:
+              data?.conversation?.title && data.conversation.title !== 'New Chat'
+                ? data.conversation.title
+                : firstText?.slice(0, 18) || '新对话',
+          } as TConversation;
+          void saveDeviceConversationTurn(localConversation, finalMessages).catch((error) => {
+            console.error('[local-data] failed to persist errored turn', error);
+          });
+        }
       };
 
       const parseErrorResponse = (data: TResData | Partial<TMessage>): TMessage => {

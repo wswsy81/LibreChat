@@ -39,6 +39,7 @@ import store, { useGetEphemeralAgent } from '~/store';
 import { startupConfigKey } from '~/data-provider';
 import useUserKey from '~/hooks/Input/useUserKey';
 import { useAuthContext } from '~/hooks';
+import { isDeviceDataMode } from '~/features/local-data';
 
 const logChatRequest = (request: Record<string, unknown>) => {
   logger.log('=====================================\nAsk function called with:');
@@ -620,6 +621,14 @@ export default function useChatFunctions({
       editedContent,
       addedConvo,
       manualSkills: manualSkills.length > 0 ? manualSkills : undefined,
+      ...(isDeviceDataMode()
+        ? {
+            dataStorageMode: 'device' as const,
+            localConversationTitle: conversation?.title ?? null,
+            localConversationCreatedAt:
+              typeof conversation?.createdAt === 'string' ? conversation.createdAt : null,
+          }
+        : {}),
     };
 
     if (isRegenerate) {

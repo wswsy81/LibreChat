@@ -44,6 +44,7 @@ const optionalJwtAuth = require('~/server/middleware/optionalJwtAuth');
 const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const configMiddleware = require('~/server/middleware/config/app');
 const { getAppConfig } = require('~/server/services/Config/app');
+const { blockLocalDataPersistence } = require('~/server/utils/futureLinesLocalData');
 const router = express.Router();
 
 const checkSharedLinksAccess = generateCheckAccess({
@@ -389,6 +390,7 @@ if (allowSharedLinks) {
 /**
  * Shared links
  */
+router.use(requireJwtAuth, blockLocalDataPersistence);
 router.get('/', requireJwtAuth, async (req, res) => {
   try {
     const params = {

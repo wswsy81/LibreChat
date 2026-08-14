@@ -147,12 +147,52 @@ export interface LifeBootstrapResponse {
   lastConversationId?: string | null;
   lastConversationTitle?: string | null;
   recommendedRoute: '/home' | '/resume';
+  dataStorage?: LifeDataStorage;
   error?: { code: string; message: string; retryable?: boolean };
+}
+
+export interface LifeDataStorage {
+  mode: 'server' | 'device';
+  backupEnabled: false;
+  canEnableBackup: false;
+  notice: string | null;
+}
+
+export interface LifeDataStorageResponse extends LifeDataStorage {
+  authenticated: boolean;
+  userId: string | null;
+}
+
+export interface LifeEngineSnapshot {
+  version: 1;
+  files: Array<{ path: string; content: string }>;
+}
+
+export interface LifeLocalDataSessionResponse {
+  schemaVersion: 1;
+  sessionId: string;
+  expiresAt: string;
+}
+
+export interface LifeLocalDataSnapshotResponse {
+  schemaVersion: 1;
+  snapshot: LifeEngineSnapshot;
 }
 
 export interface LifeOnboardingRequest {
   archiveName: string;
   entryHouse: LifeHouseId;
+  localConversations?: LifeLocalConversationSummary[];
+}
+
+export interface LifeLocalConversationSummary {
+  conversationId: string;
+  title: string | null;
+  updatedAt: string | null;
+}
+
+export interface LifeResumeRequest {
+  localConversations?: LifeLocalConversationSummary[];
 }
 
 export interface LifeOnboardingResponse {

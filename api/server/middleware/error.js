@@ -3,6 +3,7 @@ const { logger } = require('@librechat/data-schemas');
 const { parseConvo } = require('librechat-data-provider');
 const { sendEvent, handleError, sanitizeMessageForTransmit } = require('@librechat/api');
 const { saveMessage, getMessages, getConvo } = require('~/models');
+const { isLocalDataRequest } = require('~/server/utils/futureLinesLocalData');
 
 /**
  * Processes an error with provided options, saves the error message and sends a corresponding SSE response
@@ -42,11 +43,12 @@ const sendError = async (req, res, options, callback) => {
     isCreatedByUser: false,
     ...rest,
   };
+  const localDataMode = isLocalDataRequest(req);
   if (callback && typeof callback === 'function') {
     await callback();
   }
 
-  if (shouldSaveMessage) {
+  if (shouldSaveMessage && !localDataMode) {
     await saveMessage(
       {
         userId: req?.user?.id,
@@ -62,6 +64,20 @@ const sendError = async (req, res, options, callback) => {
 
   if (!errorMessage.error) {
     const requestMessage = { messageId: parentMessageId, conversationId };
+    if (localDataMode) {
+      const supplied = Array.isArray(req.body?.messages) ? req.body.messages : [];
+      const localRequestMessage =
+        supplied.find((message) => message?.messageId === parentMessageId) ?? requestMessage;
+      return sendEvent(res, {
+        final: true,
+        requestMessage: sanitizeMessageForTransmit(localRequestMessage),
+        responseMessage: errorMessage,
+        conversation: {
+          ...parseConvo(errorMessage),
+          title: req.body?.localConversationTitle || 'New Chat',
+        },
+      });
+    }
     let query = [],
       convo = {};
     try {

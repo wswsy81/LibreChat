@@ -4,6 +4,16 @@ import type * as t from './types';
 import { setTokenHeader } from './headers-helpers';
 import * as endpoints from './api-endpoints';
 
+const notifyLifeMutation = (url: string) => {
+  if (
+    typeof window !== 'undefined' &&
+    url.includes('/api/life/') &&
+    !url.includes('/api/life/local-data/')
+  ) {
+    window.dispatchEvent(new CustomEvent('futureLinesLifeMutationCompleted'));
+  }
+};
+
 async function _get<T>(url: string, options?: AxiosRequestConfig): Promise<T> {
   const response = await axios.get(url, { ...options });
   return response.data;
@@ -18,6 +28,7 @@ async function _post(url: string, data?: any, options?: AxiosRequestConfig) {
     ...options,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
   });
+  notifyLifeMutation(url);
   return response.data;
 }
 
@@ -42,16 +53,19 @@ async function _put(url: string, data?: any) {
   const response = await axios.put(url, JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json' },
   });
+  notifyLifeMutation(url);
   return response.data;
 }
 
 async function _delete<T>(url: string): Promise<T> {
   const response = await axios.delete(url);
+  notifyLifeMutation(url);
   return response.data;
 }
 
 async function _deleteWithOptions<T>(url: string, options?: AxiosRequestConfig): Promise<T> {
   const response = await axios.delete(url, { ...options });
+  notifyLifeMutation(url);
   return response.data;
 }
 
@@ -59,6 +73,7 @@ async function _patch(url: string, data?: any) {
   const response = await axios.patch(url, JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json' },
   });
+  notifyLifeMutation(url);
   return response.data;
 }
 

@@ -20,6 +20,11 @@ const AgentController = require('~/server/controllers/agents/request');
 const ResumeController = require('~/server/controllers/agents/resume');
 const addTitle = require('~/server/services/Endpoints/agents/title');
 const { getRoleByName } = require('~/models');
+const {
+  isLocalDataBetaUser,
+  localDataUnavailable,
+  requireLocalDataSession,
+} = require('~/server/utils/futureLinesLocalData');
 
 const router = express.Router();
 
@@ -84,6 +89,9 @@ const controller = async (req, res, next) => {
 };
 
 const resumeController = async (req, res, next) => {
+  if (isLocalDataBetaUser(req.user)) {
+    return localDataUnavailable(res, '设备本地模式暂不支持跨页面恢复待确认操作');
+  }
   await ResumeController(req, res, next, initializeClient, addTitle);
 };
 
@@ -106,7 +114,7 @@ router.post('/resume', resumeController);
  * @param {express.Response} res - The response object, used to send back a response.
  * @returns {void}
  */
-router.post('/', controller);
+router.post('/', requireLocalDataSession, controller);
 
 /**
  * @route POST /:endpoint (ephemeral agents)
@@ -116,6 +124,6 @@ router.post('/', controller);
  * @param {express.Response} res - The response object, used to send back a response.
  * @returns {void}
  */
-router.post('/:endpoint', controller);
+router.post('/:endpoint', requireLocalDataSession, controller);
 
 module.exports = router;

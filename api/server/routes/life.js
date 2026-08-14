@@ -28,6 +28,14 @@ const {
   LifeOperationConflictError,
 } = require('~/server/services/lifeOperations');
 const { createLifeInvitation, redactExpiredLifeInvitationPlaintexts } = require('~/models');
+const {
+  dataStorageForUser,
+  isLocalDataBetaUser,
+  localConversationSummaries,
+  localDataUnavailable,
+  requireLocalDataSession,
+  runLocalDataOperation,
+} = require('~/server/utils/futureLinesLocalData');
 
 const router = express.Router();
 const engine = createLifeEngineClient({
@@ -162,6 +170,27 @@ async function includeHouseSessionConversations(id, bootstrap, conversations) {
     merged.push(conversation);
   }
   return merged;
+}
+
+async function requestLifeConversations(req, bootstrap) {
+  if (isLocalDataBetaUser(req.user)) {
+    return localConversationSummaries(req.body?.localConversations);
+  }
+  const conversations = await recentLifeConversations(userId(req));
+  return includeHouseSessionConversations(userId(req), bootstrap, conversations);
+}
+
+async function runRequestLifeOperation(req, args) {
+  if (!isLocalDataBetaUser(req.user)) return runLifeOperation(args);
+  return runLocalDataOperation({
+    ...args,
+    requestHash: hashLifeOperationPayload(args.requestPayload),
+  });
+}
+
+async function finalizeRequestLifeOperation(req, args) {
+  if (isLocalDataBetaUser(req.user)) return { updated: 0 };
+  return finalizeLifeOperationResult(args);
 }
 
 function currentLanternHouse(bootstrap) {
@@ -528,6 +557,85 @@ async function reportHtml(req, res, format, download = false) {
 
 router.use(noStore);
 
+router.get('/data-storage', optionalJwtAuth, (req, res) => {
+  const id = userId(req);
+  if (!id) {
+    return res.json({ authenticated: false, userId: null, ...dataStorageForUser(null) });
+  }
+  return res.json({ authenticated: true, userId: id, ...dataStorageForUser(req.user) });
+});
+
+router.post('/local-data/session', requireJwtAuth, async (req, res) => {
+  if (!isLocalDataBetaUser(req.user)) {
+    return res
+      .status(404)
+      .json({ error: { code: 'LOCAL_DATA_NOT_ENABLED', message: 'not found' } });
+  }
+  try {
+    const body =
+      req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const result = await engine.json('/internal/local-data/session', {
+      userId: userId(req),
+      method: 'POST',
+      body: {
+        snapshot: body.snapshot ?? null,
+        transcripts: Array.isArray(body.transcripts) ? body.transcripts : [],
+      },
+    });
+    return res.status(201).json(result);
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+router.get('/local-data/session', requireJwtAuth, async (req, res) => {
+  if (!isLocalDataBetaUser(req.user)) {
+    return res
+      .status(404)
+      .json({ error: { code: 'LOCAL_DATA_NOT_ENABLED', message: 'not found' } });
+  }
+  try {
+    return res.json(
+      await engine.json('/internal/local-data/session', {
+        userId: userId(req),
+      }),
+    );
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+router.get('/local-data/snapshot', requireJwtAuth, async (req, res) => {
+  if (!isLocalDataBetaUser(req.user)) {
+    return res
+      .status(404)
+      .json({ error: { code: 'LOCAL_DATA_NOT_ENABLED', message: 'not found' } });
+  }
+  try {
+    return res.json(await engine.json('/internal/local-data/snapshot', { userId: userId(req) }));
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
+router.delete('/local-data/session', requireJwtAuth, async (req, res) => {
+  if (!isLocalDataBetaUser(req.user)) {
+    return res
+      .status(404)
+      .json({ error: { code: 'LOCAL_DATA_NOT_ENABLED', message: 'not found' } });
+  }
+  try {
+    return res.json(
+      await engine.json('/internal/local-data/session', {
+        userId: userId(req),
+        method: 'DELETE',
+      }),
+    );
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
 router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
   const id = userId(req);
   if (!id) {
@@ -539,16 +647,19 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
       recommendedRoute: '/home',
     });
   }
+  const dataStorage = dataStorageForUser(req.user);
   try {
+    if (dataStorage.mode === 'device') {
+      await engine.json('/internal/local-data/session', { userId: id });
+    }
     const [bootstrap, conversations] = await Promise.all([
       engine.json('/internal/bootstrap', { userId: id }),
-      recentLifeConversations(id),
+      dataStorage.mode === 'device' ? Promise.resolve([]) : recentLifeConversations(id),
     ]);
-    const completeConversations = await includeHouseSessionConversations(
-      id,
-      bootstrap,
-      conversations,
-    );
+    const completeConversations =
+      dataStorage.mode === 'device'
+        ? conversations
+        : await includeHouseSessionConversations(id, bootstrap, conversations);
     const hasProfile = bootstrap.hasSubstantiveProfile === true;
     const hasSavedConversation = completeConversations.length > 0;
     const domains = domainConversations(bootstrap, completeConversations);
@@ -557,6 +668,7 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
     return res.json({
       authenticated: true,
       user: { id, name: req.user.name || '朋友', email: req.user.email || null },
+      dataStorage,
       ...bootstrap,
       lastConversationId: conversation?.conversationId || null,
       lastConversationTitle: conversation?.title || null,
@@ -569,6 +681,7 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
     return res.status(503).json({
       authenticated: true,
       user: { id, name: req.user.name || '朋友', email: req.user.email || null },
+      dataStorage,
       profileState: 'unavailable',
       hasSubstantiveProfile: null,
       recommendedRoute: null,
@@ -612,12 +725,13 @@ router.get('/shares/:token', lifeShareLimiter, async (req, res) => {
 });
 
 router.use(requireJwtAuth);
+router.use(requireLocalDataSession);
 
 router.post('/onboarding', async (req, res) => {
   const rawBody =
     req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const extra = Object.keys(rawBody).filter(
-    (field) => !['archiveName', 'entryHouse'].includes(field),
+    (field) => !['archiveName', 'entryHouse', 'localConversations'].includes(field),
   );
   const entryHouse = String(rawBody.entryHouse || '').trim();
   if (extra.length || !lifeHouseIds().has(entryHouse)) {
@@ -639,15 +753,8 @@ router.post('/onboarding', async (req, res) => {
       runtimeApiPolicy().resumeReplayWindowMs,
       DOMAIN_CREATION_REPLAY_WINDOW_MS,
     );
-    const [bootstrap, conversations] = await Promise.all([
-      engine.json('/internal/bootstrap', { userId: id }),
-      recentLifeConversations(id),
-    ]);
-    const completeConversations = await includeHouseSessionConversations(
-      id,
-      bootstrap,
-      conversations,
-    );
+    const bootstrap = await engine.json('/internal/bootstrap', { userId: id });
+    const completeConversations = await requestLifeConversations(req, bootstrap);
     const conversation = domainConversationForHouse(bootstrap, completeConversations, entryHouse);
     const activation = await activateDomain({ id, idempotencyKey: key, body });
     if (!validEntryEvent(activation?.entryEvent, entryHouse)) {
@@ -668,7 +775,7 @@ router.post('/onboarding', async (req, res) => {
         route: `/c/${conversation.conversationId}`,
         operationId: null,
       };
-      await finalizeLifeOperationResult({
+      await finalizeRequestLifeOperation(req, {
         userId: id,
         operation: DOMAIN_PAGE_OPERATION,
         requestPayload: reservationPayload,
@@ -681,7 +788,7 @@ router.post('/onboarding', async (req, res) => {
       activation.entryEvent.entryHouse,
       activation.entryEvent.visitMode,
     );
-    const outcome = await runLifeOperation({
+    const outcome = await runRequestLifeOperation(req, {
       userId: id,
       operation: DOMAIN_PAGE_OPERATION,
       idempotencyKey: key,
@@ -689,15 +796,8 @@ router.post('/onboarding', async (req, res) => {
       replayWindowMs,
       lockScope: entryHouse,
       executor: async ({ operationId }) => {
-        const [latestBootstrap, latestConversations] = await Promise.all([
-          engine.json('/internal/bootstrap', { userId: id }),
-          recentLifeConversations(id),
-        ]);
-        const completeLatestConversations = await includeHouseSessionConversations(
-          id,
-          latestBootstrap,
-          latestConversations,
-        );
+        const latestBootstrap = await engine.json('/internal/bootstrap', { userId: id });
+        const completeLatestConversations = await requestLifeConversations(req, latestBootstrap);
         const recheck = domainConversationForHouse(
           latestBootstrap,
           completeLatestConversations,
@@ -738,15 +838,8 @@ router.post('/resume', async (req, res) => {
       runtimeApiPolicy().resumeReplayWindowMs,
       DOMAIN_CREATION_REPLAY_WINDOW_MS,
     );
-    const [bootstrap, conversations] = await Promise.all([
-      engine.json('/internal/bootstrap', { userId: id }),
-      recentLifeConversations(id),
-    ]);
-    const completeConversations = await includeHouseSessionConversations(
-      id,
-      bootstrap,
-      conversations,
-    );
+    const bootstrap = await engine.json('/internal/bootstrap', { userId: id });
+    const completeConversations = await requestLifeConversations(req, bootstrap);
     const entry = activeHouseEntry(bootstrap);
     const targetHouse = entry?.entryHouse || null;
     const reservationOperation = targetHouse ? DOMAIN_PAGE_OPERATION : 'resume-create';
@@ -762,7 +855,7 @@ router.post('/resume', async (req, res) => {
         conversationId: conversation.conversationId,
         route: `/c/${conversation.conversationId}`,
       };
-      await finalizeLifeOperationResult({
+      await finalizeRequestLifeOperation(req, {
         userId: id,
         operation: reservationOperation,
         requestPayload: reservationPayload,
@@ -771,7 +864,7 @@ router.post('/resume', async (req, res) => {
       });
       return res.json(page);
     }
-    const outcome = await runLifeOperation({
+    const outcome = await runRequestLifeOperation(req, {
       userId: id,
       operation: reservationOperation,
       idempotencyKey: key,
@@ -779,15 +872,8 @@ router.post('/resume', async (req, res) => {
       replayWindowMs,
       lockScope: targetHouse || 'unscoped',
       executor: async ({ operationId }) => {
-        const [latestBootstrap, latestConversations] = await Promise.all([
-          engine.json('/internal/bootstrap', { userId: id }),
-          recentLifeConversations(id),
-        ]);
-        const completeLatestConversations = await includeHouseSessionConversations(
-          id,
-          latestBootstrap,
-          latestConversations,
-        );
+        const latestBootstrap = await engine.json('/internal/bootstrap', { userId: id });
+        const completeLatestConversations = await requestLifeConversations(req, latestBootstrap);
         const recheck = targetHouse
           ? domainConversationForHouse(latestBootstrap, completeLatestConversations, targetHouse)
           : activeDomainConversation(latestBootstrap, completeLatestConversations);
@@ -876,7 +962,7 @@ router.post('/basics', async (req, res) => {
     if (value !== undefined) body[field] = value === null ? null : String(value);
   }
   try {
-    const result = await runLifeOperation({
+    const result = await runRequestLifeOperation(req, {
       userId: userId(req),
       operation: 'basics-save',
       idempotencyKey: key,
@@ -913,7 +999,7 @@ router.post('/birth', async (req, res) => {
     city: req.body?.city ? String(req.body.city) : undefined,
   };
   try {
-    const result = await runLifeOperation({
+    const result = await runRequestLifeOperation(req, {
       userId: userId(req),
       operation: 'birth-save',
       idempotencyKey: key,
@@ -946,7 +1032,7 @@ router.post('/map/houses/annotate', async (req, res) => {
     return;
   }
   try {
-    const result = await runLifeOperation({
+    const result = await runRequestLifeOperation(req, {
       userId: userId(req),
       operation: 'map-house-annotate',
       idempotencyKey: key,
@@ -980,7 +1066,7 @@ router.post('/map/condition-candidates/resolve', async (req, res) => {
   const key = idempotencyKeyOf(req, res);
   if (!key) return;
   try {
-    const result = await runLifeOperation({
+    const result = await runRequestLifeOperation(req, {
       userId: userId(req),
       operation: 'house-condition-resolution',
       idempotencyKey: key,
@@ -1021,7 +1107,7 @@ router.post('/dossier/annotate', async (req, res) => {
     return;
   }
   try {
-    const result = await runLifeOperation({
+    const result = await runRequestLifeOperation(req, {
       userId: userId(req),
       operation: 'dossier-annotate',
       idempotencyKey: key,
@@ -1066,6 +1152,9 @@ router.get('/reports/:id/export.html', (req, res) => reportHtml(req, res, 'html'
 router.get('/reports/:id/print.html', (req, res) => reportHtml(req, res, 'print'));
 
 router.post('/reports/:id/shares', async (req, res) => {
+  if (isLocalDataBetaUser(req.user)) {
+    return localDataUnavailable(res, '设备本地模式暂不支持生成公开分享链接');
+  }
   const key = idempotencyKeyOf(req, res);
   if (!key) {
     return;
@@ -1102,7 +1191,7 @@ router.post('/reports/:id/stance-feedback', async (req, res) => {
     return;
   }
   try {
-    const result = await runLifeOperation({
+    const result = await runRequestLifeOperation(req, {
       userId: userId(req),
       operation: 'reveal-stance-feedback',
       idempotencyKey: key,
@@ -1122,6 +1211,9 @@ router.post('/reports/:id/stance-feedback', async (req, res) => {
 });
 
 router.delete('/reports/:id/shares/:shareId', async (req, res) => {
+  if (isLocalDataBetaUser(req.user)) {
+    return localDataUnavailable(res, '设备本地模式没有服务器分享记录');
+  }
   try {
     return res.json(
       await engine.json(

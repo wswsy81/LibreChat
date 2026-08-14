@@ -23,6 +23,7 @@ const {
 const { handleAbortError } = require('~/server/middleware');
 const { logViolation } = require('~/cache');
 const { saveMessage, getMessages, getConvo } = require('~/models');
+const { isLocalDataRequest } = require('~/server/utils/futureLinesLocalData');
 
 function createCloseHandler(abortController) {
   return function (manual) {
@@ -73,6 +74,11 @@ async function resolveConversationCreatedAt({ userId, conversationId, isNewConvo
 
 async function attachConversationCreatedAt(req, { userId, conversationId, isNewConvo }) {
   req.body.conversationId = conversationId;
+  if (isLocalDataRequest(req)) {
+    req.conversationCreatedAt =
+      toValidISOString(req.body?.localConversationCreatedAt) ?? new Date().toISOString();
+    return;
+  }
   const resolved = await resolveConversationCreatedAt({
     userId,
     conversationId,
@@ -251,6 +257,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
   } = req.body;
 
   const userId = req.user.id;
+  const localDataMode = isLocalDataRequest(req);
   const freshSubmission = isFreshChatSubmission({
     isRegenerate,
     isContinued,
@@ -261,12 +268,13 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
   });
 
   if (
-    await isUnpersistedPreliminaryParent({
+    !localDataMode &&
+    (await isUnpersistedPreliminaryParent({
       userId,
       conversationId: reqConversationId,
       parentMessageId,
       getMessages,
-    })
+    }))
   ) {
     return rejectPreliminaryParentMessageId(res);
   }
@@ -315,7 +323,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
           isTemporary: req.body?.isTemporary,
           timezone: req.body?.timezone,
         },
-        getMessages,
+        getMessages: localDataMode ? async () => [] : getMessages,
       });
       req.body.messageId = submissionIdentity.userMessageId;
       req.body.overrideUserMessageId = `${submissionIdentity.userMessageId}${Constants.COMMON_DIVIDER}0`;
@@ -469,15 +477,18 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
           partialMessage.agent_id = req.body.agent_id;
         }
 
-        await saveMessage(
-          {
-            userId: req?.user?.id,
-            isTemporary: req?.body?.isTemporary,
-            interfaceConfig: req?.config?.interfaceConfig,
-          },
-          partialMessage,
-          { context: 'api/server/controllers/agents/request.js - partial response on disconnect' },
-        );
+        if (!localDataMode)
+          await saveMessage(
+            {
+              userId: req?.user?.id,
+              isTemporary: req?.body?.isTemporary,
+              interfaceConfig: req?.config?.interfaceConfig,
+            },
+            partialMessage,
+            {
+              context: 'api/server/controllers/agents/request.js - partial response on disconnect',
+            },
+          );
 
         logger.debug(
           `[ResumableAgentController] Saved partial response for ${streamId}, content parts: ${persistableContent.length}`,
@@ -576,7 +587,11 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         job.abortController.signal.addEventListener('abort', abortTitleOnJobAbort, { once: true });
       }
       const titleEligible =
-        addTitle && parentMessageId === Constants.NO_PARENT && isNewConvo && !req.body?.isTemporary;
+        !localDataMode &&
+        addTitle &&
+        parentMessageId === Constants.NO_PARENT &&
+        isNewConvo &&
+        !req.body?.isTemporary;
       const emitTitleEvent = ({ conversationId: titleConversationId, title }) => {
         titleEventPromise = (async () => {
           if (!acceptsTitleEvents || titleAbortController.signal.aborted) {
@@ -749,23 +764,24 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
               );
             } else {
               try {
-                await saveMessage(
-                  {
-                    userId,
-                    isTemporary: req?.body?.isTemporary,
-                    interfaceConfig: req?.config?.interfaceConfig,
-                  },
-                  {
-                    ...response,
-                    endpoint: endpointOption.endpoint,
-                    unfinished: true,
-                    user: userId,
-                  },
-                  {
-                    context:
-                      'api/server/controllers/agents/request.js - HITL pause (mark unfinished)',
-                  },
-                );
+                if (!localDataMode)
+                  await saveMessage(
+                    {
+                      userId,
+                      isTemporary: req?.body?.isTemporary,
+                      interfaceConfig: req?.config?.interfaceConfig,
+                    },
+                    {
+                      ...response,
+                      endpoint: endpointOption.endpoint,
+                      unfinished: true,
+                      user: userId,
+                    },
+                    {
+                      context:
+                        'api/server/controllers/agents/request.js - HITL pause (mark unfinished)',
+                    },
+                  );
               } catch (saveErr) {
                 logger.error(
                   '[ResumableAgentController] Failed to mark paused response unfinished',
@@ -816,6 +832,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         // Check abort state BEFORE calling completeJob (which triggers abort signal for cleanup)
         const wasAbortedBeforeComplete = job.abortController.signal.aborted;
         const shouldGenerateTitle =
+          !localDataMode &&
           addTitle &&
           parentMessageId === Constants.NO_PARENT &&
           isNewConvo &&
@@ -829,7 +846,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
           interfaceConfig: req?.config?.interfaceConfig,
         };
 
-        if (!client.skipSaveUserMessage && userMessage) {
+        if (!localDataMode && !client.skipSaveUserMessage && userMessage) {
           await saveMessage(reqCtx, userMessage, {
             context: 'api/server/controllers/agents/request.js - resumable user message',
           });
@@ -838,7 +855,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         // CRITICAL: Save response message BEFORE emitting final event.
         // This prevents race conditions where the client sends a follow-up message
         // before the response is saved to the database, causing orphaned parentMessageIds.
-        if (client.savedMessageIds && !client.savedMessageIds.has(messageId)) {
+        if (!localDataMode && client.savedMessageIds && !client.savedMessageIds.has(messageId)) {
           await saveMessage(
             reqCtx,
             { ...response, user: userId, unfinished: wasAbortedBeforeComplete },
@@ -1082,14 +1099,16 @@ const _LegacyAgentController = async (req, res, next, initializeClient, addTitle
 
   // Match the same logic used for conversationId generation above
   const userId = req.user.id;
+  const localDataMode = isLocalDataRequest(req);
 
   if (
-    await isUnpersistedPreliminaryParent({
+    !localDataMode &&
+    (await isUnpersistedPreliminaryParent({
       userId,
       conversationId: reqConversationId,
       parentMessageId,
       getMessages,
-    })
+    }))
   ) {
     return rejectPreliminaryParentMessageId(res);
   }
@@ -1301,7 +1320,7 @@ const _LegacyAgentController = async (req, res, next, initializeClient, addTitle
       res.end();
 
       // Save the message if needed
-      if (client.savedMessageIds && !client.savedMessageIds.has(messageId)) {
+      if (!localDataMode && client.savedMessageIds && !client.savedMessageIds.has(messageId)) {
         await saveMessage(
           {
             userId: req?.user?.id,
@@ -1335,7 +1354,7 @@ const _LegacyAgentController = async (req, res, next, initializeClient, addTitle
     }
 
     // Save user message if needed
-    if (!client.skipSaveUserMessage) {
+    if (!localDataMode && !client.skipSaveUserMessage) {
       await saveMessage(
         {
           userId: req?.user?.id,
@@ -1348,7 +1367,7 @@ const _LegacyAgentController = async (req, res, next, initializeClient, addTitle
     }
 
     // Add title if needed - extract minimal data
-    if (addTitle && parentMessageId === Constants.NO_PARENT && isNewConvo) {
+    if (!localDataMode && addTitle && parentMessageId === Constants.NO_PARENT && isNewConvo) {
       addTitle(req, {
         text,
         response: { ...response },
