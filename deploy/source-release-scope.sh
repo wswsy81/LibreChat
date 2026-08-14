@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+has_future_engine_image_risk() {
+  printf '%s\n' "$@" \
+    | grep -Eq '^projects/未来线/future-engine-shim/(package(-lock)?\.json|Dockerfile[^/]*)$'
+}
+
 classify_source_release_delta() {
   mapfile -t API_RELEASE_FILES < <(printf '%s\n' "${APP_RELEASE_CHANGED[@]}" \
     | grep -E '^api/.+\.js$' \

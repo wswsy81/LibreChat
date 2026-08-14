@@ -626,6 +626,11 @@ grep -F 'ENGINE_RELEASE_FILES' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F 'verify-tar-provenance.sh' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 
 source "$SCRIPT_DIR/source-release-scope.sh"
+! has_future_engine_image_risk projects/未来线/simulation-battlefield/package.json
+! has_future_engine_image_risk projects/未来线/evals/package-lock.json
+has_future_engine_image_risk projects/未来线/future-engine-shim/package.json
+has_future_engine_image_risk projects/未来线/future-engine-shim/package-lock.json
+has_future_engine_image_risk projects/未来线/future-engine-shim/Dockerfile
 APP_RELEASE_CHANGED=(client/src/home.tsx packages/client/src/me.tsx docs/release.md)
 APP_RELEASE_DELETED=()
 BRAIN_RELEASE_CHANGED=(projects/未来线/future-engine-shim/docs/release.md)

@@ -77,7 +77,7 @@ mapfile -t BRAIN_RELEASE_DELETED < <(git -C "$BRAIN_DIR" -c core.quotePath=false
 
 printf '%s\n' "${APP_CHANGED[@]}" "${APP_DELETED[@]}" | grep -Eq '(^|/)(package(-lock)?\.json|Dockerfile[^/]*|docker-compose[^/]*\.ya?ml)$' \
   && { echo "dependency, image, or compose changes require an image release" >&2; exit 1; } || true
-printf '%s\n' "${BRAIN_CHANGED[@]}" "${BRAIN_DELETED[@]}" | grep -Eq '(^|/)(package(-lock)?\.json|Dockerfile[^/]*)$' \
+has_future_engine_image_risk "${BRAIN_CHANGED[@]}" "${BRAIN_DELETED[@]}" \
   && { echo "future-engine dependency or image changes require an image release" >&2; exit 1; } || true
 UNSUPPORTED_APP=$(printf '%s\n' "${APP_CHANGED[@]}" "${APP_DELETED[@]}" \
   | grep -E '^packages/data-schemas/' || true)
