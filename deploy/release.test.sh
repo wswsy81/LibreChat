@@ -624,6 +624,13 @@ grep -F 'APP_RELEASE_CHANGED' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F 'API_RELEASE_FILES' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F 'ENGINE_RELEASE_FILES' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
 grep -F 'verify-tar-provenance.sh' "$SCRIPT_DIR/ssh-source-release.sh" >/dev/null
+SOURCE_RELEASE_HELP=$(bash "$SCRIPT_DIR/ssh-source-release.sh" --help 2>&1)
+grep -F 'usage: bash deploy/ssh-source-release.sh [release-id]' <<< "$SOURCE_RELEASE_HELP" >/dev/null
+set +e
+bash "$SCRIPT_DIR/ssh-source-release.sh" release-a release-b >/dev/null 2>&1
+source_release_extra_arg_status=$?
+set -e
+[[ $source_release_extra_arg_status -eq 2 ]]
 
 source "$SCRIPT_DIR/source-release-scope.sh"
 ! has_future_engine_image_risk projects/未来线/simulation-battlefield/package.json

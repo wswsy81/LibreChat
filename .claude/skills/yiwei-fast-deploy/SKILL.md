@@ -49,6 +49,7 @@ description: Deploy Future Lines/未来线 to production through its candidate-f
 29. bank 热更必须同时覆盖 `ADVISOR_BANKS_DIR=/app/banks-live` 和 `FUTURE_ENGINE_BANK_ROOT=/app/runtime-config`；`deploy-banks.sh` 要为 runtime-config 生成应用发布用户 `0600` 的精确 rollback，以 `/tmp → sudo install → 原子替换` 更新，并比较本地、宿主和容器 SHA。只同步 banks-live 不得标记完成。
 30. bank runtime-config 资产包与 SSH source/client 包遵守同一 macOS provenance 门：`COPYFILE_DISABLE=1`、真实空归档探测 `--no-xattrs`、上传前扫描最终 tar；出现 `LIBARCHIVE.xattr.com.apple.provenance` 不得标记完成。
 31. 镜像候选切换前必须检查 `.release-source.override.yml`：若候选要切换的 `api` 或 `future-engine` 仍被现役 source override 覆盖，`apply-release.sh` 必须在生成 rollback、改配置或 recreate 容器前 fail-closed，并明确改走 `ssh-source`；禁止以双 health 代替“新镜像代码实际生效”的 canary。
+32. 发布执行器必须在任何 Git、SSH、打包或传输前解析探测参数：`ssh-source-release.sh -h/--help` 只打印 usage 并退出，多余位置参数以状态 2 拒绝；不得把选项误当 release ID 启动候选准备。
 
 只改发布/备份/skill 管道时使用 `projects/未来线/librechat/deploy/verify-local.sh --release`；业务代码开发用 `--quick`，最终完整交付用 `--full`。
 

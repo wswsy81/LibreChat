@@ -8,6 +8,15 @@ BRAIN_DIR=$(cd -- "$APP_DIR/../../.." && pwd)
 source "$SCRIPT_DIR/source-release-scope.sh"
 TARGET=${TARGET:-tencentcloud2}
 PRODUCTION_APP_DIR=${PRODUCTION_APP_DIR:-/home/ubuntu/app/librechat}
+
+usage() {
+  echo "usage: bash deploy/ssh-source-release.sh [release-id]" >&2
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+esac
+[[ $# -le 1 ]] || { usage; exit 2; }
 RELEASE_ID=${1:-"SOURCE-$(date -u +%Y%m%dT%H%M%SZ)"}
 
 [[ "$RELEASE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "unsafe release id" >&2; exit 1; }
