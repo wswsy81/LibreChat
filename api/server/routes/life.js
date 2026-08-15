@@ -615,14 +615,21 @@ router.use(requireJwtAuth);
 
 router.get('/clarity/:conversationId', async (req, res) => {
   const conversationId = String(req.params.conversationId || '').trim();
+  const sourceTurnId = String(req.query.sourceTurnId || '').trim();
   if (!conversationId || conversationId.length > 160) {
     return res.status(422).json({
       error: { code: 'CLARITY_CONVERSATION_INVALID', message: '对话标识无效' },
     });
   }
+  if (!sourceTurnId || sourceTurnId.length > 160) {
+    return res.status(422).json({
+      error: { code: 'CLARITY_SOURCE_TURN_INVALID', message: '回合标识无效' },
+    });
+  }
   try {
+    const query = `?sourceTurnId=${encodeURIComponent(sourceTurnId)}`;
     return res.json(
-      await engine.json(`/internal/clarity/${encodeURIComponent(conversationId)}`, {
+      await engine.json(`/internal/clarity/${encodeURIComponent(conversationId)}${query}`, {
         userId: userId(req),
       }),
     );

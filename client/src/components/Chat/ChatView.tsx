@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useForm } from 'react-hook-form';
 import { Spinner } from '@librechat/client';
@@ -37,6 +37,20 @@ function LoadingSpinner() {
       </div>
     </div>
   );
+}
+
+function parentMessageIdFor(messages: TMessage[] | null, messageId: string | null | undefined) {
+  if (!messages || !messageId) return '';
+  const pending = [...messages];
+  while (pending.length) {
+    const message = pending.pop();
+    if (!message) continue;
+    if (message.messageId === messageId) {
+      return typeof message.parentMessageId === 'string' ? message.parentMessageId : '';
+    }
+    if (message.children?.length) pending.push(...message.children);
+  }
+  return '';
 }
 
 function ChatView({ index = 0, project }: { index?: number; project?: TChatProject }) {
@@ -98,6 +112,10 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
     latestMessage?.isCreatedByUser === false && typeof latestMessage.messageId === 'string'
       ? latestMessage.messageId
       : '';
+  const previousAssistantTurnId = useMemo(
+    () => parentMessageIdFor(messagesTree, latestMessage?.parentMessageId),
+    [latestMessage?.parentMessageId, messagesTree],
+  );
   const isLifeEntryTurn = Boolean(
     latestAssistantText && parseLifeEntryCard(latestAssistantText).card,
   );
@@ -117,6 +135,7 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
               <Header
                 conversationId={conversationId ?? ''}
                 sourceTurnId={latestAssistantTurnId}
+                previousSourceTurnId={previousAssistantTurnId}
                 isSubmitting={isSubmitting}
               />
               <>

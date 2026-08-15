@@ -120,14 +120,15 @@ test('authenticated clarity route only proxies the current user conversation sna
   });
 
   const response = await request(buildApp({ id: 'user-a', role: 'USER' })).get(
-    '/api/life/clarity/conversation-a',
+    '/api/life/clarity/conversation-a?sourceTurnId=assistant-a',
   );
 
   expect(response.status).toBe(200);
   expect(response.body.snapshot.sourceTurnId).toBe('assistant-a');
-  expect(mockEngine.json).toHaveBeenCalledWith('/internal/clarity/conversation-a', {
-    userId: 'user-a',
-  });
+  expect(mockEngine.json).toHaveBeenCalledWith(
+    '/internal/clarity/conversation-a?sourceTurnId=assistant-a',
+    { userId: 'user-a' },
+  );
 });
 
 test('clarity route rejects an invalid conversation id before contacting engine', async () => {
@@ -136,6 +137,16 @@ test('clarity route rejects an invalid conversation id before contacting engine'
   );
 
   expect(response.status).toBe(422);
+  expect(mockEngine.json).not.toHaveBeenCalled();
+});
+
+test('clarity route requires an exact source turn before contacting engine', async () => {
+  const response = await request(buildApp({ id: 'user-a', role: 'USER' })).get(
+    '/api/life/clarity/conversation-a',
+  );
+
+  expect(response.status).toBe(422);
+  expect(response.body.error.code).toBe('CLARITY_SOURCE_TURN_INVALID');
   expect(mockEngine.json).not.toHaveBeenCalled();
 });
 

@@ -26,6 +26,18 @@ const mockEntryText = [
   '- 第三句',
   '也可以直接自己写。',
 ].join('\n');
+const mockLatestMessage = {
+  isCreatedByUser: false,
+  messageId: 'assistant-2',
+  parentMessageId: 'user-2',
+  text: mockEntryText,
+};
+const mockMessagesData = [
+  { messageId: 'assistant-1', parentMessageId: 'user-1', isCreatedByUser: false },
+  { messageId: 'user-2', parentMessageId: 'assistant-1', isCreatedByUser: true },
+  mockLatestMessage,
+];
+let mockHeaderProps: Record<string, unknown> = {};
 
 jest.mock('react-router-dom', () => ({
   useParams: () => ({ conversationId: 'conversation-1' }),
@@ -58,7 +70,7 @@ jest.mock('~/hooks', () => ({
   useResumeOnLoad: () => undefined,
   useAdaptiveSSE: () => undefined,
   useChatHelpers: () => ({ getMessages: jest.fn() }),
-  useLatestMessage: () => ({ isCreatedByUser: false, text: mockEntryText }),
+  useLatestMessage: () => mockLatestMessage,
   useLocalize: () => (key: string) => {
     const copy: Record<string, string> = {
       com_life_entry_composer_placeholder: '想到哪写到哪；一两句也可以',
@@ -88,7 +100,7 @@ jest.mock('~/Providers', () => {
 });
 
 jest.mock('~/data-provider', () => ({
-  useGetMessagesByConvoId: () => ({ data: [{}], isLoading: false }),
+  useGetMessagesByConvoId: () => ({ data: mockMessagesData, isLoading: false }),
 }));
 
 jest.mock('./Messages/MessagesView', () => {
@@ -102,7 +114,10 @@ jest.mock('./Input/ChatForm', () => ({ placeholder }: { placeholder?: string }) 
 ));
 
 jest.mock('./Presentation', () => ({ children }: { children: ReactNode }) => <>{children}</>);
-jest.mock('./Header', () => () => null);
+jest.mock('./Header', () => (props: Record<string, unknown>) => {
+  mockHeaderProps = props;
+  return null;
+});
 jest.mock('./Footer', () => () => null);
 jest.mock('./Landing', () => () => null);
 jest.mock('./Input/ConversationStarters', () => () => null);
@@ -110,8 +125,15 @@ jest.mock('./ProjectLandingChip', () => () => null);
 jest.mock('~/features/life-design/components/LifeArchiveDrawer', () => () => null);
 
 test('完整 ChatView 的首入态同时只有唯一 ChatForm 文本框', () => {
+  mockHeaderProps = {};
   render(<ChatView />);
 
   expect(screen.getAllByRole('textbox')).toHaveLength(1);
   expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', '想到哪写到哪；一两句也可以');
+  expect(mockHeaderProps).toEqual(
+    expect.objectContaining({
+      sourceTurnId: 'assistant-2',
+      previousSourceTurnId: 'assistant-1',
+    }),
+  );
 });

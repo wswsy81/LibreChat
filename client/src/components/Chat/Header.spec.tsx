@@ -37,7 +37,12 @@ jest.mock('~/features/life-design/components/ClaritySituation', () => () => (
 function renderHeader() {
   return render(
     <RecoilRoot initializeState={({ set }) => set(store.sidebarExpanded, false)}>
-      <Header conversationId="conversation-a" sourceTurnId="assistant-a" isSubmitting={false} />
+      <Header
+        conversationId="conversation-a"
+        sourceTurnId="assistant-a"
+        previousSourceTurnId="assistant-before-a"
+        isSubmitting={false}
+      />
     </RecoilRoot>,
   );
 }

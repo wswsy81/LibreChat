@@ -28,7 +28,7 @@ export const useLifeClarityQuery = (
 ): QueryObserverResult<LifeClarityResponse> =>
   useQuery<LifeClarityResponse>(
     [QueryKeys.lifeClarity, conversationId, sourceTurnId],
-    () => dataService.getLifeClarity(conversationId),
+    () => dataService.getLifeClarity(conversationId, sourceTurnId),
     {
       enabled: Boolean(conversationId && sourceTurnId),
       staleTime: 0,

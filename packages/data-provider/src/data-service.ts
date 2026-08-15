@@ -19,8 +19,11 @@ export function getLifeBootstrap(): Promise<t.LifeBootstrapResponse> {
   return request.get(endpoints.lifeBootstrap());
 }
 
-export function getLifeClarity(conversationId: string): Promise<t.LifeClarityResponse> {
-  return request.get(endpoints.lifeClarity(conversationId));
+export function getLifeClarity(
+  conversationId: string,
+  sourceTurnId: string,
+): Promise<t.LifeClarityResponse> {
+  return request.get(endpoints.lifeClarity(conversationId, sourceTurnId));
 }
 
 /** 显式传 key 才能重试同一次提交:重试必须复用原 key,改选必须换新 key。 */

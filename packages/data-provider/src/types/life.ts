@@ -130,7 +130,7 @@ export interface LifeCurrentWorkingThread {
   updatedAt: string | null;
 }
 
-export type LifeClarityPosture = 'early' | 'clarifying' | 'usable' | 'paused';
+export type LifeClarityPosture = 'early' | 'clarifying' | 'usable' | 'paused' | 'resolved';
 export type LifeClarityOwnership = 'system_tentative' | 'user_stated' | 'user_owned';
 
 export interface LifeClaritySnapshot {

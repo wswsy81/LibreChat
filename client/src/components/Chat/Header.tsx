@@ -19,10 +19,11 @@ const defaultInterface = getConfigDefaults().interface;
 type HeaderProps = {
   conversationId: string;
   sourceTurnId: string;
+  previousSourceTurnId: string;
   isSubmitting: boolean;
 };
 
-function Header({ conversationId, sourceTurnId, isSubmitting }: HeaderProps) {
+function Header({ conversationId, sourceTurnId, previousSourceTurnId, isSubmitting }: HeaderProps) {
   const { data: startupConfig } = useGetStartupConfig();
   const navVisible = useRecoilValue(store.sidebarExpanded);
 
@@ -84,6 +85,7 @@ function Header({ conversationId, sourceTurnId, isSubmitting }: HeaderProps) {
             <ClaritySituation
               conversationId={conversationId}
               sourceTurnId={sourceTurnId}
+              previousSourceTurnId={previousSourceTurnId}
               isSubmitting={isSubmitting}
             />
           )}
