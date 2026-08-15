@@ -14,6 +14,7 @@ type WorkerClient = {
   id: string;
   url: string;
   frameType: string;
+  visibilityState: 'hidden' | 'visible';
   navigate: jest.Mock<Promise<void>, [string]>;
   postMessage: (message: { type?: string; buildId?: string }) => void;
 };
@@ -24,12 +25,15 @@ function workerHarness(reply: ClientReply) {
     .replaceAll('__LC_BUILD_ID_VALUE__', 'build-current');
   const handlers = new Map<string, (event: WorkerEvent) => void>();
   const timers: Array<() => void> = [];
+  const workerMessages: Array<{ type?: string; buildId?: string }> = [];
   const client = {
     id: 'client-1',
-    url: 'https://yiweilife.com/c/conversation-1',
+    url: 'https://yiweilife.com/home',
     frameType: 'top-level',
+    visibilityState: 'visible',
     navigate: jest.fn<Promise<void>, [string]>(() => Promise.resolve()),
     postMessage: (message: { type?: string; buildId?: string }) => {
+      workerMessages.push(message);
       if (message.type !== 'LC_SW_PING' || reply === 'silent') return;
       let buildId: string | undefined;
       if (reply === 'matching') {
@@ -65,6 +69,7 @@ function workerHarness(reply: ClientReply) {
 
   return {
     client,
+    workerMessages,
     activate: async () => {
       let activation: Promise<void> | undefined;
       handlers.get('activate')?.({ waitUntil: (promise) => (activation = promise) });
@@ -85,6 +90,11 @@ describe('service-worker build identity healing', () => {
 
     expect(indexHtml).toContain("window.__LC_BUILD_ID__ = '__LC_BUILD_ID_VALUE__'");
     expect(indexHtml).toContain('buildId: window.__LC_BUILD_ID__');
+    expect(indexHtml).toContain("event.data.type === 'LC_SW_RELOAD_REQUIRED'");
+    expect(indexHtml).toContain(
+      'document.querySelector(\'[data-testid="stop-generation-button"]\')',
+    );
+    expect(indexHtml).toContain('window.location.reload()');
     expect(indexHtml).toContain('return registration.update()');
     expect(indexHtml).toContain('.catch(function ()');
   });
@@ -95,16 +105,31 @@ describe('service-worker build identity healing', () => {
     await harness.activate();
 
     expect(harness.client.navigate).not.toHaveBeenCalled();
+    expect(harness.workerMessages).not.toContainEqual(
+      expect.objectContaining({ type: 'LC_SW_RELOAD_REQUIRED' }),
+    );
   });
 
-  it.each(['legacy', 'mismatched', 'silent'] as const)(
-    'reloads a %s client instead of accepting a generic pong as healthy',
+  it.each(['legacy', 'mismatched'] as const)(
+    'asks a responsive %s page to reload itself without forcing a stale client URL',
     async (reply) => {
       const harness = workerHarness(reply);
 
       await harness.activate();
 
-      expect(harness.client.navigate).toHaveBeenCalledWith(harness.client.url);
+      expect(harness.client.navigate).not.toHaveBeenCalled();
+      expect(harness.workerMessages).toContainEqual({
+        type: 'LC_SW_RELOAD_REQUIRED',
+        buildId: 'build-current',
+      });
     },
   );
+
+  it('does not force-navigate a silent visible page that may contain unsent work', async () => {
+    const harness = workerHarness('silent');
+
+    await harness.activate();
+
+    expect(harness.client.navigate).not.toHaveBeenCalled();
+  });
 });

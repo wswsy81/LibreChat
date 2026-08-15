@@ -214,6 +214,36 @@
         };
         if (navigator.serviceWorker) {
           var lastWorkerUpdateAt = 0;
+          var pendingWorkerReload = false;
+          var hasPendingUserWork = function () {
+            if (document.querySelector('[data-testid="stop-generation-button"]')) {
+              return true;
+            }
+            var fields = document.querySelectorAll(
+              'textarea, input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="tel"], input[type="url"], input[type="number"], [contenteditable="true"]',
+            );
+            for (var index = 0; index < fields.length; index += 1) {
+              var field = fields[index];
+              var value = 'value' in field ? field.value : field.textContent;
+              if (String(value || '').trim()) {
+                return true;
+              }
+            }
+            return false;
+          };
+          var reloadWorkerUpdateIfSafe = function () {
+            if (
+              !pendingWorkerReload ||
+              document.visibilityState !== 'hidden' ||
+              hasPendingUserWork()
+            ) {
+              return false;
+            }
+            pendingWorkerReload = false;
+            window.__lcRumPush('sw-safe-reload');
+            window.location.reload();
+            return true;
+          };
           var requestWorkerUpdate = function () {
             if (document.visibilityState === 'hidden' || Date.now() - lastWorkerUpdateAt < 60000) {
               return;
@@ -231,22 +261,34 @@
               });
           };
           navigator.serviceWorker.addEventListener('message', function (event) {
-            if (!event.data || event.data.type !== 'LC_SW_PING') {
+            if (!event.data) {
               return;
             }
-            var source = event.source || navigator.serviceWorker.controller;
-            if (source) {
-              source.postMessage({
-                type: 'LC_SW_PONG',
-                buildId: window.__LC_BUILD_ID__,
+            if (event.data.type === 'LC_SW_PING') {
+              var source = event.source || navigator.serviceWorker.controller;
+              if (source) {
+                source.postMessage({
+                  type: 'LC_SW_PONG',
+                  buildId: window.__LC_BUILD_ID__,
+                });
+              }
+              return;
+            }
+            if (event.data.type === 'LC_SW_RELOAD_REQUIRED') {
+              pendingWorkerReload = true;
+              window.__lcRumPush('sw-reload-deferred', {
+                hasPendingUserWork: hasPendingUserWork(),
               });
+              reloadWorkerUpdateIfSafe();
             }
           });
           window.addEventListener('focus', requestWorkerUpdate);
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'visible') {
               requestWorkerUpdate();
+              return;
             }
+            reloadWorkerUpdateIfSafe();
           });
           window.setInterval(requestWorkerUpdate, 5 * 60 * 1000);
         }

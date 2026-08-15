@@ -125,6 +125,16 @@ if (!html.includes('registration.update()')) {
 if (!swHeal.includes('clientBuildId === ACTIVE_BUILD_ID')) {
   failures.push('service worker does not reject responsive clients from a stale build');
 }
+if (swHeal.includes('client.navigate(')) {
+  failures.push('service worker must not navigate a window client with a stale network URL');
+}
+if (
+  !html.includes("event.data.type === 'LC_SW_RELOAD_REQUIRED'") ||
+  !html.includes("document.visibilityState !== 'hidden'") ||
+  !html.includes('[data-testid="stop-generation-button"]')
+) {
+  failures.push('page does not defer worker updates until the user-visible state is safe');
+}
 if (manifest.name !== '未来线' || manifest.short_name !== '未来线') {
   failures.push('installed PWA brand must be 未来线 without the upstream LibreChat name');
 }
