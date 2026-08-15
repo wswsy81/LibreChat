@@ -130,6 +130,35 @@ export interface LifeCurrentWorkingThread {
   updatedAt: string | null;
 }
 
+export type LifeClarityPosture = 'early' | 'clarifying' | 'usable' | 'paused';
+export type LifeClarityOwnership = 'system_tentative' | 'user_stated' | 'user_owned';
+
+export interface LifeClaritySnapshot {
+  schemaVersion: 1;
+  conversationId: string;
+  revision: string;
+  sourceTurnId: string | null;
+  updatedAt: string | null;
+  freshness: 'committed';
+  posture: LifeClarityPosture;
+  issue: string | null;
+  ownership: LifeClarityOwnership;
+  layers: {
+    judgment: string | null;
+    keyUnknowns: string[];
+    whyNotConverged: string | null;
+  };
+  remaining: {
+    kind: 'key_unknowns' | 'none_identified';
+    count: number;
+  };
+}
+
+export interface LifeClarityResponse {
+  schemaVersion: 1;
+  snapshot: LifeClaritySnapshot | null;
+}
+
 export interface LifeBootstrapResponse {
   authenticated: boolean;
   user: { id: string; name: string; email?: string | null } | null;

@@ -12,10 +12,17 @@ import AddMultiConvo from './AddMultiConvo';
 import { useHasAccess } from '~/hooks';
 import { cn } from '~/utils';
 import store from '~/store';
+import ClaritySituation from '~/features/life-design/components/ClaritySituation';
 
 const defaultInterface = getConfigDefaults().interface;
 
-function Header() {
+type HeaderProps = {
+  conversationId: string;
+  sourceTurnId: string;
+  isSubmitting: boolean;
+};
+
+function Header({ conversationId, sourceTurnId, isSubmitting }: HeaderProps) {
   const { data: startupConfig } = useGetStartupConfig();
   const navVisible = useRecoilValue(store.sidebarExpanded);
 
@@ -72,16 +79,25 @@ function Header() {
           )}
         </div>
 
-        {!isSmallScreen && (showLibreChatActions || hasAccessToTemporaryChat === true) && (
-          <div className="flex items-center gap-2">
-            {showLibreChatActions && (
-              <ExportAndShareMenu
-                isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
-              />
-            )}
-            {hasAccessToTemporaryChat === true && <TemporaryChat />}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {startupConfig?.lifeUnifiedShell === true && (
+            <ClaritySituation
+              conversationId={conversationId}
+              sourceTurnId={sourceTurnId}
+              isSubmitting={isSubmitting}
+            />
+          )}
+          {!isSmallScreen && (showLibreChatActions || hasAccessToTemporaryChat === true) && (
+            <div className="flex items-center gap-2">
+              {showLibreChatActions && (
+                <ExportAndShareMenu
+                  isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
+                />
+              )}
+              {hasAccessToTemporaryChat === true && <TemporaryChat />}
+            </div>
+          )}
+        </div>
       </div>
       {/* Empty div for spacing */}
       <div />

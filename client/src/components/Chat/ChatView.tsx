@@ -94,6 +94,10 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
 
   const latestAssistantText =
     latestMessage?.isCreatedByUser === false ? getLatestText(latestMessage) : '';
+  const latestAssistantTurnId =
+    latestMessage?.isCreatedByUser === false && typeof latestMessage.messageId === 'string'
+      ? latestMessage.messageId
+      : '';
   const isLifeEntryTurn = Boolean(
     latestAssistantText && parseLifeEntryCard(latestAssistantText).card,
   );
@@ -110,7 +114,11 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
         <AddedChatContext.Provider value={addedChatHelpers}>
           <Presentation>
             <div className="relative flex h-full w-full flex-col">
-              <Header />
+              <Header
+                conversationId={conversationId ?? ''}
+                sourceTurnId={latestAssistantTurnId}
+                isSubmitting={isSubmitting}
+              />
               <>
                 <div
                   className={cn(

@@ -109,6 +109,36 @@ beforeEach(() => {
   }));
 });
 
+test('authenticated clarity route only proxies the current user conversation snapshot', async () => {
+  mockEngine.json.mockResolvedValue({
+    schemaVersion: 1,
+    snapshot: {
+      conversationId: 'conversation-a',
+      sourceTurnId: 'assistant-a',
+      posture: 'clarifying',
+    },
+  });
+
+  const response = await request(buildApp({ id: 'user-a', role: 'USER' })).get(
+    '/api/life/clarity/conversation-a',
+  );
+
+  expect(response.status).toBe(200);
+  expect(response.body.snapshot.sourceTurnId).toBe('assistant-a');
+  expect(mockEngine.json).toHaveBeenCalledWith('/internal/clarity/conversation-a', {
+    userId: 'user-a',
+  });
+});
+
+test('clarity route rejects an invalid conversation id before contacting engine', async () => {
+  const response = await request(buildApp({ id: 'user-a', role: 'USER' })).get(
+    `/api/life/clarity/${'x'.repeat(161)}`,
+  );
+
+  expect(response.status).toBe(422);
+  expect(mockEngine.json).not.toHaveBeenCalled();
+});
+
 test('ADMIN can read redacted runtime config with active engine SHA summary', async () => {
   mockEngine.json.mockResolvedValue({
     policy: { runtime: { sha256: 'a' }, security: { sha256: 'b' } },

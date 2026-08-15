@@ -30,11 +30,14 @@ jest.mock('./Menus', () => ({
 jest.mock('./Menus/BookmarkMenu', () => () => null);
 jest.mock('./TemporaryChat', () => ({ TemporaryChat: () => null }));
 jest.mock('./AddMultiConvo', () => () => null);
+jest.mock('~/features/life-design/components/ClaritySituation', () => () => (
+  <div data-testid="clarity-situation" />
+));
 
 function renderHeader() {
   return render(
     <RecoilRoot initializeState={({ set }) => set(store.sidebarExpanded, false)}>
-      <Header />
+      <Header conversationId="conversation-a" sourceTurnId="assistant-a" isSubmitting={false} />
     </RecoilRoot>,
   );
 }
@@ -49,6 +52,7 @@ describe('chat header in the unified life shell', () => {
     renderHeader();
 
     expect(screen.queryByTestId('export-and-share-menu')).not.toBeInTheDocument();
+    expect(screen.getByTestId('clarity-situation')).toBeInTheDocument();
   });
 
   it('hides LibreChat share/export on mobile', () => {
@@ -70,5 +74,6 @@ describe('chat header in the unified life shell', () => {
     renderHeader();
 
     expect(screen.getByTestId('export-and-share-menu')).toBeInTheDocument();
+    expect(screen.queryByTestId('clarity-situation')).not.toBeInTheDocument();
   });
 });

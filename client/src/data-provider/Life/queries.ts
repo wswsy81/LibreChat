@@ -4,6 +4,7 @@ import type { QueryObserverResult, UseQueryOptions } from '@tanstack/react-query
 import type {
   LifeArchiveResponse,
   LifeBootstrapResponse,
+  LifeClarityResponse,
   LifePublicShareResponse,
   LifeReportResponse,
   LifeSelfProjectionResponse,
@@ -19,6 +20,24 @@ export const useLifeBootstrapQuery = (
     retry: 1,
     ...config,
   });
+
+export const useLifeClarityQuery = (
+  conversationId: string,
+  sourceTurnId: string,
+  config?: UseQueryOptions<LifeClarityResponse>,
+): QueryObserverResult<LifeClarityResponse> =>
+  useQuery<LifeClarityResponse>(
+    [QueryKeys.lifeClarity, conversationId, sourceTurnId],
+    () => dataService.getLifeClarity(conversationId),
+    {
+      enabled: Boolean(conversationId && sourceTurnId),
+      staleTime: 0,
+      cacheTime: 60_000,
+      refetchOnWindowFocus: false,
+      retry: 0,
+      ...config,
+    },
+  );
 
 export const useLifeArchiveQuery = (
   config?: UseQueryOptions<LifeArchiveResponse>,

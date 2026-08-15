@@ -613,6 +613,24 @@ router.get('/shares/:token', lifeShareLimiter, async (req, res) => {
 
 router.use(requireJwtAuth);
 
+router.get('/clarity/:conversationId', async (req, res) => {
+  const conversationId = String(req.params.conversationId || '').trim();
+  if (!conversationId || conversationId.length > 160) {
+    return res.status(422).json({
+      error: { code: 'CLARITY_CONVERSATION_INVALID', message: '对话标识无效' },
+    });
+  }
+  try {
+    return res.json(
+      await engine.json(`/internal/clarity/${encodeURIComponent(conversationId)}`, {
+        userId: userId(req),
+      }),
+    );
+  } catch (error) {
+    return engineError(res, error);
+  }
+});
+
 router.post('/onboarding', async (req, res) => {
   const rawBody =
     req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};

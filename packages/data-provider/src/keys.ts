@@ -87,6 +87,7 @@ export enum QueryKeys {
   favorites = 'favorites',
   /* Life design */
   lifeBootstrap = 'lifeBootstrap',
+  lifeClarity = 'lifeClarity',
   lifeArchive = 'lifeArchive',
   lifeSelfProjection = 'lifeSelfProjection',
   lifeReports = 'lifeReports',

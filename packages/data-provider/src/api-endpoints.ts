@@ -45,6 +45,8 @@ export const user = () => `${BASE_URL}/api/user`;
 
 const lifeRoot = `${BASE_URL}/api/life`;
 export const lifeBootstrap = () => `${lifeRoot}/bootstrap`;
+export const lifeClarity = (conversationId: string) =>
+  `${lifeRoot}/clarity/${encodeURIComponent(conversationId)}`;
 export const lifeOnboarding = () => `${lifeRoot}/onboarding`;
 export const lifeResume = () => `${lifeRoot}/resume`;
 export const lifeArchive = () => `${lifeRoot}/archive`;

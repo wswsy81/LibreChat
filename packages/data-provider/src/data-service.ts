@@ -19,6 +19,10 @@ export function getLifeBootstrap(): Promise<t.LifeBootstrapResponse> {
   return request.get(endpoints.lifeBootstrap());
 }
 
+export function getLifeClarity(conversationId: string): Promise<t.LifeClarityResponse> {
+  return request.get(endpoints.lifeClarity(conversationId));
+}
+
 /** 显式传 key 才能重试同一次提交:重试必须复用原 key,改选必须换新 key。 */
 const idempotencyHeaders = (key?: string) => ({
   headers: { 'Idempotency-Key': key ?? crypto.randomUUID() },

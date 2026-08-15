@@ -16,9 +16,7 @@ jest.mock('librechat-data-provider', () => ({
   },
 }));
 
-const mockedDataService = dataService as jest.Mocked<
-  Pick<typeof dataService, 'annotateLifeDossier' | 'getLifeSelfProjection'>
->;
+const mockedDataService = jest.mocked(dataService);
 
 const projectionWith = (item: LifeSelfChapterItem | null): LifeSelfProjectionResponse => ({
   schemaVersion: 2,
