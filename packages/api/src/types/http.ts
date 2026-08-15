@@ -19,6 +19,8 @@ export type RequestBody = {
   endpointOption?: Partial<TEndpointOption>;
   /** Browser IANA timezone used to resolve local-time prompt variables (e.g. `{{current_datetime}}`). */
   timezone?: string;
+  /** Server-injected after validating the device-local session header. */
+  localDataSessionId?: string;
 };
 
 export type ServerRequest = Request<unknown, unknown, RequestBody> & {
@@ -30,4 +32,6 @@ export type ServerRequest = Request<unknown, unknown, RequestBody> & {
   resolvedConversation?: Partial<TConversation> | null;
   /** Passport strategy that populated req.user for this request. */
   authStrategy?: string;
+  /** Validated device-local session; never trust the client body field directly. */
+  localDataSessionId?: string;
 };

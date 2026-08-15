@@ -95,6 +95,14 @@ const resumeController = async (req, res, next) => {
   await ResumeController(req, res, next, initializeClient, addTitle);
 };
 
+const attachLocalDataSessionToAgentBody = (req, _res, next) => {
+  if (req.localDataSessionId) {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) req.body = {};
+    req.body.localDataSessionId = req.localDataSessionId;
+  }
+  next();
+};
+
 /**
  * @route POST /resume
  * @desc Resume a generation paused for human-in-the-loop review (tool approval or
@@ -114,7 +122,7 @@ router.post('/resume', resumeController);
  * @param {express.Response} res - The response object, used to send back a response.
  * @returns {void}
  */
-router.post('/', requireLocalDataSession, controller);
+router.post('/', requireLocalDataSession, attachLocalDataSessionToAgentBody, controller);
 
 /**
  * @route POST /:endpoint (ephemeral agents)
@@ -124,6 +132,6 @@ router.post('/', requireLocalDataSession, controller);
  * @param {express.Response} res - The response object, used to send back a response.
  * @returns {void}
  */
-router.post('/:endpoint', requireLocalDataSession, controller);
+router.post('/:endpoint', requireLocalDataSession, attachLocalDataSessionToAgentBody, controller);
 
 module.exports = router;

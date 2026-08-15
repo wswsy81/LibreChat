@@ -128,7 +128,12 @@ export function createSafeUser(
  * List of allowed request body fields that can be used in header placeholders.
  * These are common fields from the request body that are safe to expose in headers.
  */
-const ALLOWED_BODY_FIELDS = ['conversationId', 'parentMessageId', 'messageId'] as const;
+const ALLOWED_BODY_FIELDS = [
+  'conversationId',
+  'parentMessageId',
+  'messageId',
+  'localDataSessionId',
+] as const;
 
 /**
  * Processes a string value to replace user field placeholders.
@@ -302,6 +307,8 @@ function processSingleValue({
           conversationId,
           turnId,
           userMessageId,
+          localDataSessionId:
+            typeof body?.localDataSessionId === 'string' ? body.localDataSessionId : undefined,
           secret,
         });
         value = value.replace(new RegExp(ADVISOR_GATEWAY_IDENTITY_PLACEHOLDER, 'g'), assertion);

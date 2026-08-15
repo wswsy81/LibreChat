@@ -1,4 +1,5 @@
-const { randomUUID } = require('crypto');
+const { createHash } = require('crypto');
+const { logger } = require('@librechat/data-schemas');
 
 const ENABLED_VALUES = new Set(['1', 'true', 'on', 'yes']);
 const LOCAL_OPERATION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -6,6 +7,7 @@ const LOCAL_REPLAY_WINDOW_MS = 30_000;
 const MAX_LOCAL_CONVERSATIONS = 200;
 const localOperations = new Map();
 const localOperationWindows = new Map();
+const knownLocalDataUserIds = new Set();
 let localEngineClient;
 
 function csvSet(value) {
@@ -39,8 +41,18 @@ function isLocalDataBetaUser(user) {
   const identity = normalizedUserIdentity(user);
   const ids = csvSet(process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS);
   const emails = csvSet(process.env.FUTURE_LINES_LOCAL_DATA_BETA_EMAILS);
-  return Boolean(
+  const enabled = Boolean(
     (identity.id && ids.has(identity.id)) || (identity.email && emails.has(identity.email)),
+  );
+  if (enabled && identity.id) knownLocalDataUserIds.add(identity.id);
+  return enabled;
+}
+
+function isKnownLocalDataUserId(userId) {
+  return knownLocalDataUserIds.has(
+    String(userId || '')
+      .trim()
+      .toLowerCase(),
   );
 }
 
@@ -72,13 +84,61 @@ function getLocalEngineClient() {
 }
 
 async function requireLocalDataSession(req, res, next) {
-  if (!isLocalDataBetaUser(req?.user)) return next();
+  if (!isLocalDataBetaUser(req?.user)) {
+    if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+      delete req.body.localDataSessionId;
+    }
+    return next();
+  }
+  const expectedSessionId = String(req.get('X-Future-Lines-Local-Session') || '').trim();
+  if (!expectedSessionId) {
+    return res.status(409).json({
+      error: {
+        code: 'LOCAL_DATA_SESSION_REQUIRED',
+        message: '这台设备的本地数据会话尚未准备好，请刷新页面后继续。',
+        retryable: true,
+      },
+    });
+  }
   try {
-    await getLocalEngineClient().json('/internal/local-data/session', {
+    const session = await getLocalEngineClient().json('/internal/local-data/session', {
       userId: normalizedUserIdentity(req.user).id,
     });
+    if (session?.sessionId !== expectedSessionId) {
+      return res.status(409).json({
+        error: {
+          code: 'LOCAL_DATA_SESSION_REPLACED',
+          message: '这台设备的数据会话已在另一个页面更新，请刷新后继续。',
+          retryable: true,
+        },
+      });
+    }
+    req.localDataSessionId = expectedSessionId;
     return next();
   } catch (error) {
+    const status = Number(error?.status || error?.statusCode || 0);
+    logger.error('[local-data] session verification failed', {
+      status,
+      message: error?.message,
+    });
+    if (status === 401 || status === 403) {
+      return res.status(502).json({
+        error: {
+          code: 'LOCAL_DATA_ENGINE_IDENTITY_REJECTED',
+          message: '本地数据引擎身份校验失败，请稍后重试。',
+          retryable: true,
+        },
+      });
+    }
+    if (status !== 409) {
+      return res.status(503).json({
+        error: {
+          code: 'LOCAL_DATA_ENGINE_UNAVAILABLE',
+          message: '本地数据引擎暂时不可用，请稍后重试。',
+          retryable: true,
+        },
+      });
+    }
     return res.status(409).json({
       error: {
         code: 'LOCAL_DATA_SESSION_REQUIRED',
@@ -87,6 +147,18 @@ async function requireLocalDataSession(req, res, next) {
       },
     });
   }
+}
+
+function deterministicOperationId(parts) {
+  const hex = createHash('sha256')
+    .update(JSON.stringify(parts))
+    .digest('hex')
+    .slice(0, 32)
+    .split('');
+  hex[12] = '4';
+  hex[16] = ['8', '9', 'a', 'b'][Number.parseInt(hex[16], 16) % 4];
+  const joined = hex.join('');
+  return `${joined.slice(0, 8)}-${joined.slice(8, 12)}-${joined.slice(12, 16)}-${joined.slice(16, 20)}-${joined.slice(20)}`;
 }
 
 function localConversationSummaries(value) {
@@ -116,6 +188,7 @@ function pruneLocalOperations(now = Date.now()) {
 
 async function runLocalDataOperation({
   userId,
+  sessionId,
   operation,
   idempotencyKey,
   requestHash,
@@ -123,8 +196,9 @@ async function runLocalDataOperation({
   executor,
 }) {
   pruneLocalOperations();
-  const key = `${userId}\u0000${operation}\u0000${idempotencyKey}`;
-  const windowKey = `${userId}\u0000${operation}\u0000${requestHash}`;
+  const scope = `${userId}\u0000${sessionId || 'no-session'}`;
+  const key = `${scope}\u0000${operation}\u0000${idempotencyKey}`;
+  const windowKey = `${scope}\u0000${operation}\u0000${requestHash}`;
   const existing = localOperations.get(key);
   if (existing?.requestHash && existing.requestHash !== requestHash) {
     const error = new Error(`idempotency key payload conflict: ${operation}`);
@@ -140,7 +214,13 @@ async function runLocalDataOperation({
     const result = await recent.promise;
     return { ...result, replayed: true };
   }
-  const operationId = randomUUID();
+  const operationId = deterministicOperationId([
+    'local-life-operation',
+    userId,
+    sessionId || null,
+    operation,
+    idempotencyKey,
+  ]);
   const row = {
     operationId,
     requestHash,
@@ -158,6 +238,16 @@ async function runLocalDataOperation({
   localOperationWindows.set(windowKey, row);
   const result = await row.promise;
   return { ...result, replayed: false };
+}
+
+function clearLocalDataOperationsForUser(userId) {
+  const prefix = `${String(userId || '')}\u0000`;
+  for (const key of localOperations.keys()) {
+    if (key.startsWith(prefix)) localOperations.delete(key);
+  }
+  for (const key of localOperationWindows.keys()) {
+    if (key.startsWith(prefix)) localOperationWindows.delete(key);
+  }
 }
 
 function resetLocalDataOperationStateForTests() {
@@ -182,11 +272,13 @@ module.exports = {
   dataStorageForUser,
   isLocalDataBetaUser,
   isLocalDataRequest,
+  isKnownLocalDataUserId,
   localConversationSummaries,
   localDataUnavailable,
   localDataBetaEnabled,
   requireLocalDataSession,
   resetLocalDataOperationStateForTests,
+  clearLocalDataOperationsForUser,
   runLocalDataOperation,
   LOCAL_REPLAY_WINDOW_MS,
 };

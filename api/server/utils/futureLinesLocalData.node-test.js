@@ -98,3 +98,23 @@ test('one idempotency key cannot be reused with another payload', async () => {
     (error) => error.code === 'LIFE_OPERATION_CONFLICT',
   );
 });
+
+test('operation id is stable across API process-state loss and scoped by local session', async () => {
+  const execute = async ({ operationId }) => ({ operationId });
+  const args = {
+    userId: 'user-1',
+    sessionId: 'session-a',
+    operation: 'dossier-annotate',
+    idempotencyKey: 'stable-key',
+    requestHash: 'stable-hash',
+    executor: execute,
+  };
+  const first = await runLocalDataOperation(args);
+  resetLocalDataOperationStateForTests();
+  const afterRestart = await runLocalDataOperation(args);
+  resetLocalDataOperationStateForTests();
+  const anotherSession = await runLocalDataOperation({ ...args, sessionId: 'session-b' });
+
+  assert.equal(afterRestart.operationId, first.operationId);
+  assert.notEqual(anotherSession.operationId, first.operationId);
+});

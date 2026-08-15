@@ -6,7 +6,7 @@ import { useLocalize } from '~/hooks';
 import CodeBlock from './CodeBlock';
 
 const localizedErrorPrefix = 'com_error';
-const safeDefaultResponse = '这一回合没有完成。先别重说，直接重试这一条就行。';
+const safeDefaultResponse = 'com_error_turn_incomplete_retry';
 
 type TConcurrent = {
   limit: number;
@@ -134,7 +134,7 @@ const Error = ({ text }: { text: string }) => {
   const jsonString = extractJson(text);
 
   if (!isJson(jsonString)) {
-    return safeDefaultResponse;
+    return localize(safeDefaultResponse);
   }
 
   const json = JSON.parse(jsonString);
@@ -148,7 +148,7 @@ const Error = ({ text }: { text: string }) => {
   } else if (keyExists) {
     return errorMessages[errorKey];
   } else {
-    return safeDefaultResponse;
+    return localize(safeDefaultResponse);
   }
 };
 

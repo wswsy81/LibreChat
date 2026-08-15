@@ -7,6 +7,7 @@ import type * as t from 'librechat-data-provider';
 import useClearStates from '~/hooks/Config/useClearStates';
 import { clearAllConversationStorage } from '~/utils';
 import store from '~/store';
+import { resetDeviceDataRuntime } from '~/features/local-data';
 
 const removeUserScopedQueries = (queryClient: QueryClient) =>
   queryClient.removeQueries({
@@ -26,6 +27,7 @@ export const useLogoutUserMutation = (
     mutationFn: () => dataService.logout(),
     ...(options || {}),
     onSuccess: (...args) => {
+      resetDeviceDataRuntime();
       setQueriesEnabled(false);
       resetDefaultPreset();
       clearStates();
@@ -46,6 +48,7 @@ export const useLoginUserMutation = (
     mutationFn: (payload: t.TLoginUser) => dataService.login(payload),
     ...(options || {}),
     onMutate: (vars) => {
+      resetDeviceDataRuntime();
       setQueriesEnabled(false);
       resetDefaultPreset();
       clearStates();
@@ -54,6 +57,7 @@ export const useLoginUserMutation = (
     },
     // Queries re-enabled in setUserContext (AuthContext) after setTokenHeader runs
     onSuccess: (...args) => {
+      resetDeviceDataRuntime();
       options?.onSuccess?.(...args);
     },
     onError: (...args) => {
@@ -89,6 +93,7 @@ export const useDeleteUserMutation = (
     mutationFn: (payload?: t.TDeleteUserRequest) => dataService.deleteUser(payload),
     ...(options || {}),
     onSuccess: (...args) => {
+      resetDeviceDataRuntime();
       resetDefaultPreset();
       clearStates();
       clearAllConversationStorage();

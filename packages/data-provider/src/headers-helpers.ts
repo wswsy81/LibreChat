@@ -16,3 +16,18 @@ export function getTokenHeader(): string | undefined {
   const authorization = axios.defaults.headers.common['Authorization'];
   return typeof authorization === 'string' ? authorization : undefined;
 }
+
+const LOCAL_DATA_SESSION_HEADER = 'X-Future-Lines-Local-Session';
+
+export function setLocalDataSessionHeader(sessionId: string | undefined): void {
+  if (!sessionId) {
+    delete axios.defaults.headers.common[LOCAL_DATA_SESSION_HEADER];
+    return;
+  }
+  axios.defaults.headers.common[LOCAL_DATA_SESSION_HEADER] = sessionId;
+}
+
+export function getLocalDataSessionHeader(): string | undefined {
+  const value = axios.defaults.headers.common[LOCAL_DATA_SESSION_HEADER];
+  return typeof value === 'string' ? value : undefined;
+}

@@ -9,7 +9,7 @@ const {
 const { restoreTenantContextFromReq } = require('@librechat/api');
 const { avatar: asstAvatarRouter } = require('~/server/routes/assistants/v1');
 const { avatar: agentAvatarRouter } = require('~/server/routes/agents/v1');
-const { createMulterInstance } = require('./multer');
+const { createMulterInstance, createSpeechMulterInstance } = require('./multer');
 const {
   isLocalDataBetaUser,
   localDataUnavailable,
@@ -36,7 +36,17 @@ const initialize = async () => {
   });
 
   const upload = await createMulterInstance();
-  router.post('/speech/stt', upload.single('audio'), restoreTenantContextFromReq);
+  const speechUpload = await createSpeechMulterInstance();
+  const persistentSpeechUpload = upload.single('audio');
+  const volatileSpeechUpload = speechUpload.single('audio');
+  router.post(
+    '/speech/stt',
+    (req, res, next) =>
+      isLocalDataBetaUser(req.user)
+        ? volatileSpeechUpload(req, res, next)
+        : persistentSpeechUpload(req, res, next),
+    restoreTenantContextFromReq,
+  );
 
   /* Important: speech route must be added before the upload limiters */
   router.use('/speech', speech);

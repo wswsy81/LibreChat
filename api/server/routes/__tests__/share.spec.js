@@ -552,6 +552,26 @@ describe('share fork route', () => {
     });
   });
 
+  it('rejects device-local users before the fork can persist to Mongo', async () => {
+    const previousEnabled = process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED;
+    const previousIds = process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS;
+    process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = 'true';
+    process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = 'local-user';
+    try {
+      const response = await request(buildApp({ user: { id: 'local-user', role: 'USER' } }))
+        .post('/api/share/share-123/fork')
+        .send({});
+
+      expect(response.status).toBe(409);
+      expect(forkSharedConversation).not.toHaveBeenCalled();
+    } finally {
+      if (previousEnabled === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED;
+      else process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = previousEnabled;
+      if (previousIds === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS;
+      else process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = previousIds;
+    }
+  });
+
   it('forces snapshotFiles=false into the fork when the file snapshot kill switch is active', async () => {
     isFileSnapshotKillSwitchActive.mockReturnValueOnce(true);
     forkSharedConversation.mockResolvedValue({

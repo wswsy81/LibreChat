@@ -96,4 +96,20 @@ const createMulterInstance = async () => {
   });
 };
 
-module.exports = { createMulterInstance, storage, importFileFilter, createFileFilter };
+const createSpeechMulterInstance = async () => {
+  const appConfig = await getAppConfig();
+  const fileConfig = mergeFileConfig(appConfig?.fileConfig);
+  return multer({
+    storage: multer.memoryStorage(),
+    fileFilter: createFileFilter(fileConfig),
+    limits: { fileSize: fileConfig.serverFileSizeLimit },
+  });
+};
+
+module.exports = {
+  createMulterInstance,
+  createSpeechMulterInstance,
+  storage,
+  importFileFilter,
+  createFileFilter,
+};

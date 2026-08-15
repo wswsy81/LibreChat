@@ -77,6 +77,7 @@ export interface AdvisorGatewayIdentityAssertionOptions {
   conversationId: string;
   turnId: string;
   userMessageId: string;
+  localDataSessionId?: string;
   secret: string;
   now?: number | Date;
   ttlSeconds?: number;
@@ -165,6 +166,7 @@ export function createAdvisorGatewayIdentityAssertion({
   conversationId,
   turnId,
   userMessageId,
+  localDataSessionId,
   secret,
   now = Date.now(),
   ttlSeconds,
@@ -198,6 +200,9 @@ export function createAdvisorGatewayIdentityAssertion({
     conversationId: requireTurnClaim(conversationId, 'conversationId'),
     turnId: requireTurnClaim(turnId, 'turnId'),
     userMessageId: requireTurnClaim(userMessageId, 'userMessageId'),
+    ...(localDataSessionId
+      ? { localDataSessionId: requireTurnClaim(localDataSessionId, 'localDataSessionId') }
+      : {}),
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const message = `v1.${encoded}`;

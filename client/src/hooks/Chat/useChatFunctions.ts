@@ -3,6 +3,7 @@ import { cloneDeep } from 'lodash';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSetRecoilState, useRecoilValue, useRecoilCallback } from 'recoil';
+import { useToastContext } from '@librechat/client';
 import {
   Constants,
   QueryKeys,
@@ -25,12 +26,14 @@ import type {
   EndpointSchemaKey,
 } from 'librechat-data-provider';
 import type { SetterOrUpdater } from 'recoil';
+import { NotificationSeverity } from '~/common';
 import type { TAskFunction, ExtendedFile } from '~/common';
 import {
   logger,
   hasStreamStartFailed,
   createDualMessageContent,
   getRouteChatProjectId,
+  setDraft,
 } from '~/utils';
 import useFocusRegeneratedResponse from '~/hooks/Chat/useFocusRegeneratedResponse';
 import useSetFilesToDelete from '~/hooks/Files/useSetFilesToDelete';
@@ -39,7 +42,8 @@ import store, { useGetEphemeralAgent } from '~/store';
 import { startupConfigKey } from '~/data-provider';
 import useUserKey from '~/hooks/Input/useUserKey';
 import { useAuthContext } from '~/hooks';
-import { isDeviceDataMode } from '~/features/local-data';
+import useLocalize from '~/hooks/useLocalize';
+import { isDeviceDataMode, saveDeviceConversationTurn } from '~/features/local-data';
 
 const logChatRequest = (request: Record<string, unknown>) => {
   logger.log('=====================================\nAsk function called with:');
@@ -215,6 +219,8 @@ export default function useChatFunctions({
   const setIsSubmitting = useSetRecoilState(store.isSubmittingFamily(index));
   const setShowStopButton = useSetRecoilState(store.showStopButtonByIndex(index));
   const focusRegeneratedResponse = useFocusRegeneratedResponse();
+  const { showToast } = useToastContext();
+  const localize = useLocalize();
 
   /**
    * Atomically read + reset the per-conversation queue of manually-invoked
@@ -638,7 +644,35 @@ export default function useChatFunctions({
       setMessages([...submissionMessages, currentMsg, initialResponse]);
     }
 
-    setSubmission(submission);
+    const startSubmission = () => setSubmission(submission);
+    if (submission.dataStorageMode === 'device' && !isRegenerate && conversationId) {
+      const localConversation = {
+        ...submission.conversation,
+        conversationId,
+        title:
+          submission.conversation.title && submission.conversation.title !== 'New Chat'
+            ? submission.conversation.title
+            : text
+                .replace(/^\[trigger:[^\]]+\]\s*/, '')
+                .trim()
+                .slice(0, 18) || 'New Chat',
+      } as TConversation;
+      void saveDeviceConversationTurn(localConversation, [...submissionMessages, currentMsg])
+        .then(startSubmission)
+        .catch((error) => {
+          logger.error('[local-data] failed to commit user message before send', error);
+          setMessages(submissionMessages);
+          setDraft({ id: conversationId, value: text });
+          setIsSubmitting(false);
+          setShowStopButton(false);
+          showToast({
+            message: localize('com_life_local_data_send_failed'),
+            severity: NotificationSeverity.ERROR,
+          });
+        });
+    } else {
+      startSubmission();
+    }
     logger.dir('message_stream', submission, { depth: null });
   };
 

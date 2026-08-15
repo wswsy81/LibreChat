@@ -8,6 +8,7 @@ const { getTenantId, tenantStorage: mockTenantStorage } = require('@librechat/da
 const TEST_TENANT = 'tenant-files-strict';
 
 let mockCurrentUser;
+let mockSpeechStorageMode;
 
 jest.mock('fs/promises', () => ({
   unlink: jest.fn().mockResolvedValue(undefined),
@@ -44,6 +45,7 @@ jest.mock('~/server/middleware', () => ({
 jest.mock('./multer', () => ({
   createMulterInstance: jest.fn(async () => ({
     single: jest.fn(() => (req, res, next) => {
+      if (req.originalUrl.endsWith('/speech/stt')) mockSpeechStorageMode = 'persistent';
       req.file = {
         path: '/tmp/uploaded-file',
         originalname: 'uploaded.txt',
@@ -52,6 +54,20 @@ jest.mock('./multer', () => ({
         size: 8,
       };
       req.file_id = 'file-upload-id';
+      mockTenantStorage.enterWith({});
+      next();
+    }),
+  })),
+  createSpeechMulterInstance: jest.fn(async () => ({
+    single: jest.fn(() => (req, res, next) => {
+      mockSpeechStorageMode = 'volatile';
+      req.file = {
+        buffer: Buffer.from('audio'),
+        originalname: 'audio.webm',
+        mimetype: 'audio/webm',
+        size: 5,
+      };
+      req.file_id = 'speech-upload-id';
       mockTenantStorage.enterWith({});
       next();
     }),
@@ -111,6 +127,7 @@ describe('file upload routes restore strict isolation context after multer', () 
 
   beforeEach(() => {
     fs.unlink.mockClear();
+    mockSpeechStorageMode = undefined;
     mockCurrentUser = {
       id: 'user-files-strict',
       role: 'USER',
@@ -147,5 +164,24 @@ describe('file upload routes restore strict isolation context after multer', () 
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/Tenant context required/);
     expect(fs.unlink).toHaveBeenCalledWith('/tmp/uploaded-file');
+  });
+
+  it('uses memory-backed speech upload for device-local beta users', async () => {
+    const previousEnabled = process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED;
+    const previousIds = process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS;
+    process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = 'true';
+    process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = 'local-user';
+    mockCurrentUser = { id: 'local-user', role: 'USER', tenantId: TEST_TENANT };
+    try {
+      const res = await request(app).post('/api/files/speech/stt');
+
+      expect(res.status).toBe(200);
+      expect(mockSpeechStorageMode).toBe('volatile');
+    } finally {
+      if (previousEnabled === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED;
+      else process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = previousEnabled;
+      if (previousIds === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS;
+      else process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = previousIds;
+    }
   });
 });

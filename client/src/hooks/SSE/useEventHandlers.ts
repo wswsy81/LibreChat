@@ -3,6 +3,7 @@ import { v4 } from 'uuid';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSetRecoilState, useRecoilCallback } from 'recoil';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useToastContext } from '@librechat/client';
 import {
   QueryKeys,
   Constants,
@@ -19,9 +20,14 @@ import type {
   EventSubmission,
   TStartupConfig,
 } from 'librechat-data-provider';
-import { persistDeviceEngineSnapshot, saveDeviceConversationTurn } from '~/features/local-data';
+import {
+  deleteDeviceConversation,
+  persistDeviceEngineSnapshot,
+  saveDeviceConversationTurn,
+} from '~/features/local-data';
 import type { InfiniteData } from '@tanstack/react-query';
 import type { SetterOrUpdater } from 'recoil';
+import { NotificationSeverity } from '~/common';
 import type { TResData, TFinalResData, ConvoGenerator } from '~/common';
 import type { ConversationCursorData } from '~/utils';
 import {
@@ -40,6 +46,7 @@ import {
   markTitleGenerationProcessed,
 } from '~/data-provider';
 import useFocusRegeneratedResponse from '~/hooks/Chat/useFocusRegeneratedResponse';
+import useLocalize from '~/hooks/useLocalize';
 import { shouldResetSubagentAtomsOnConversationChange } from './cleanup';
 import useAttachmentHandler from '~/hooks/SSE/useAttachmentHandler';
 import useContentHandler from '~/hooks/SSE/useContentHandler';
@@ -283,6 +290,19 @@ export default function useEventHandlers({
   const setAbortScroll = useSetRecoilState(store.abortScroll);
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToastContext();
+  const localize = useLocalize();
+
+  const reportLocalSaveFailure = useCallback(
+    (error: unknown) => {
+      console.error('[local-data] failed to persist device data', error);
+      showToast({
+        message: localize('com_life_local_data_reply_save_failed'),
+        severity: NotificationSeverity.ERROR,
+      });
+    },
+    [localize, showToast],
+  );
 
   /** Re-queue the turn's quoted excerpts when an early abort restores the draft,
    *  so retrying the restored message still sends the references — the pending
@@ -602,12 +622,10 @@ export default function useEventHandlers({
           title:
             update.title && update.title !== 'New Chat'
               ? update.title
-              : firstText?.slice(0, 18) || '新对话',
+              : firstText?.slice(0, 18) || 'New Chat',
         } as TConversation;
         void saveDeviceConversationTurn(localConversation, [...messages, userMessage]).catch(
-          (error) => {
-            console.error('[local-data] failed to persist submitted message', error);
-          },
+          reportLocalSaveFailure,
         );
       }
 
@@ -622,6 +640,7 @@ export default function useEventHandlers({
       setConversation,
       applyAgentTemplate,
       focusRegeneratedResponse,
+      reportLocalSaveFailure,
     ],
   );
 
@@ -662,7 +681,7 @@ export default function useEventHandlers({
   );
 
   const finalHandler = useCallback(
-    (data: TFinalResData, submission: EventSubmission) => {
+    async (data: TFinalResData, submission: EventSubmission) => {
       const { requestMessage, responseMessage, conversation, runMessages } = data;
       const {
         messages,
@@ -675,7 +694,7 @@ export default function useEventHandlers({
         (!conversation.title || conversation.title === 'New Chat')
       ) {
         const firstText = requestMessage?.text?.replace(/^\[trigger:[^\]]+\]\s*/, '').trim();
-        conversation.title = firstText?.slice(0, 18) || '新对话';
+        conversation.title = firstText?.slice(0, 18) || 'New Chat';
       }
       const serverConversation = conversation as TConversation;
 
@@ -704,6 +723,16 @@ export default function useEventHandlers({
             );
             setDraft({ id: currentConvoId, value: requestMessage?.text });
             restorePendingQuotes(currentConvoId, requestMessage?.quotes);
+            if (submission.dataStorageMode === 'device') {
+              const localConversation = {
+                ...submissionConvo,
+                ...serverConversation,
+                conversationId: currentConvoId,
+              } as TConversation;
+              await saveDeviceConversationTurn(localConversation, abortMessages).catch(
+                reportLocalSaveFailure,
+              );
+            }
             return;
           }
 
@@ -716,6 +745,13 @@ export default function useEventHandlers({
           queryClient.setQueryData<TMessage[]>([QueryKeys.messages, Constants.NEW_CONVO], []);
           setDraft({ id: String(Constants.NEW_CONVO), value: requestMessage?.text });
           restorePendingQuotes(String(Constants.NEW_CONVO), requestMessage?.quotes);
+          if (submission.dataStorageMode === 'device') {
+            const localConversationId =
+              requestMessage?.conversationId || conversation.conversationId || currentConvoId;
+            if (localConversationId && localConversationId !== Constants.NEW_CONVO) {
+              await deleteDeviceConversation(localConversationId).catch(reportLocalSaveFailure);
+            }
+          }
           if (location.pathname !== `/c/${Constants.NEW_CONVO}`) {
             navigate(`/c/${Constants.NEW_CONVO}`, { replace: true });
           }
@@ -756,12 +792,10 @@ export default function useEventHandlers({
               detachedFinalMessages = [...messages, requestMessage, responseMessage];
             }
             if (detachedFinalMessages.length > 0) {
-              void saveDeviceConversationTurn(conversation as TConversation, detachedFinalMessages)
+              await saveDeviceConversationTurn(conversation as TConversation, detachedFinalMessages)
                 .then(() => persistDeviceEngineSnapshot())
                 .then(() => queryClient.invalidateQueries([QueryKeys.lifeBootstrap]))
-                .catch((error) => {
-                  console.error('[local-data] failed to persist detached completed turn', error);
-                });
+                .catch(reportLocalSaveFailure);
             }
           }
           return;
@@ -803,6 +837,13 @@ export default function useEventHandlers({
           setFinalMessages(currentConvoId, isNewChat ? [] : [...messages]);
           setDraft({ id: currentConvoId, value: requestMessage?.text });
           restorePendingQuotes(currentConvoId, requestMessage?.quotes);
+          if (submission.dataStorageMode === 'device') {
+            const localConversationId =
+              requestMessage?.conversationId || conversation.conversationId || currentConvoId;
+            if (localConversationId && localConversationId !== Constants.NEW_CONVO) {
+              await deleteDeviceConversation(localConversationId).catch(reportLocalSaveFailure);
+            }
+          }
           if (isNewChat) {
             navigate(`/c/${Constants.NEW_CONVO}`, { replace: true, state: { focusChat: true } });
           }
@@ -842,12 +883,10 @@ export default function useEventHandlers({
         if (finalMessages.length > 0) {
           setFinalMessages(conversation.conversationId, finalMessages);
           if (submission.dataStorageMode === 'device' && conversation.conversationId) {
-            void saveDeviceConversationTurn(conversation as TConversation, finalMessages)
+            await saveDeviceConversationTurn(conversation as TConversation, finalMessages)
               .then(() => persistDeviceEngineSnapshot())
               .then(() => queryClient.invalidateQueries([QueryKeys.lifeBootstrap]))
-              .catch((error) => {
-                console.error('[local-data] failed to persist completed turn', error);
-              });
+              .catch(reportLocalSaveFailure);
           }
         } else if (
           isAssistantsEndpoint(submissionConvo.endpoint) &&
@@ -942,6 +981,7 @@ export default function useEventHandlers({
       applyAgentTemplate,
       attachmentHandler,
       restorePendingQuotes,
+      reportLocalSaveFailure,
     ],
   );
 
@@ -966,11 +1006,11 @@ export default function useEventHandlers({
             title:
               data?.conversation?.title && data.conversation.title !== 'New Chat'
                 ? data.conversation.title
-                : firstText?.slice(0, 18) || '新对话',
+                : firstText?.slice(0, 18) || 'New Chat',
           } as TConversation;
-          void saveDeviceConversationTurn(localConversation, finalMessages).catch((error) => {
-            console.error('[local-data] failed to persist errored turn', error);
-          });
+          void saveDeviceConversationTurn(localConversation, finalMessages).catch(
+            reportLocalSaveFailure,
+          );
         }
       };
 
@@ -1058,6 +1098,7 @@ export default function useEventHandlers({
       setIsSubmitting,
       getMessages,
       queryClient,
+      reportLocalSaveFailure,
     ],
   );
 
@@ -1089,7 +1130,7 @@ export default function useEventHandlers({
           content: _responseMessage.content?.filter((part) => part != null),
         };
         try {
-          finalHandler(
+          await finalHandler(
             {
               conversation: {
                 conversationId,
@@ -1140,7 +1181,7 @@ export default function useEventHandlers({
             return;
           }
           if (data.final === true) {
-            finalHandler(data, submission);
+            await finalHandler(data, submission);
           } else {
             cancelHandler(data, submission);
           }

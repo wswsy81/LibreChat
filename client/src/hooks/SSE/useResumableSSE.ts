@@ -15,6 +15,7 @@ import {
   ApprovalEvents,
   ViolationTypes,
   removeNullishValues,
+  getLocalDataSessionHeader,
 } from 'librechat-data-provider';
 import type {
   Agents,
@@ -696,7 +697,12 @@ export default function useResumableSSE(
       logger.log('ResumableSSE', 'Subscribing to stream:', url, { isResume });
 
       const sse = new SSE(url, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(getLocalDataSessionHeader()
+            ? { 'X-Future-Lines-Local-Session': getLocalDataSessionHeader() as string }
+            : {}),
+        },
         method: 'GET',
       });
       sseRef.current = sse;
@@ -710,7 +716,7 @@ export default function useResumableSSE(
         reconnectAttemptRef.current = 0;
       });
 
-      sse.addEventListener('message', (e: MessageEvent) => {
+      sse.addEventListener('message', async (e: MessageEvent) => {
         try {
           const data = JSON.parse(e.data);
 
@@ -731,7 +737,7 @@ export default function useResumableSSE(
               clearAllDrafts(Constants.NEW_CONVO);
             }
             try {
-              finalHandler(data, currentSubmission as EventSubmission);
+              await finalHandler(data, currentSubmission as EventSubmission);
               finalizeUsage(data, { ...currentSubmission, userMessage });
             } catch (error) {
               logger.error('ResumableSSE', 'Error in finalHandler:', error);
@@ -1115,6 +1121,9 @@ export default function useResumableSSE(
             }
             sse.headers = {
               Authorization: `Bearer ${newToken}`,
+              ...(getLocalDataSessionHeader()
+                ? { 'X-Future-Lines-Local-Session': getLocalDataSessionHeader() as string }
+                : {}),
             };
             request.dispatchTokenUpdatedEvent(newToken);
             sse.stream();

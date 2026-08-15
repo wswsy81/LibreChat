@@ -8,6 +8,7 @@ import {
   StepEvents,
   createPayload,
   ApprovalEvents,
+  getLocalDataSessionHeader,
   removeNullishValues,
 } from 'librechat-data-provider';
 import type {
@@ -100,7 +101,13 @@ export default function useSSE(
 
     const sse = new SSE(payloadData.server, {
       payload: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(getLocalDataSessionHeader()
+          ? { 'X-Future-Lines-Local-Session': getLocalDataSessionHeader() as string }
+          : {}),
+      },
     });
 
     sse.addEventListener('attachment', (e: MessageEvent) => {
@@ -112,13 +119,13 @@ export default function useSSE(
       }
     });
 
-    sse.addEventListener('message', (e: MessageEvent) => {
+    sse.addEventListener('message', async (e: MessageEvent) => {
       const data = JSON.parse(e.data);
 
       if (data.final != null) {
         clearAllDrafts(submission.conversation?.conversationId);
         try {
-          finalHandler(data, submission as EventSubmission);
+          await finalHandler(data, submission as EventSubmission);
           finalizeUsage(data, { ...submission, userMessage });
         } catch (error) {
           console.error('Error in finalHandler:', error);

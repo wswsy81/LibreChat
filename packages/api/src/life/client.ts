@@ -13,6 +13,7 @@ export interface LifeEngineRequestOptions {
   userId?: string;
   method?: 'GET' | 'POST' | 'DELETE';
   body?: object;
+  localDataSessionId?: string;
   operation?: {
     id: string;
     name: string;
@@ -186,6 +187,9 @@ export function createLifeEngineClient({
     }
     if (options.body) {
       headers['Content-Type'] = 'application/json';
+    }
+    if (options.localDataSessionId) {
+      headers['X-Future-Lines-Local-Session'] = options.localDataSessionId;
     }
     if (options.operation) {
       headers['X-Life-Operation-Id'] = options.operation.id;

@@ -15,8 +15,9 @@ import { track } from '~/utils/track';
 import { clearDeviceData } from '~/features/local-data';
 
 function DeviceDataNotice({ notice }: { notice: string }) {
+  const localize = useLocalize();
   const clearLocalData = async () => {
-    const confirmed = window.confirm('确定清除这台设备上的未来线数据吗？清除后无法恢复。');
+    const confirmed = window.confirm(localize('com_life_local_data_clear_confirm'));
     if (!confirmed) return;
     await clearDeviceData();
     window.location.assign('/home');
@@ -26,16 +27,14 @@ function DeviceDataNotice({ notice }: { notice: string }) {
       <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="font-life-sans text-life-sm leading-7">
           <p>{notice}</p>
-          <p className="text-life-muted">
-            删除单段对话只删除聊天记录；已经形成的人物志会保留，清除本机数据才会一起删除。
-          </p>
+          <p className="text-life-muted">{localize('com_life_local_data_delete_scope')}</p>
         </div>
         <button
           type="button"
           className="min-h-11 self-start border border-life-ink/20 px-3 font-life-sans text-life-sm hover:bg-life-ink/5 sm:self-auto"
           onClick={clearLocalData}
         >
-          清除本机数据
+          {localize('com_life_local_data_clear_action')}
         </button>
       </div>
     </aside>

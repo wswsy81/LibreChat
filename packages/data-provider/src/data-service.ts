@@ -26,6 +26,7 @@ export function getLifeDataStorage(): Promise<t.LifeDataStorageResponse> {
 export function createLifeLocalDataSession(payload: {
   snapshot: t.LifeEngineSnapshot | null;
   transcripts: t.TMessage[];
+  expectedSessionId?: string;
 }): Promise<t.LifeLocalDataSessionResponse> {
   return request.post(endpoints.lifeLocalDataSession(), payload);
 }

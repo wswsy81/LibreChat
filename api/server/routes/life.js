@@ -30,6 +30,7 @@ const {
 const { createLifeInvitation, redactExpiredLifeInvitationPlaintexts } = require('~/models');
 const {
   dataStorageForUser,
+  clearLocalDataOperationsForUser,
   isLocalDataBetaUser,
   localConversationSummaries,
   localDataUnavailable,
@@ -184,8 +185,17 @@ async function runRequestLifeOperation(req, args) {
   if (!isLocalDataBetaUser(req.user)) return runLifeOperation(args);
   return runLocalDataOperation({
     ...args,
+    sessionId: req.localDataSessionId,
     requestHash: hashLifeOperationPayload(args.requestPayload),
   });
+}
+
+function engineOptions(req, options = {}) {
+  return {
+    ...options,
+    userId: options.userId || userId(req),
+    ...(req.localDataSessionId ? { localDataSessionId: req.localDataSessionId } : {}),
+  };
 }
 
 async function finalizeRequestLifeOperation(req, args) {
@@ -309,17 +319,20 @@ function deterministicOperationId(parts) {
   return `${joined.slice(0, 8)}-${joined.slice(8, 12)}-${joined.slice(12, 16)}-${joined.slice(16, 20)}-${joined.slice(20)}`;
 }
 
-async function activateDomain({ id, idempotencyKey, body }) {
-  return engine.json('/internal/onboarding', {
-    userId: id,
-    method: 'POST',
-    body,
-    operation: {
-      id: deterministicOperationId(['domain-activation', id, idempotencyKey]),
-      name: 'onboarding',
-      requestHash: hashLifeOperationPayload(body),
-    },
-  });
+async function activateDomain({ req, id, idempotencyKey, body }) {
+  return engine.json(
+    '/internal/onboarding',
+    engineOptions(req, {
+      userId: id,
+      method: 'POST',
+      body,
+      operation: {
+        id: deterministicOperationId(['domain-activation', id, idempotencyKey]),
+        name: 'onboarding',
+        requestHash: hashLifeOperationPayload(body),
+      },
+    }),
+  );
 }
 
 const STANCE_FEEDBACK_FIELDS = [
@@ -533,9 +546,9 @@ async function reportHtml(req, res, format, download = false) {
   try {
     const reportId = encodeURIComponent(req.params.id);
     const [html, metadata] = await Promise.all([
-      engine.text(`/internal/reports/${reportId}/${format}`, { userId: userId(req) }),
+      engine.text(`/internal/reports/${reportId}/${format}`, engineOptions(req)),
       download
-        ? engine.json(`/internal/reports/${reportId}`, { userId: userId(req) })
+        ? engine.json(`/internal/reports/${reportId}`, engineOptions(req))
         : Promise.resolve(null),
     ]);
     res.type('html');
@@ -580,8 +593,13 @@ router.post('/local-data/session', requireJwtAuth, async (req, res) => {
       body: {
         snapshot: body.snapshot ?? null,
         transcripts: Array.isArray(body.transcripts) ? body.transcripts : [],
+        expectedSessionId:
+          typeof body.expectedSessionId === 'string' ? body.expectedSessionId : undefined,
       },
     });
+    if (body.expectedSessionId && result.sessionId !== body.expectedSessionId) {
+      clearLocalDataOperationsForUser(userId(req));
+    }
     return res.status(201).json(result);
   } catch (error) {
     return engineError(res, error);
@@ -612,7 +630,14 @@ router.get('/local-data/snapshot', requireJwtAuth, async (req, res) => {
       .json({ error: { code: 'LOCAL_DATA_NOT_ENABLED', message: 'not found' } });
   }
   try {
-    return res.json(await engine.json('/internal/local-data/snapshot', { userId: userId(req) }));
+    const expectedSessionId = String(req.get('X-Future-Lines-Local-Session') || '').trim();
+    if (!expectedSessionId) return localDataUnavailable(res, '本地数据会话尚未准备好');
+    return res.json(
+      await engine.json('/internal/local-data/snapshot', {
+        userId: userId(req),
+        localDataSessionId: expectedSessionId,
+      }),
+    );
   } catch (error) {
     return engineError(res, error);
   }
@@ -625,12 +650,15 @@ router.delete('/local-data/session', requireJwtAuth, async (req, res) => {
       .json({ error: { code: 'LOCAL_DATA_NOT_ENABLED', message: 'not found' } });
   }
   try {
-    return res.json(
-      await engine.json('/internal/local-data/session', {
-        userId: userId(req),
-        method: 'DELETE',
-      }),
-    );
+    const expectedSessionId = String(req.get('X-Future-Lines-Local-Session') || '').trim();
+    if (!expectedSessionId) return localDataUnavailable(res, '本地数据会话尚未准备好');
+    const result = await engine.json('/internal/local-data/session', {
+      userId: userId(req),
+      method: 'DELETE',
+      localDataSessionId: expectedSessionId,
+    });
+    clearLocalDataOperationsForUser(userId(req));
+    return res.json(result);
   } catch (error) {
     return engineError(res, error);
   }
@@ -649,11 +677,16 @@ router.get('/bootstrap', optionalJwtAuth, async (req, res) => {
   }
   const dataStorage = dataStorageForUser(req.user);
   try {
+    let localDataSessionId = '';
     if (dataStorage.mode === 'device') {
-      await engine.json('/internal/local-data/session', { userId: id });
+      const session = await engine.json('/internal/local-data/session', { userId: id });
+      localDataSessionId = session.sessionId;
     }
     const [bootstrap, conversations] = await Promise.all([
-      engine.json('/internal/bootstrap', { userId: id }),
+      engine.json('/internal/bootstrap', {
+        userId: id,
+        ...(localDataSessionId ? { localDataSessionId } : {}),
+      }),
       dataStorage.mode === 'device' ? Promise.resolve([]) : recentLifeConversations(id),
     ]);
     const completeConversations =
@@ -753,10 +786,10 @@ router.post('/onboarding', async (req, res) => {
       runtimeApiPolicy().resumeReplayWindowMs,
       DOMAIN_CREATION_REPLAY_WINDOW_MS,
     );
-    const bootstrap = await engine.json('/internal/bootstrap', { userId: id });
+    const bootstrap = await engine.json('/internal/bootstrap', engineOptions(req, { userId: id }));
     const completeConversations = await requestLifeConversations(req, bootstrap);
     const conversation = domainConversationForHouse(bootstrap, completeConversations, entryHouse);
-    const activation = await activateDomain({ id, idempotencyKey: key, body });
+    const activation = await activateDomain({ req, id, idempotencyKey: key, body });
     if (!validEntryEvent(activation?.entryEvent, entryHouse)) {
       throw new LifeEngineError(502, 'future-engine 返回无效 house_entered 事件', {
         error: {
@@ -796,7 +829,10 @@ router.post('/onboarding', async (req, res) => {
       replayWindowMs,
       lockScope: entryHouse,
       executor: async ({ operationId }) => {
-        const latestBootstrap = await engine.json('/internal/bootstrap', { userId: id });
+        const latestBootstrap = await engine.json(
+          '/internal/bootstrap',
+          engineOptions(req, { userId: id }),
+        );
         const completeLatestConversations = await requestLifeConversations(req, latestBootstrap);
         const recheck = domainConversationForHouse(
           latestBootstrap,
@@ -838,7 +874,7 @@ router.post('/resume', async (req, res) => {
       runtimeApiPolicy().resumeReplayWindowMs,
       DOMAIN_CREATION_REPLAY_WINDOW_MS,
     );
-    const bootstrap = await engine.json('/internal/bootstrap', { userId: id });
+    const bootstrap = await engine.json('/internal/bootstrap', engineOptions(req, { userId: id }));
     const completeConversations = await requestLifeConversations(req, bootstrap);
     const entry = activeHouseEntry(bootstrap);
     const targetHouse = entry?.entryHouse || null;
@@ -872,7 +908,10 @@ router.post('/resume', async (req, res) => {
       replayWindowMs,
       lockScope: targetHouse || 'unscoped',
       executor: async ({ operationId }) => {
-        const latestBootstrap = await engine.json('/internal/bootstrap', { userId: id });
+        const latestBootstrap = await engine.json(
+          '/internal/bootstrap',
+          engineOptions(req, { userId: id }),
+        );
         const completeLatestConversations = await requestLifeConversations(req, latestBootstrap);
         const recheck = targetHouse
           ? domainConversationForHouse(latestBootstrap, completeLatestConversations, targetHouse)
@@ -906,7 +945,7 @@ router.post('/resume', async (req, res) => {
 
 router.get('/archive', async (req, res) => {
   try {
-    return res.json(await engine.json('/internal/archive', { userId: userId(req) }));
+    return res.json(await engine.json('/internal/archive', engineOptions(req)));
   } catch (error) {
     return engineError(res, error);
   }
@@ -914,7 +953,7 @@ router.get('/archive', async (req, res) => {
 
 router.get('/self-projection', async (req, res) => {
   try {
-    return res.json(await engine.json('/internal/self-projection', { userId: userId(req) }));
+    return res.json(await engine.json('/internal/self-projection', engineOptions(req)));
   } catch (error) {
     return engineError(res, error);
   }
@@ -923,7 +962,7 @@ router.get('/self-projection', async (req, res) => {
 router.get('/dossier/html', async (req, res) => {
   try {
     const revision = req.query.revision === '1' ? '?revision=1' : '';
-    const html = await engine.text(`/internal/dossier/html${revision}`, { userId: userId(req) });
+    const html = await engine.text(`/internal/dossier/html${revision}`, engineOptions(req));
     res.type('html');
     setEmbeddedHtmlHeaders(
       res,
@@ -938,7 +977,7 @@ router.get('/dossier/html', async (req, res) => {
 router.get('/map/html', async (req, res) => {
   try {
     const view = req.query.view === 'full' ? '?view=full' : '';
-    const html = await engine.text(`/internal/map/html${view}`, { userId: userId(req) });
+    const html = await engine.text(`/internal/map/html${view}`, engineOptions(req));
     res.type('html');
     setEmbeddedHtmlHeaders(
       res,
@@ -968,12 +1007,14 @@ router.post('/basics', async (req, res) => {
       idempotencyKey: key,
       requestPayload: body,
       executor: ({ operationId, requestHash }) =>
-        engine.json('/internal/basics', {
-          userId: userId(req),
-          method: 'POST',
-          body,
-          operation: { id: operationId, name: 'basics-save', requestHash },
-        }),
+        engine.json(
+          '/internal/basics',
+          engineOptions(req, {
+            method: 'POST',
+            body,
+            operation: { id: operationId, name: 'basics-save', requestHash },
+          }),
+        ),
     });
     return res.json(result);
   } catch (error) {
@@ -1005,12 +1046,14 @@ router.post('/birth', async (req, res) => {
       idempotencyKey: key,
       requestPayload: body,
       executor: ({ operationId, requestHash }) =>
-        engine.json('/internal/birth', {
-          userId: userId(req),
-          method: 'POST',
-          body,
-          operation: { id: operationId, name: 'birth-save', requestHash },
-        }),
+        engine.json(
+          '/internal/birth',
+          engineOptions(req, {
+            method: 'POST',
+            body,
+            operation: { id: operationId, name: 'birth-save', requestHash },
+          }),
+        ),
     });
     return res.json(result);
   } catch (error) {
@@ -1038,12 +1081,14 @@ router.post('/map/houses/annotate', async (req, res) => {
       idempotencyKey: key,
       requestPayload: { houseKey, action, text },
       executor: ({ operationId, requestHash }) =>
-        engine.json('/internal/map/houses/annotate', {
-          userId: userId(req),
-          method: 'POST',
-          body: { houseKey, action, text },
-          operation: { id: operationId, name: 'map-house-annotate', requestHash },
-        }),
+        engine.json(
+          '/internal/map/houses/annotate',
+          engineOptions(req, {
+            method: 'POST',
+            body: { houseKey, action, text },
+            operation: { id: operationId, name: 'map-house-annotate', requestHash },
+          }),
+        ),
     });
     return res.json(result);
   } catch (error) {
@@ -1072,12 +1117,14 @@ router.post('/map/condition-candidates/resolve', async (req, res) => {
       idempotencyKey: key,
       requestPayload: body,
       executor: ({ operationId, requestHash }) =>
-        engine.json('/internal/map/condition-candidates/resolve', {
-          userId: userId(req),
-          method: 'POST',
-          body,
-          operation: { id: operationId, name: 'house-condition-resolution', requestHash },
-        }),
+        engine.json(
+          '/internal/map/condition-candidates/resolve',
+          engineOptions(req, {
+            method: 'POST',
+            body,
+            operation: { id: operationId, name: 'house-condition-resolution', requestHash },
+          }),
+        ),
     });
     return res.json(result);
   } catch (error) {
@@ -1113,12 +1160,14 @@ router.post('/dossier/annotate', async (req, res) => {
       idempotencyKey: key,
       requestPayload: body,
       executor: ({ operationId, requestHash }) =>
-        engine.json('/internal/dossier/annotate', {
-          userId: userId(req),
-          method: 'POST',
-          body,
-          operation: { id: operationId, name: 'dossier-annotate', requestHash },
-        }),
+        engine.json(
+          '/internal/dossier/annotate',
+          engineOptions(req, {
+            method: 'POST',
+            body,
+            operation: { id: operationId, name: 'dossier-annotate', requestHash },
+          }),
+        ),
     });
     return res.json(result);
   } catch (error) {
@@ -1128,7 +1177,7 @@ router.post('/dossier/annotate', async (req, res) => {
 
 router.get('/reports', async (req, res) => {
   try {
-    return res.json(await engine.json('/internal/reports', { userId: userId(req) }));
+    return res.json(await engine.json('/internal/reports', engineOptions(req)));
   } catch (error) {
     return engineError(res, error);
   }
@@ -1138,7 +1187,7 @@ router.get('/reports/:id', async (req, res) => {
   try {
     return res.json(
       await engine.json(`/internal/reports/${encodeURIComponent(req.params.id)}`, {
-        userId: userId(req),
+        ...engineOptions(req),
       }),
     );
   } catch (error) {
@@ -1197,12 +1246,14 @@ router.post('/reports/:id/stance-feedback', async (req, res) => {
       idempotencyKey: key,
       requestPayload: body,
       executor: ({ operationId, requestHash }) =>
-        engine.json(`/internal/reports/${encodeURIComponent(reportId)}/stance-feedback`, {
-          userId: userId(req),
-          method: 'POST',
-          body,
-          operation: { id: operationId, name: 'reveal-stance-feedback', requestHash },
-        }),
+        engine.json(
+          `/internal/reports/${encodeURIComponent(reportId)}/stance-feedback`,
+          engineOptions(req, {
+            method: 'POST',
+            body,
+            operation: { id: operationId, name: 'reveal-stance-feedback', requestHash },
+          }),
+        ),
     });
     return res.json(result);
   } catch (error) {

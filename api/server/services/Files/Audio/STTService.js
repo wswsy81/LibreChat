@@ -368,7 +368,9 @@ class STTService {
       return res.status(400).json({ message: 'No audio file provided in the FormData' });
     }
 
-    const audioBuffer = await fs.readFile(req.file.path);
+    const audioBuffer = Buffer.isBuffer(req.file.buffer)
+      ? req.file.buffer
+      : await fs.readFile(req.file.path);
     const audioFile = {
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
@@ -384,11 +386,13 @@ class STTService {
       logAxiosError({ message: 'An error occurred while processing the audio:', error });
       res.sendStatus(500);
     } finally {
-      try {
-        await fs.unlink(req.file.path);
-        logger.debug('[/speech/stt] Temp. audio upload file deleted');
-      } catch {
-        logger.debug('[/speech/stt] Temp. audio upload file already deleted');
+      if (req.file.path) {
+        try {
+          await fs.unlink(req.file.path);
+          logger.debug('[/speech/stt] Temp. audio upload file deleted');
+        } catch {
+          logger.debug('[/speech/stt] Temp. audio upload file already deleted');
+        }
       }
     }
   }

@@ -188,7 +188,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
   const startUpload = async (extendedFile: ExtendedFile) => {
     if (isDeviceDataMode() && isConversationUpload) {
       deleteFileById(extendedFile.file_id);
-      setError('设备本地模式暂不支持长期保存文件，请先只发送文字。');
+      setError('com_life_local_data_files_unsupported');
       return;
     }
     const filename = extendedFile.file?.name ?? 'File';

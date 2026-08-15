@@ -77,6 +77,17 @@ export default function ChatRoute() {
     staleTime: 30000,
     cacheTime: 300000,
   });
+
+  useEffect(() => {
+    const onLocalDataFailure = () => {
+      showToast({
+        message: localize('com_life_local_data_snapshot_save_failed'),
+        severity: NotificationSeverity.ERROR,
+      });
+    };
+    window.addEventListener('futureLinesLocalDataWriteFailed', onLocalDataFailure);
+    return () => window.removeEventListener('futureLinesLocalDataWriteFailed', onLocalDataFailure);
+  }, [localize, showToast]);
   /**
    * The scoped project is *confirmed gone* — a not-found/not-owned (404) response,
    * or a success that resolved to a different/empty project. Transient failures
@@ -302,6 +313,23 @@ export default function ChatRoute() {
     return (
       <div className="flex h-screen items-center justify-center" aria-live="polite" role="status">
         <Spinner className="text-text-primary" />
+      </div>
+    );
+  }
+
+  if (lifeBootstrap.isError) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="max-w-md text-sm text-text-secondary">
+          {localize('com_life_local_data_bootstrap_failed')}
+        </p>
+        <button
+          type="button"
+          className="rounded-lg bg-surface-submit px-4 py-2 text-sm text-white"
+          onClick={() => lifeBootstrap.refetch()}
+        >
+          {localize('com_life_retry')}
+        </button>
       </div>
     );
   }

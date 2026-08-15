@@ -21,6 +21,7 @@ const {
   GenerationJobManager,
   QUERY_DEVTOOLS_HEADER,
   createStreamServices,
+  createPartitionedStreamServices,
   deleteAgentCheckpoint,
   initializeFileStorage,
   initializeDeploymentSkills,
@@ -52,6 +53,7 @@ const { getAppConfig } = require('./services/Config');
 const staticCache = require('./utils/staticCache');
 const noIndex = require('./middleware/noIndex');
 const routes = require('./routes');
+const { localDataBetaEnabled, isKnownLocalDataUserId } = require('./utils/futureLinesLocalData');
 
 const { PORT, HOST, ALLOW_SOCIAL_LOGIN, DISABLE_COMPRESSION, TRUST_PROXY } = process.env ?? {};
 
@@ -79,17 +81,23 @@ const rejectChatStartsUntilReady = (req, res, next) => {
 };
 
 const configureGenerationStreams = () => {
-  const localDataBetaEnabled = ['1', 'true', 'on', 'yes'].includes(
-    String(process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED || '').toLowerCase(),
-  );
-  // Device-local beta conversations must never place message-bearing resumable job
-  // metadata in Redis/AOF. While the beta flag is enabled, all generation streams
-  // use the existing in-process store; ordinary conversations still persist through
-  // their normal Mongo path.
-  const streamServices = createStreamServices(localDataBetaEnabled ? { useRedis: false } : {});
+  const betaEnabled = localDataBetaEnabled();
+  const persistentServices = createStreamServices();
+  const streamServices = betaEnabled
+    ? createPartitionedStreamServices({
+        persistent: persistentServices,
+        volatile: createStreamServices({
+          useRedis: false,
+          inMemoryOptions: { ttlAfterComplete: 30 * 60 * 1000 },
+        }),
+        isVolatileUser: isKnownLocalDataUserId,
+      })
+    : persistentServices;
   GenerationJobManager.configure({
     ...streamServices,
-    cleanupOnComplete: !isEnabled(process.env.STREAM_KEEP_COMPLETED_JOBS),
+    // Device-local completed events stay in RAM briefly so a PWA killed while
+    // the model is answering can reconnect and commit the final turn to IndexedDB.
+    cleanupOnComplete: betaEnabled ? false : !isEnabled(process.env.STREAM_KEEP_COMPLETED_JOBS),
   });
   GenerationJobManager.initialize();
   // Prune the paused run's durable checkpoint when its approval EXPIRES (periodic sweeper

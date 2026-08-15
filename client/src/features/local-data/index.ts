@@ -1,4 +1,5 @@
 import { dataService } from 'librechat-data-provider';
+import { setLocalDataSessionHeader } from 'librechat-data-provider';
 import type {
   LifeBootstrapResponse,
   LifeEngineSnapshot,
@@ -8,7 +9,8 @@ import type {
 } from 'librechat-data-provider';
 
 const DB_NAME = 'future-lines-device-data';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
+const LEGACY_LOCAL_NEW_CHAT_TITLE = String.fromCodePoint(0x65b0, 0x5bf9, 0x8bdd);
 const META_STORE = 'meta';
 const CONVERSATION_STORE = 'conversations';
 const MESSAGE_STORE = 'messages';
@@ -18,6 +20,13 @@ type DeviceRuntime = {
   mode: 'server' | 'device' | 'unknown';
   userId: string | null;
   notice: string | null;
+  dataGeneration: number;
+};
+
+type StoredUserMeta = {
+  userId: string;
+  generation: number;
+  tombstones: Record<string, number>;
 };
 
 type StoredConversation = {
@@ -34,6 +43,8 @@ type StoredMessage = {
   conversationId: string;
   messageId: string;
   position?: number;
+  createdAt: string;
+  sequence: number;
   value: TMessage;
 };
 
@@ -43,21 +54,83 @@ type StoredSnapshot = {
   updatedAt: string;
 };
 
-let runtime: DeviceRuntime = { mode: 'unknown', userId: null, notice: null };
+let runtime: DeviceRuntime = {
+  mode: 'unknown',
+  userId: null,
+  notice: null,
+  dataGeneration: 0,
+};
 let databasePromise: Promise<IDBDatabase> | null = null;
-let preparePromise: Promise<LifeBootstrapResponse> | null = null;
-let snapshotWritePromise: Promise<void> | null = null;
-let snapshotWriteRequested = false;
+let preparePromise: { generation: number; promise: Promise<LifeBootstrapResponse> } | null = null;
+let snapshotWriteState: {
+  authGeneration: number;
+  userId: string;
+  dataGeneration: number;
+  requested: boolean;
+  promise: Promise<void>;
+} | null = null;
 let localSessionPrepared = false;
+let localSessionId: string | null = null;
+let authGeneration = 0;
+
+const localDataChannel =
+  typeof BroadcastChannel !== 'undefined'
+    ? new BroadcastChannel('future-lines-device-data-v1')
+    : null;
+
+function staleWriteError() {
+  return Object.assign(new Error('Device-local data changed in another tab; reload to continue'), {
+    code: 'LOCAL_DATA_STALE_WRITE',
+  });
+}
+
+function notifyLocalDataFailure(error: unknown) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent('futureLinesLocalDataWriteFailed', {
+      detail: { message: error instanceof Error ? error.message : String(error) },
+    }),
+  );
+}
+
+export function resetDeviceDataRuntime(): void {
+  authGeneration += 1;
+  runtime = { mode: 'unknown', userId: null, notice: null, dataGeneration: 0 };
+  preparePromise = null;
+  snapshotWriteState = null;
+  localSessionPrepared = false;
+  localSessionId = null;
+  setLocalDataSessionHeader(undefined);
+}
 
 if (typeof window !== 'undefined') {
   window.addEventListener('futureLinesLifeMutationCompleted', () => {
     if (!isDeviceDataMode() || !localSessionPrepared) return;
     void persistDeviceEngineSnapshot().catch((error) => {
       console.error('[local-data] failed to persist life mutation snapshot', error);
+      notifyLocalDataFailure(error);
     });
   });
 }
+
+localDataChannel?.addEventListener('message', (event) => {
+  const message = event.data as { type?: string; userId?: string; generation?: number };
+  if (
+    message?.type !== 'cleared' ||
+    message.userId !== runtime.userId ||
+    !Number.isSafeInteger(message.generation) ||
+    Number(message.generation) <= runtime.dataGeneration
+  ) {
+    return;
+  }
+  authGeneration += 1;
+  runtime = { ...runtime, dataGeneration: Number(message.generation) };
+  preparePromise = null;
+  snapshotWriteState = null;
+  localSessionPrepared = false;
+  localSessionId = null;
+  setLocalDataSessionHeader(undefined);
+});
 
 const requestResult = <T>(request: IDBRequest<T>): Promise<T> =>
   new Promise((resolve, reject) => {
@@ -88,14 +161,20 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(MESSAGE_STORE)) {
         const store = db.createObjectStore(MESSAGE_STORE, { keyPath: 'key' });
         store.createIndex('byUserConversation', ['userId', 'conversationId']);
+        store.createIndex('byUserCreatedAt', ['userId', 'createdAt', 'sequence']);
+      } else {
+        const store = request.transaction?.objectStore(MESSAGE_STORE);
+        if (store && !store.indexNames.contains('byUserCreatedAt')) {
+          store.createIndex('byUserCreatedAt', ['userId', 'createdAt', 'sequence']);
+        }
       }
       if (!db.objectStoreNames.contains(SNAPSHOT_STORE)) {
         db.createObjectStore(SNAPSHOT_STORE, { keyPath: 'userId' });
       }
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('无法打开未来线本地数据空间'));
-    request.onblocked = () => reject(new Error('未来线本地数据空间正在被另一个页面占用'));
+    request.onerror = () => reject(request.error ?? new Error('Unable to open device data store'));
+    request.onblocked = () => reject(new Error('Device data store is blocked by another tab'));
   });
   return databasePromise;
 }
@@ -110,6 +189,27 @@ function messageKey(userId: string, conversationId: string, messageId: string) {
 
 function currentUserId(): string | null {
   return runtime.mode === 'device' ? runtime.userId : null;
+}
+
+async function loadUserMeta(userId: string): Promise<StoredUserMeta> {
+  const db = await openDatabase();
+  const transaction = db.transaction(META_STORE, 'readonly');
+  const row = await requestResult<StoredUserMeta | undefined>(
+    transaction.objectStore(META_STORE).get(userId),
+  );
+  await transactionDone(transaction);
+  return row ?? { userId, generation: 0, tombstones: {} };
+}
+
+function assertRuntimeContext(userId: string, generation: number, auth: number) {
+  if (
+    auth !== authGeneration ||
+    runtime.mode !== 'device' ||
+    runtime.userId !== userId ||
+    runtime.dataGeneration !== generation
+  ) {
+    throw staleWriteError();
+  }
 }
 
 export function getDeviceDataRuntime(): DeviceRuntime {
@@ -138,9 +238,22 @@ async function loadEngineSnapshot(userId: string): Promise<LifeEngineSnapshot | 
   return row?.snapshot ?? null;
 }
 
-async function saveEngineSnapshot(userId: string, snapshot: LifeEngineSnapshot): Promise<void> {
+async function saveEngineSnapshot(
+  userId: string,
+  snapshot: LifeEngineSnapshot,
+  generation: number,
+  auth: number,
+): Promise<void> {
+  assertRuntimeContext(userId, generation, auth);
   const db = await openDatabase();
-  const transaction = db.transaction(SNAPSHOT_STORE, 'readwrite');
+  const transaction = db.transaction([META_STORE, SNAPSHOT_STORE], 'readwrite');
+  const meta = (await requestResult<StoredUserMeta | undefined>(
+    transaction.objectStore(META_STORE).get(userId),
+  )) ?? { userId, generation: 0, tombstones: {} };
+  if (meta.generation !== generation) {
+    transaction.abort();
+    throw staleWriteError();
+  }
   transaction.objectStore(SNAPSHOT_STORE).put({
     userId,
     snapshot,
@@ -154,27 +267,34 @@ async function allStoredMessages(userId: string): Promise<TMessage[]> {
   const transaction = db.transaction(MESSAGE_STORE, 'readonly');
   const rows = (
     await requestResult<StoredMessage[]>(transaction.objectStore(MESSAGE_STORE).getAll())
-  ).filter((row) => row.userId === userId);
+  )
+    .filter((row) => row.userId === userId)
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.createdAt || String(left.value.createdAt || '')) || 0;
+      const rightTime = Date.parse(right.createdAt || String(right.value.createdAt || '')) || 0;
+      if (leftTime !== rightTime) return leftTime - rightTime;
+      return (left.sequence ?? left.position ?? 0) - (right.sequence ?? right.position ?? 0);
+    });
   await transactionDone(transaction);
   return rows.slice(-2000).map((row) => row.value);
 }
 
 export async function getDeviceConversation(conversationId: string): Promise<TConversation> {
   const userId = currentUserId();
-  if (!userId) throw new Error('设备本地数据模式尚未准备好');
+  if (!userId) throw new Error('Device-local data mode is not ready');
   const db = await openDatabase();
   const transaction = db.transaction(CONVERSATION_STORE, 'readonly');
   const row = await requestResult<StoredConversation | undefined>(
     transaction.objectStore(CONVERSATION_STORE).get(conversationKey(userId, conversationId)),
   );
   await transactionDone(transaction);
-  if (!row) throw Object.assign(new Error('本地对话不存在'), { status: 404 });
+  if (!row) throw Object.assign(new Error('Device-local conversation not found'), { status: 404 });
   return row.value;
 }
 
 export async function getDeviceMessages(conversationId: string): Promise<TMessage[]> {
   const userId = currentUserId();
-  if (!userId) throw new Error('设备本地数据模式尚未准备好');
+  if (!userId) throw new Error('Device-local data mode is not ready');
   const db = await openDatabase();
   const transaction = db.transaction(MESSAGE_STORE, 'readonly');
   const index = transaction.objectStore(MESSAGE_STORE).index('byUserConversation');
@@ -225,12 +345,22 @@ export async function updateDeviceConversation(
   patch: Partial<TConversation>,
 ): Promise<TConversation> {
   const userId = currentUserId();
-  if (!userId) throw new Error('设备本地数据模式尚未准备好');
+  const generation = runtime.dataGeneration;
+  const auth = authGeneration;
+  if (!userId) throw new Error('Device-local data mode is not ready');
   const current = await getDeviceConversation(conversationId);
   const now = new Date().toISOString();
   const value = { ...current, ...patch, conversationId, updatedAt: now } as TConversation;
   const db = await openDatabase();
-  const transaction = db.transaction(CONVERSATION_STORE, 'readwrite');
+  assertRuntimeContext(userId, generation, auth);
+  const transaction = db.transaction([META_STORE, CONVERSATION_STORE], 'readwrite');
+  const meta = (await requestResult<StoredUserMeta | undefined>(
+    transaction.objectStore(META_STORE).get(userId),
+  )) ?? { userId, generation: 0, tombstones: {} };
+  if (meta.generation !== generation || meta.tombstones[conversationId] != null) {
+    transaction.abort();
+    throw staleWriteError();
+  }
   transaction.objectStore(CONVERSATION_STORE).put({
     key: conversationKey(userId, conversationId),
     userId,
@@ -244,14 +374,14 @@ export async function updateDeviceConversation(
 
 function localTitle(conversation: TConversation, messages: TMessage[]): string {
   const current = String(conversation.title || '').trim();
-  if (current && current !== 'New Chat' && current !== '新对话') return current;
+  if (current && current !== 'New Chat' && current !== LEGACY_LOCAL_NEW_CHAT_TITLE) return current;
   const firstUserText = messages.find((message) => message.isCreatedByUser)?.text;
-  if (typeof firstUserText !== 'string' || !firstUserText.trim()) return '新对话';
+  if (typeof firstUserText !== 'string' || !firstUserText.trim()) return 'New Chat';
   return (
     firstUserText
       .replace(/^\[trigger:[^\]]+\]\s*/, '')
       .trim()
-      .slice(0, 18) || '新对话'
+      .slice(0, 18) || 'New Chat'
   );
 }
 
@@ -260,10 +390,20 @@ export async function saveDeviceConversationTurn(
   messages: TMessage[],
 ): Promise<void> {
   const userId = currentUserId();
+  const generation = runtime.dataGeneration;
+  const auth = authGeneration;
   const conversationId = conversation?.conversationId;
   if (!userId || !conversationId || !Array.isArray(messages) || messages.length === 0) return;
   const db = await openDatabase();
-  const transaction = db.transaction([CONVERSATION_STORE, MESSAGE_STORE], 'readwrite');
+  assertRuntimeContext(userId, generation, auth);
+  const transaction = db.transaction([META_STORE, CONVERSATION_STORE, MESSAGE_STORE], 'readwrite');
+  const meta = (await requestResult<StoredUserMeta | undefined>(
+    transaction.objectStore(META_STORE).get(userId),
+  )) ?? { userId, generation: 0, tombstones: {} };
+  if (meta.generation !== generation || meta.tombstones[conversationId] != null) {
+    transaction.abort();
+    throw staleWriteError();
+  }
   const messageStore = transaction.objectStore(MESSAGE_STORE);
   const index = messageStore.index('byUserConversation');
   const keys = await requestResult<IDBValidKey[]>(
@@ -278,6 +418,11 @@ export async function saveDeviceConversationTurn(
       conversationId,
       messageId: message.messageId,
       position,
+      createdAt:
+        typeof message.createdAt === 'string' && message.createdAt
+          ? message.createdAt
+          : new Date(0).toISOString(),
+      sequence: position,
       value: message,
     } satisfies StoredMessage);
   });
@@ -301,9 +446,24 @@ export async function saveDeviceConversationTurn(
 
 export async function deleteDeviceConversation(conversationId: string): Promise<boolean> {
   const userId = currentUserId();
+  const generation = runtime.dataGeneration;
+  const auth = authGeneration;
   if (!userId) return false;
   const db = await openDatabase();
-  const transaction = db.transaction([CONVERSATION_STORE, MESSAGE_STORE], 'readwrite');
+  assertRuntimeContext(userId, generation, auth);
+  const transaction = db.transaction([META_STORE, CONVERSATION_STORE, MESSAGE_STORE], 'readwrite');
+  const metaStore = transaction.objectStore(META_STORE);
+  const meta = (await requestResult<StoredUserMeta | undefined>(metaStore.get(userId))) ?? {
+    userId,
+    generation,
+    tombstones: {},
+  };
+  if (meta.generation !== generation) {
+    transaction.abort();
+    throw staleWriteError();
+  }
+  meta.tombstones = { ...meta.tombstones, [conversationId]: Date.now() };
+  metaStore.put(meta);
   const conversationStore = transaction.objectStore(CONVERSATION_STORE);
   const existing = await requestResult<StoredConversation | undefined>(
     conversationStore.get(conversationKey(userId, conversationId)),
@@ -321,11 +481,25 @@ export async function deleteDeviceConversation(conversationId: string): Promise<
 export async function clearDeviceData(): Promise<void> {
   const userId = currentUserId();
   if (!userId) return;
+  try {
+    await dataService.deleteLifeLocalDataSession();
+  } catch (error) {
+    const status = Number((error as { response?: { status?: number } })?.response?.status || 0);
+    if (status !== 409 && status !== 404) throw error;
+  }
   const db = await openDatabase();
   const transaction = db.transaction(
-    [CONVERSATION_STORE, MESSAGE_STORE, SNAPSHOT_STORE],
+    [META_STORE, CONVERSATION_STORE, MESSAGE_STORE, SNAPSHOT_STORE],
     'readwrite',
   );
+  const metaStore = transaction.objectStore(META_STORE);
+  const currentMeta = await requestResult<StoredUserMeta | undefined>(metaStore.get(userId));
+  const nextGeneration = Math.max(runtime.dataGeneration, currentMeta?.generation ?? 0) + 1;
+  metaStore.put({
+    userId,
+    generation: nextGeneration,
+    tombstones: {},
+  } satisfies StoredUserMeta);
   const conversations = await requestResult<StoredConversation[]>(
     transaction.objectStore(CONVERSATION_STORE).getAll(),
   );
@@ -344,7 +518,14 @@ export async function clearDeviceData(): Promise<void> {
     });
   transaction.objectStore(SNAPSHOT_STORE).delete(userId);
   await transactionDone(transaction);
-  await dataService.deleteLifeLocalDataSession().catch(() => undefined);
+  authGeneration += 1;
+  runtime = { ...runtime, dataGeneration: nextGeneration };
+  preparePromise = null;
+  snapshotWriteState = null;
+  localSessionPrepared = false;
+  localSessionId = null;
+  setLocalDataSessionHeader(undefined);
+  localDataChannel?.postMessage({ type: 'cleared', userId, generation: nextGeneration });
 }
 
 function enrichBootstrapWithDeviceConversations(
@@ -399,60 +580,102 @@ function enrichBootstrapWithDeviceConversations(
 }
 
 export async function prepareLifeBootstrap(): Promise<LifeBootstrapResponse> {
-  if (preparePromise) return preparePromise;
-  preparePromise = (async () => {
+  const generation = authGeneration;
+  if (preparePromise?.generation === generation) return preparePromise.promise;
+  const promise = (async () => {
     const storage = await dataService.getLifeDataStorage();
+    if (generation !== authGeneration) throw staleWriteError();
     const sameDeviceUser = runtime.mode === 'device' && runtime.userId === storage.userId;
+    const meta =
+      storage.mode === 'device' && storage.userId ? await loadUserMeta(storage.userId) : null;
+    if (generation !== authGeneration) throw staleWriteError();
     runtime = {
       mode: storage.mode,
       userId: storage.mode === 'device' ? storage.userId : null,
       notice: storage.notice,
+      dataGeneration: meta?.generation ?? 0,
     };
     if (storage.mode !== 'device' || !storage.userId) {
       localSessionPrepared = false;
+      localSessionId = null;
+      setLocalDataSessionHeader(undefined);
       return dataService.getLifeBootstrap();
     }
-    if (!sameDeviceUser) localSessionPrepared = false;
-    await requestPersistentStorage();
-    if (localSessionPrepared) {
-      await dataService.getLifeLocalDataSession().catch(() => {
-        localSessionPrepared = false;
-      });
+    if (!sameDeviceUser) {
+      localSessionPrepared = false;
+      localSessionId = null;
+      setLocalDataSessionHeader(undefined);
     }
-    if (!localSessionPrepared) {
+    await requestPersistentStorage();
+    let session: { sessionId: string } | null = null;
+    try {
+      session = await dataService.getLifeLocalDataSession();
+    } catch (error) {
+      const status = Number((error as { response?: { status?: number } })?.response?.status || 0);
+      if (status !== 409 && status !== 404) throw error;
+    }
+    if (!session) {
       const [snapshot, transcripts] = await Promise.all([
         loadEngineSnapshot(storage.userId),
         allStoredMessages(storage.userId),
       ]);
-      await dataService.createLifeLocalDataSession({ snapshot, transcripts });
-      localSessionPrepared = true;
+      try {
+        session = await dataService.createLifeLocalDataSession({ snapshot, transcripts });
+      } catch (error) {
+        const status = Number((error as { response?: { status?: number } })?.response?.status || 0);
+        if (status !== 409) throw error;
+        session = await dataService.getLifeLocalDataSession();
+      }
     }
+    if (generation !== authGeneration || runtime.userId !== storage.userId) throw staleWriteError();
+    localSessionId = session.sessionId;
+    localSessionPrepared = true;
+    setLocalDataSessionHeader(localSessionId);
     const [bootstrap, conversations] = await Promise.all([
       dataService.getLifeBootstrap(),
       listDeviceConversations(),
     ]);
+    if (generation !== authGeneration) throw staleWriteError();
     return enrichBootstrapWithDeviceConversations(bootstrap, conversations);
   })();
+  preparePromise = { generation, promise };
   try {
-    return await preparePromise;
+    return await promise;
   } finally {
-    preparePromise = null;
+    if (preparePromise?.generation === generation) preparePromise = null;
   }
 }
 
 export async function persistDeviceEngineSnapshot(): Promise<void> {
   const userId = currentUserId();
   if (!userId) return;
-  snapshotWriteRequested = true;
-  if (snapshotWritePromise) return snapshotWritePromise;
-  snapshotWritePromise = (async () => {
-    while (snapshotWriteRequested) {
-      snapshotWriteRequested = false;
+  const auth = authGeneration;
+  const dataGeneration = runtime.dataGeneration;
+  if (
+    snapshotWriteState?.authGeneration === auth &&
+    snapshotWriteState.userId === userId &&
+    snapshotWriteState.dataGeneration === dataGeneration
+  ) {
+    snapshotWriteState.requested = true;
+    return snapshotWriteState.promise;
+  }
+  const state = {
+    authGeneration: auth,
+    userId,
+    dataGeneration,
+    requested: true,
+    promise: Promise.resolve(),
+  };
+  state.promise = (async () => {
+    while (state.requested) {
+      state.requested = false;
+      assertRuntimeContext(userId, dataGeneration, auth);
       const result = await dataService.getLifeLocalDataSnapshot();
-      await saveEngineSnapshot(userId, result.snapshot);
+      await saveEngineSnapshot(userId, result.snapshot, dataGeneration, auth);
     }
   })().finally(() => {
-    snapshotWritePromise = null;
+    if (snapshotWriteState === state) snapshotWriteState = null;
   });
-  return snapshotWritePromise;
+  snapshotWriteState = state;
+  return state.promise;
 }

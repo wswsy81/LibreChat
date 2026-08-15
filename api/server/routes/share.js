@@ -268,6 +268,7 @@ if (allowSharedLinks) {
   router.post(
     '/:shareId/fork',
     requireJwtAuth,
+    blockLocalDataPersistence,
     forkIpLimiter,
     forkUserLimiter,
     canAccessSharedLink,

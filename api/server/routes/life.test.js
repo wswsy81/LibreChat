@@ -146,6 +146,7 @@ test('device-local beta restores from browser summaries without reading or writi
     const response = await request(buildApp({ id: 'local-user', name: '本地用户' }))
       .post('/api/life/onboarding')
       .set('Idempotency-Key', 'local-onboarding')
+      .set('X-Future-Lines-Local-Session', 'session-1')
       .send({
         archiveName: '本地用户',
         entryHouse: 'h6',
@@ -175,6 +176,44 @@ test('device-local beta restores from browser summaries without reading or writi
     else process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = previous.ids;
   }
 });
+
+test.each([
+  [401, 502, 'LOCAL_DATA_ENGINE_IDENTITY_REJECTED'],
+  [503, 503, 'LOCAL_DATA_ENGINE_UNAVAILABLE'],
+])(
+  'device-local session preflight preserves engine failure class %s',
+  async (engineStatus, responseStatus, code) => {
+    const previous = {
+      enabled: process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED,
+      ids: process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS,
+    };
+    process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = 'true';
+    process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = 'local-user';
+    try {
+      mockEngine.json.mockRejectedValue(
+        Object.assign(new Error(`engine status ${engineStatus}`), { status: engineStatus }),
+      );
+
+      const response = await request(buildApp({ id: 'local-user', name: '本地用户' }))
+        .post('/api/life/onboarding')
+        .set('Idempotency-Key', 'local-onboarding')
+        .set('X-Future-Lines-Local-Session', 'session-1')
+        .send({ archiveName: '本地用户', entryHouse: 'h6', localConversations: [] });
+
+      expect(response.status).toBe(responseStatus);
+      expect(response.body.error.code).toBe(code);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        '[local-data] session verification failed',
+        expect.objectContaining({ status: engineStatus }),
+      );
+    } finally {
+      if (previous.enabled === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED;
+      else process.env.FUTURE_LINES_LOCAL_DATA_BETA_ENABLED = previous.enabled;
+      if (previous.ids === undefined) delete process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS;
+      else process.env.FUTURE_LINES_LOCAL_DATA_BETA_USER_IDS = previous.ids;
+    }
+  },
+);
 
 test('ADMIN can read redacted runtime config with active engine SHA summary', async () => {
   mockEngine.json.mockResolvedValue({

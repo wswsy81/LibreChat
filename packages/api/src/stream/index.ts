@@ -17,6 +17,7 @@ export type {
 export { isPendingActionExpired, isPendingActionStale } from './interfaces/IJobStore';
 
 export { createStreamServices } from './createStreamServices';
+export { createPartitionedStreamServices } from './PartitionedStreamServices';
 export type { StreamServicesConfig, StreamServices } from './createStreamServices';
 export { filterPersistableAbortContent, hasPersistableAbortContent } from './abortContent';
 
